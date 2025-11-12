@@ -27,29 +27,41 @@ export default function Signup() {
     { id: "tourist", label: "Tourist" },
   ];
 
+  const handleSignup = () => {
+    if (!role || !username || !email || !password || !confirmPassword) {
+      alert("Please fill in all fields!");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      alert("Passwords do not match!");
+      return;
+    }
+
+    // ✅ Navigate based on role
+    if (role === "tourist") {
+      router.push("/tourist/interest_tourist");
+    } else {
+      router.push("/guide/expertise_guide"); 
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Signup</Text>
       <Text style={styles.subtitle}>Make account</Text>
 
-      {/* ✅ Custom dropdown */}
       <TouchableOpacity
         style={styles.dropdown}
         onPress={() => setShowDropdown(true)}
         activeOpacity={0.8}
       >
-        <Text
-          style={[
-            styles.dropdownText,
-            { color: role ? "#000" : "#777" },
-          ]}
-        >
+        <Text style={[styles.dropdownText, { color: role ? "#000" : "#777" }]}>
           {role ? role.charAt(0).toUpperCase() + role.slice(1) : "Select Role"}
         </Text>
         <Ionicons name="chevron-down" size={20} color="#007BFF" />
       </TouchableOpacity>
 
-      {/* Dropdown modal */}
       <Modal visible={showDropdown} transparent animationType="fade">
         <TouchableWithoutFeedback onPress={() => setShowDropdown(false)}>
           <View style={styles.overlay}>
@@ -117,8 +129,8 @@ export default function Signup() {
         onChangeText={setConfirmPassword}
       />
 
-      {/* Button */}
-      <TouchableOpacity style={styles.button}>
+      {/* ✅ Signup button */}
+      <TouchableOpacity style={styles.button} onPress={handleSignup}>
         <Text style={styles.buttonText}>Signup</Text>
       </TouchableOpacity>
 
@@ -152,7 +164,6 @@ const styles = StyleSheet.create({
     color: "#444",
     marginBottom: 30,
   },
-
   dropdown: {
     flexDirection: "row",
     alignItems: "center",
@@ -195,7 +206,6 @@ const styles = StyleSheet.create({
     color: "#007BFF",
     fontFamily: "Nunito_700Bold",
   },
-
   input: {
     backgroundColor: "#F2F6FA",
     borderRadius: 10,
@@ -220,7 +230,7 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_400Regular",
     textAlign: "center",
     color: "#000",
-    fontSize:16,
+    fontSize: 16,
   },
   linkHighlight: {
     color: "#007BFF",
