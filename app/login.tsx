@@ -1,11 +1,58 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { useRouter } from "expo-router";
 
 export default function Login() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Helper for email validation
+  const isValidEmail = (email: string) => /\S+@\S+\.\S+/.test(email);
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Error", "Please fill in all fields!");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      Alert.alert("Error", "Please enter a valid email!");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const response = await fetch("http://localhost:5000/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert("Login Failed", data.msg || "Invalid credentials");
+        return;
+      }
+
+      Alert.alert("Success", "Login successful!");
+
+      // Navigate based on role
+      if (data.user.role === "tourist") {
+        router.push("/tourist/home_tourist");
+      } else if (data.user.role === "guide") {
+        router.push("/guide/home_guide");
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Network Error", "Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -20,6 +67,7 @@ export default function Login() {
         value={email}
         onChangeText={setEmail}
       />
+
       <TextInput
         style={styles.input}
         placeholder="Password"
@@ -33,8 +81,14 @@ export default function Login() {
         <Text style={styles.forgot}>Forgot password?</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.button}>
-        <Text style={styles.buttonText}>Login</Text>
+      <TouchableOpacity
+        style={[styles.button, loading && { opacity: 0.6 }]}
+        onPress={handleLogin}
+        disabled={loading}
+      >
+        <Text style={styles.buttonText}>
+          {loading ? "Logging in..." : "Login"}
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => router.push("/signup")}>

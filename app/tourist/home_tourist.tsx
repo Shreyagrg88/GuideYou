@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import TouristNavBar from "../components/tourist_navbar"; 
 import {
   View,
   Text,
@@ -52,66 +53,60 @@ export default function HomePage() {
   );
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <Text style={styles.logo}>
-        Guide<Text style={{ color: "#007BFF" }}>You</Text>
-      </Text>
-      <Text style={styles.subTitle}>
-        Discover amazing places and guides with us
-      </Text>
+    <View style={styles.page}>
+      <View style={styles.container}>
+        <Text style={styles.logo}>
+          Guide<Text style={{ color: "#007BFF" }}>You</Text>
+        </Text>
+        <Text style={styles.subTitle}>
+          Discover amazing places and guides with us
+        </Text>
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={18} color="#777" />
-        <TextInput placeholder="Search places..." style={styles.searchInput} />
-      </View>
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={18} color="#777" />
+          <TextInput placeholder="Search places..." style={styles.searchInput} />
+        </View>
 
-      {/* Categories */}
-      <View style={styles.categoryRow}>
-        {categories.map((cat) => (
-          <TouchableOpacity
-            key={cat}
-            style={[
-              styles.categoryBtn,
-              activeCategory === cat && styles.activeCategory,
-            ]}
-            onPress={() => setActiveCategory(cat)}
-          >
-            <Text
+        <View style={styles.categoryRow}>
+          {categories.map((cat) => (
+            <TouchableOpacity
+              key={cat}
               style={[
-                styles.categoryText,
-                activeCategory === cat && styles.activeCategoryText,
+                styles.categoryBtn,
+                activeCategory === cat && styles.activeCategory,
               ]}
+              onPress={() => setActiveCategory(cat)}
             >
-              {cat}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+              <Text
+                style={[
+                  styles.categoryText,
+                  activeCategory === cat && styles.activeCategoryText,
+                ]}
+              >
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      {/* Trips */}
-      <FlatList
-        data={trips}
-        renderItem={renderTrip}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-      />
-
-      {/* Bottom Nav */}
-      <View style={styles.bottomNav}>
-        <Ionicons name="home" size={26} color="#007BFF" />
-        <Ionicons name="chatbubble-outline" size={26} color="#777" />
-        <Ionicons name="grid-outline" size={26} color="#777" />
-        <Ionicons name="person-outline" size={26} color="#777" />
+        <FlatList
+          data={trips}
+          renderItem={renderTrip}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+        />
       </View>
+      <TouristNavBar />
     </View>
   );
 }
 
-// ---------------- STYLES ----------------
-
 const styles = StyleSheet.create({
+  page: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+
   container: {
     flex: 1,
     paddingHorizontal: 20,
@@ -120,12 +115,14 @@ const styles = StyleSheet.create({
   },
 
   logo: {
-    fontSize: 30,
-    fontFamily: "Nunito_400Regular",
+    fontSize: 26,
+    fontFamily: "Nunito_400Regular", 
+    fontWeight: "700",
+    color: "#000",
   },
 
   subTitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: "#666",
     marginBottom: 15,
     marginTop: 5,
@@ -217,18 +214,5 @@ const styles = StyleSheet.create({
     marginLeft: 5,
     marginRight: "auto",
     fontFamily: "Nunito_400Regular",
-  },
-
-  bottomNav: {
-    position: "absolute",
-    bottom: 20,
-    left: 20,
-    right: 20,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    backgroundColor: "#fff",
-    padding: 12,
-    borderRadius: 25,
-    elevation: 5,
   },
 });

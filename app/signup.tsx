@@ -1,16 +1,16 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  View,
+  FlatList,
+  Modal,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Modal,
-  FlatList,
   TouchableWithoutFeedback,
+  View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 
 export default function Signup() {
   const router = useRouter();
@@ -22,12 +22,14 @@ export default function Signup() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  const [loading, setLoading] = useState(false);
+
   const roles = [
     { id: "guide", label: "Guide" },
     { id: "tourist", label: "Tourist" },
   ];
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
     if (!role || !username || !email || !password || !confirmPassword) {
       alert("Please fill in all fields!");
       return;
@@ -38,11 +40,42 @@ export default function Signup() {
       return;
     }
 
-    // ✅ Navigate based on role
-    if (role === "tourist") {
-      router.push("/tourist/interest_tourist");
-    } else {
-      router.push("/guide/expertise_guide"); 
+    try {
+      setLoading(true);
+
+      const response = await fetch(
+        "http://localhost:5000/api/auth/signup",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            role,
+            username,
+            email,
+            password,
+            confirmPassword
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || "Signup failed!");
+        return;
+      }
+
+      alert("Signup Successful!");
+
+      if (role === "tourist") {
+        router.push("/tourist/interest_tourist");
+      } else {
+        router.push("/guide/expertise_guide");
+      }
+    } catch (err) {
+      alert("Network error. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -96,7 +129,6 @@ export default function Signup() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Inputs */}
       <TextInput
         style={styles.input}
         placeholder="Username"
@@ -104,6 +136,7 @@ export default function Signup() {
         value={username}
         onChangeText={setUsername}
       />
+
       <TextInput
         style={styles.input}
         placeholder="Email"
@@ -112,6 +145,7 @@ export default function Signup() {
         value={email}
         onChangeText={setEmail}
       />
+
       <TextInput
         style={styles.input}
         placeholder="Password"
@@ -120,6 +154,7 @@ export default function Signup() {
         value={password}
         onChangeText={setPassword}
       />
+
       <TextInput
         style={styles.input}
         placeholder="Confirm Password"
@@ -129,12 +164,16 @@ export default function Signup() {
         onChangeText={setConfirmPassword}
       />
 
-      {/* ✅ Signup button */}
-      <TouchableOpacity style={styles.button} onPress={handleSignup}>
-        <Text style={styles.buttonText}>Signup</Text>
+      <TouchableOpacity
+        style={[styles.button, loading && { opacity: 0.6 }]}
+        onPress={handleSignup}
+        disabled={loading}
+      >
+        <Text style={styles.buttonText}>
+          {loading ? "Signing up..." : "Signup"}
+        </Text>
       </TouchableOpacity>
 
-      {/* Login link */}
       <TouchableOpacity onPress={() => router.push("/login")}>
         <Text style={styles.linkText}>
           Already have an account?{" "}
@@ -222,7 +261,7 @@ const styles = StyleSheet.create({
     marginBottom: 25,
   },
   buttonText: {
-    fontFamily: "Nunito_700Bold",
+    fontFamily: "Nunito_400Regular",
     fontSize: 16,
     color: "#fff",
   },
@@ -230,7 +269,7 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_400Regular",
     textAlign: "center",
     color: "#000",
-    fontSize: 16,
+    fontSize: 14,
   },
   linkHighlight: {
     color: "#007BFF",

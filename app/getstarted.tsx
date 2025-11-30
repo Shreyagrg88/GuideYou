@@ -1,9 +1,9 @@
 import React from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
-import { useRouter } from "expo-router"; // 👈 import router hook
+import { useRouter } from "expo-router"; 
 
 export default function GetStarted() {
-  const router = useRouter(); // 👈 initialize router
+  const router = useRouter(); 
 
   return (
     <View style={styles.container}>
@@ -22,15 +22,12 @@ export default function GetStarted() {
               </Text>
       </Text>
 
-      {/* 👇 Navigate to Login page */}
       <TouchableOpacity
         style={styles.button}
         onPress={() => router.push("/login")}
       >
         <Text style={styles.buttonText}>Login</Text>
       </TouchableOpacity>
-
-      {/* 👇 Navigate to Signup page */}
       <TouchableOpacity onPress={() => router.push("/signup")}>
         <Text style={styles.link}>Create an Account</Text>
       </TouchableOpacity>
@@ -53,8 +50,8 @@ const styles = StyleSheet.create({
     color: "#000",
   },
   image: {
-    width: 300,
-    height: 300,
+    width: 250,
+    height: 250,
   },
   subtitle: {
     fontFamily: "Nunito_400Regular",
