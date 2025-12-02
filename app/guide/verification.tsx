@@ -10,17 +10,23 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function LicenseVerification() {
   const router = useRouter();
-  const [image, setImage] = useState<string | null>(null);
-  
+
+  const [file, setFile] = useState<{
+    uri: string;
+    type: "image" | "pdf";
+    name?: string;
+  } | null>(null);
+
+  // PICK IMAGE
   const pickImage = async () => {
-    const { status } =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission needed", "Please allow access to gallery.");
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permission.status !== "granted") {
+      Alert.alert("Permission needed", "Allow access to your gallery.");
       return;
     }
 
@@ -31,8 +37,37 @@ export default function LicenseVerification() {
     });
 
     if (!result.canceled) {
-      setImage(result.assets[0].uri);
+      setFile({
+        uri: result.assets[0].uri,
+        type: "image",
+        name: result.assets[0].fileName || "image.jpg",
+      });
     }
+  };
+
+  const pickPDF = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: "application/pdf",
+    });
+
+    if (result.assets && result.assets.length > 0) {
+      const pdf = result.assets[0];
+
+      setFile({
+        uri: pdf.uri,
+        type: "pdf",
+        name: pdf.name || "document.pdf",
+      });
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!file) {
+      Alert.alert("Upload needed", "Please upload your license first.");
+      return;
+    }
+
+    Alert.alert("Submitted", "Your license has been submitted.");
   };
 
   return (
@@ -58,46 +93,36 @@ export default function LicenseVerification() {
       </Text>
 
       <View style={styles.uploadBox}>
-        <TouchableOpacity onPress={pickImage} activeOpacity={0.8}>
-          {image ? (
-            <Image source={{ uri: image }} style={styles.previewImage} />
+        {file ? (
+          file.type === "image" ? (
+            <Image source={{ uri: file.uri }} style={styles.previewImage} />
           ) : (
-            <View style={styles.placeholder}>
-              <Ionicons
-                name="cloud-upload-outline"
-                size={40}
-                color="#007BFF"
-              />
-              <Text style={styles.placeholderText}>
-                Tap to upload photo or scan
-              </Text>
-
-              <TouchableOpacity
-                style={styles.chooseFileBtn}
-                onPress={pickImage}
-              >
-                <Text style={styles.chooseFileText}>Choose File</Text>
-              </TouchableOpacity>
+            <View style={{ alignItems: "center" }}>
+              <Ionicons name="document-text-outline" size={50} color="#007BFF" />
+              <Text style={{ marginTop: 10 }}>{file.name}</Text>
             </View>
-          )}
-        </TouchableOpacity>
+          )
+        ) : (
+          <View style={styles.placeholder}>
+            <Ionicons name="cloud-upload-outline" size={40} color="#007BFF" />
+            <Text style={styles.placeholderText}>Upload License (Image or PDF)</Text>
+          </View>
+        )}
+
+        <View style={{ flexDirection: "row", marginTop: 15 }}>
+          <TouchableOpacity style={styles.chooseFileBtn} onPress={pickImage}>
+            <Text style={styles.chooseFileText}>Upload Image</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.chooseFileBtn, { marginLeft: 10 }]} onPress={pickPDF}>
+            <Text style={styles.chooseFileText}>Upload PDF</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <Text style={styles.privacyText}>
-        Your data is handled securely.
-      </Text>
+      <Text style={styles.privacyText}>Your data is handled securely.</Text>
 
-      {/* Submit Button */}
-      <TouchableOpacity
-        style={styles.submitButton}
-        onPress={() => {
-          if (Platform.OS === "web") {
-            alert("Your license is submitted.");
-          } else {
-            Alert.alert("Submitted", "Your license is submitted.");
-          }
-        }}
-      >
+      <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
         <Text style={styles.submitText}>Submit for Verification</Text>
       </TouchableOpacity>
 
