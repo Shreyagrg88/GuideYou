@@ -6,7 +6,6 @@ import {
   Image,
   StyleSheet,
   Alert,
-  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -22,9 +21,9 @@ export default function LicenseVerification() {
     name?: string;
   } | null>(null);
 
-  // PICK IMAGE
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
     if (permission.status !== "granted") {
       Alert.alert("Permission needed", "Allow access to your gallery.");
       return;
@@ -45,14 +44,14 @@ export default function LicenseVerification() {
     }
   };
 
+
   const pickPDF = async () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: "application/pdf",
     });
 
-    if (result.assets && result.assets.length > 0) {
+    if (!result.canceled && result.assets?.length > 0) {
       const pdf = result.assets[0];
-
       setFile({
         uri: pdf.uri,
         type: "pdf",
@@ -61,6 +60,7 @@ export default function LicenseVerification() {
     }
   };
 
+
   const handleSubmit = () => {
     if (!file) {
       Alert.alert("Upload needed", "Please upload your license first.");
@@ -68,10 +68,14 @@ export default function LicenseVerification() {
     }
 
     Alert.alert("Submitted", "Your license has been submitted.");
+
+    // ⬇ Navigate after submit
+    router.push("/guide/verification_status");
   };
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color="#000" />
@@ -92,10 +96,15 @@ export default function LicenseVerification() {
         Build trust with tourists by verifying your official tour guide license.
       </Text>
 
+      {/* Upload Box */}
       <View style={styles.uploadBox}>
         {file ? (
           file.type === "image" ? (
-            <Image source={{ uri: file.uri }} style={styles.previewImage} />
+            <Image
+              source={{ uri: file.uri }}
+              style={styles.previewImage}
+              resizeMode="cover"
+            />
           ) : (
             <View style={{ alignItems: "center" }}>
               <Ionicons name="document-text-outline" size={50} color="#007BFF" />
@@ -105,7 +114,9 @@ export default function LicenseVerification() {
         ) : (
           <View style={styles.placeholder}>
             <Ionicons name="cloud-upload-outline" size={40} color="#007BFF" />
-            <Text style={styles.placeholderText}>Upload License (Image or PDF)</Text>
+            <Text style={styles.placeholderText}>
+              Upload License (Image or PDF)
+            </Text>
           </View>
         )}
 
@@ -114,7 +125,10 @@ export default function LicenseVerification() {
             <Text style={styles.chooseFileText}>Upload Image</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.chooseFileBtn, { marginLeft: 10 }]} onPress={pickPDF}>
+          <TouchableOpacity
+            style={[styles.chooseFileBtn, { marginLeft: 10 }]}
+            onPress={pickPDF}
+          >
             <Text style={styles.chooseFileText}>Upload PDF</Text>
           </TouchableOpacity>
         </View>
@@ -122,6 +136,7 @@ export default function LicenseVerification() {
 
       <Text style={styles.privacyText}>Your data is handled securely.</Text>
 
+      {/* Submit */}
       <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
         <Text style={styles.submitText}>Submit for Verification</Text>
       </TouchableOpacity>
@@ -146,12 +161,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   headerTitle: {
-    fontSize: 22,
-    fontFamily: "Nunito_400Regular",
+    fontSize: 25,
+    fontFamily: "Nunito_700Bold",
   },
   title: {
     fontSize: 24,
-    fontFamily: "Nunito_400Regular",
+    fontFamily: "Nunito_700Bold",
     textAlign: "center",
     color: "#000",
   },
@@ -194,7 +209,6 @@ const styles = StyleSheet.create({
     width: 250,
     height: 150,
     borderRadius: 10,
-    resizeMode: "cover",
   },
   submitButton: {
     backgroundColor: "#007BFF",
