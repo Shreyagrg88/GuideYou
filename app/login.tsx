@@ -8,7 +8,6 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Helper for email validation
   const isValidEmail = (email: string) => /\S+@\S+\.\S+/.test(email);
 
   const handleLogin = async () => {
@@ -25,7 +24,7 @@ export default function Login() {
     try {
       setLoading(true);
 
-      const response = await fetch("http://localhost:5000/api/auth/login", {
+      const response = await fetch("http://192.168.1.76/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -40,7 +39,6 @@ export default function Login() {
 
       Alert.alert("Success", "Login successful!");
 
-      // Navigate based on role
       if (data.user.role === "tourist") {
         router.push("/tourist/home_tourist");
       } else if (data.user.role === "guide") {

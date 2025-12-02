@@ -48,7 +48,7 @@ export default function ExpertiseScreen() {
       </Text>
 
       <TouchableOpacity
-        onPress={() => router.push("/guide/home_guide")}
+        onPress={() => router.push("/guide/verification")}
         style={styles.skipButton}
         activeOpacity={0.7}
       >
@@ -84,7 +84,7 @@ export default function ExpertiseScreen() {
       <TouchableOpacity
         style={styles.continueButton}
         activeOpacity={0.9}
-        onPress={() => router.push("/guide/home_guide")}
+        onPress={() => router.push("/guide/verification")}
       >
         <Text style={styles.continueText}>Continue</Text>
       </TouchableOpacity>
