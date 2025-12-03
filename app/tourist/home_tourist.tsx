@@ -115,9 +115,8 @@ const styles = StyleSheet.create({
   },
 
   logo: {
-    fontSize: 26,
-    fontFamily: "Nunito_400Regular", 
-    fontWeight: "700",
+    fontSize: 24,
+    fontFamily: "Nunito_700Bold", 
     color: "#000",
   },
 

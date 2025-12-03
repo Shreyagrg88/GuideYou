@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   },
 
   performanceTitle: {
-    fontFamily: "Nunito_400Regular",
+    fontFamily: "Nunito_700Bold",
     fontSize: 15,
     fontWeight: "500",
     color: "#000",
@@ -209,9 +209,9 @@ const styles = StyleSheet.create({
   },
 
   requestText: {
-    fontFamily: "Nunito_400Regular",
+    fontFamily: "Nunito_700Bold",
     fontSize: 15,
-    fontWeight: "500",
+    fontWeight: "300",
     color: "#007BFF",
   },
 
@@ -230,9 +230,9 @@ const styles = StyleSheet.create({
   },
 
   seeAll: {
-    fontFamily: "Nunito_400Regular",
+    fontFamily: "Nunito_700Bold",
     color: "#007BFF",
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "500",
   },
 

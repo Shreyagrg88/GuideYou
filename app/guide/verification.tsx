@@ -69,13 +69,11 @@ export default function LicenseVerification() {
 
     Alert.alert("Submitted", "Your license has been submitted.");
 
-    // ⬇ Navigate after submit
     router.push("/guide/verification_status");
   };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color="#000" />
@@ -96,7 +94,6 @@ export default function LicenseVerification() {
         Build trust with tourists by verifying your official tour guide license.
       </Text>
 
-      {/* Upload Box */}
       <View style={styles.uploadBox}>
         {file ? (
           file.type === "image" ? (
@@ -189,17 +186,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 25,
   },
+
   placeholderText: {
     marginTop: 10,
     color: "#666",
     textAlign: "center",
     marginBottom: 10,
+    fontFamily: "Nunito_700Bold",
+
   },
   chooseFileBtn: {
     backgroundColor: "#e5efff",
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 8,
+    fontFamily: "Nunito_700Bold",
   },
   chooseFileText: {
     color: "#007BFF",
@@ -216,11 +217,12 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     marginTop: 20,
     alignItems: "center",
+
   },
   submitText: {
     color: "#fff",
     fontSize: 16,
-    fontFamily: "Nunito_400Regular",
+    fontFamily: "Nunito_700Bold",
   },
   privacyText: {
     textAlign: "center",
