@@ -16,13 +16,6 @@ export default function TourDetails() {
   return (
     <ScrollView style={styles.container}>
 
-      <Text style={styles.headerText}>
-        <Text style={{ color: "#0066FF", fontFamily: "Nunito_700Bold" }}>
-          Guide
-        </Text>
-        <Text style={{ fontFamily: "Nunito_700Bold" }}>You</Text>
-      </Text>
-      {/* Title Row with Back Button */}
       <View style={styles.titleRow}>
       <TouchableOpacity onPress={() => router.back()}>
         <Ionicons name="chevron-back" size={26} color="#000" />
@@ -120,11 +113,6 @@ const styles = StyleSheet.create({
     width: 40,
   },
 
-  headerText: {
-    fontSize: 24,
-    marginBottom: 30,
-  },
-
   titleRow: {
   flexDirection: "row",
   alignItems: "center",
@@ -161,7 +149,7 @@ const styles = StyleSheet.create({
   locationText: {
     marginLeft: 5,
     color: "#007BFF",
-    fontFamily: "Nunito_600Regular",
+    fontFamily: "Nunito_400Regular",
   },
 
   ratingRow: {
@@ -171,7 +159,7 @@ const styles = StyleSheet.create({
 
   ratingText: {
     marginLeft: 5,
-    fontFamily: "Nunito_600SemiBold",
+    fontFamily: "Nunito_400Regular",
   },
 
   sectionTitle: {
@@ -215,20 +203,21 @@ const styles = StyleSheet.create({
   },
 
   weatherBox: {
-    backgroundColor: "#F0F5FF",
+    backgroundColor: "#E7F0FF",
     flexDirection: "row",
     alignItems: "center",
-    padding: 15,
+    padding: 20,
     borderRadius: 12,
     marginBottom: 25,
   },
 
   weatherTitle: {
+    fontSize: 15,
     fontFamily: "Nunito_700Bold",
   },
 
   weatherSubtitle: {
-    fontSize: 12,
+    fontSize: 15,
     color: "#666",
     fontFamily: "Nunito_400Regular",
   },

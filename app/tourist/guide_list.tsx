@@ -51,12 +51,6 @@ export default function GuideList() {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.headerText}>
-        <Text style={{ color: "#0066FF", fontFamily: "Nunito_700Bold" }}>
-          Guide
-        </Text>
-        <Text style={{ fontFamily: "Nunito_700Bold" }}>You</Text>
-      </Text>
 
       <View style={styles.titleRow}>
         <TouchableOpacity onPress={() => router.back()}>
@@ -130,11 +124,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
 
-  headerText: {
-    fontSize: 22,
-    fontFamily: "Nunito_700Bold",
-    marginBottom: 30,
-  },
 
   titleRow: {
     flexDirection: "row",

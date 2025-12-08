@@ -10,6 +10,7 @@ import {
   Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
 const categories = ["For you", "Nature", "Food", "Culture"];
 
@@ -34,9 +35,14 @@ const trips = [
 
 export default function HomePage() {
   const [activeCategory, setActiveCategory] = useState("For you");
+  const router = useRouter();
 
   const renderTrip = ({ item }: any) => (
-    <View style={styles.card}>
+    <TouchableOpacity
+      onPress={() => router.push({ pathname: "/tourist/tour_detail", params: item })}
+      style={styles.card}
+      activeOpacity={0.8}
+    >
       <Image source={{ uri: item.image }} style={styles.tripImage} />
 
       <View style={styles.cardContent}>
@@ -49,7 +55,7 @@ export default function HomePage() {
           <Ionicons name="bookmark-outline" size={20} color="#555" />
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
