@@ -170,26 +170,29 @@ export default function BookingPage() {
 
       </View>
 
-      {/* Participants */}
-      <Text style={styles.sectionTitle}>Participants</Text>
-
       <View style={styles.participantRow}>
-        <TouchableOpacity
-          onPress={() => count > 1 && setCount(count - 1)}
-          style={styles.minusBtn}
-        >
-          <Ionicons name="remove" size={20} color="#777" />
-        </TouchableOpacity>
+  <Text style={styles.sectionTitle}>Participants</Text>
 
-        <Text style={styles.participantCount}>{count}</Text>
+  <View style={styles.participantBox}>
+    <TouchableOpacity
+      onPress={() => count > 1 && setCount(count - 1)}
+      style={styles.minusBtn}
+    >
+      <Ionicons name="remove" size={20} color="#777" />
+    </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={() => setCount(count + 1)}
-          style={styles.plusBtn}
-        >
-          <Ionicons name="add" size={20} color="#fff" />
-        </TouchableOpacity>
-      </View>
+    <Text style={styles.participantCount}>{count}</Text>
+
+    <TouchableOpacity
+      onPress={() => setCount(count + 1)}
+      style={styles.plusBtn}
+    >
+      <Ionicons name="add" size={20} color="#007BFF" />
+    </TouchableOpacity>
+  </View>
+</View>
+
+    <View style={styles.line} />
 
       {/* Bottom Section */}
       <View style={styles.bottomRow}>
@@ -276,7 +279,7 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontFamily: "Nunito_700Bold",
     marginBottom:  10,
   },
@@ -347,6 +350,7 @@ const styles = StyleSheet.create({
   legendRow: {
     flexDirection: "row",
     marginTop: 10,
+    marginBottom: 40,
   },
 
   legendItem: {
@@ -368,39 +372,59 @@ const styles = StyleSheet.create({
   },
 
   participantRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 10,
-    marginBottom: 20,
-  },
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  marginTop: 10,
+  marginBottom: 60,
+},
 
-  minusBtn: {
-    backgroundColor: "#eee",
-    padding: 5,
-    borderRadius: 15,
-  },
+participantBox: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "#F1F4FA",
+  paddingHorizontal: 15,
+  paddingVertical: 6,
+  borderRadius: 50,
+},
 
-  participantCount: {
-    marginHorizontal: 15,
-    fontSize: 16,
-    fontFamily: "Nunito_700Bold",
-  },
+minusBtn: {
+  backgroundColor: "transparent",
+  padding: 5,
+  borderRadius: 50,
+},
 
-  plusBtn: {
-    backgroundColor: "#007BFF",
-    padding: 5,
-    borderRadius: 15,
-  },
+participantCount: {
+  marginHorizontal: 15,
+  fontSize: 16,
+  fontFamily: "Nunito_700Bold",
+},
+
+plusBtn: {
+  backgroundColor: "transparent",
+  padding: 5,
+  borderRadius: 50,
+},
+
+line: {
+  height: 1,
+  backgroundColor: "#D9D9D9", // light grey
+  width: "100%",
+  marginVertical: 10,
+},
+
 
   bottomRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginTop: 20,
   },
 
   totalLabel: {
     color: "#9aa0a6",
     fontFamily: "Nunito_400Regular",
+    fontSize: 16,
   },
 
   totalAmount: {
