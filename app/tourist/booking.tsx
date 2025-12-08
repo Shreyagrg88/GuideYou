@@ -48,12 +48,14 @@ export default function BookingPage() {
 
   return (
     <View style={styles.page}>
-      {/* Back Button */}
-      <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-        <Ionicons name="chevron-back" size={26} color="#000" />
-      </TouchableOpacity>
-
-      <Text style={styles.headTitle}>Booking Details</Text>
+      <View style={styles.titleRow}>
+              <TouchableOpacity onPress={() => router.back()}>
+                <Ionicons name="chevron-back" size={26} color="#000" />
+              </TouchableOpacity>
+      
+              <Text style={styles.title}>
+                Booking Detail        </Text>
+    </View>
 
       {/* Profile Card */}
       <View style={styles.profileCard}>
@@ -150,17 +152,22 @@ export default function BookingPage() {
         </View>
       </View>
 
-      {/* Legend */}
       <View style={styles.legendRow}>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: "red" }]} />
-          <Text style={styles.legendLabel}>Unavailable</Text>
+          <Text style={styles.legendLabel}>Booked</Text>
         </View>
 
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: "green" }]} />
           <Text style={styles.legendLabel}>Available</Text>
         </View>
+
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: "black" }]} />
+          <Text style={styles.legendLabel}>Unavailable</Text>
+        </View>
+
       </View>
 
       {/* Participants */}
@@ -199,9 +206,7 @@ export default function BookingPage() {
   );
 }
 
-// ----------------------------------
-//              STYLES
-// ----------------------------------
+
 const styles = StyleSheet.create({
   page: {
     flex: 1,
@@ -209,15 +214,21 @@ const styles = StyleSheet.create({
     padding: 20,
   },
 
-  backBtn: {
-    marginTop: 10,
-    marginBottom: 10,
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 30,
+    width: "95%",
   },
 
-  headTitle: {
-    fontSize: 22,
+  title: {
+    fontSize: 20,
     fontFamily: "Nunito_700Bold",
-    marginBottom: 15,
+    marginLeft: 100,
+    flexShrink: 1,
+    lineHeight: 26,
+    alignItems: "center",
+
   },
 
   profileCard: {
@@ -230,13 +241,14 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    marginBottom: 20,
+    marginTop: 40,
+    marginBottom: 40,
   },
 
   profileImg: {
     width: 55,
     height: 55,
-    borderRadius: 10,
+    borderRadius: 50,
     marginRight: 12,
   },
 
@@ -264,9 +276,9 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: "Nunito_700Bold",
-    marginBottom: 8,
+    marginBottom:  10,
   },
 
   calendarBox: {
@@ -277,13 +289,14 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    marginBottom: 10,
   },
 
   calendarHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: 20,
   },
 
   monthTitle: {
@@ -298,9 +311,10 @@ const styles = StyleSheet.create({
   },
 
   weekText: {
-    width: 30,
+    width: 40,
     textAlign: "center",
     fontFamily: "Nunito_400Regular",
+    color: "#777",
   },
 
   daysGrid: {
@@ -349,7 +363,7 @@ const styles = StyleSheet.create({
   },
 
   legendLabel: {
-    fontSize: 12,
+    fontSize: 15,
     fontFamily: "Nunito_400Regular",
   },
 
