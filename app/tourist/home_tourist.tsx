@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
   subTitle: {
     fontSize: 15,
     color: "#666",
-    marginBottom: 15,
+    marginBottom: 25,
     marginTop: 5,
     fontFamily: "Nunito_400Regular",
   },
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F2F2F2",
     padding: 10,
     borderRadius: 10,
-    marginBottom: 15,
+    marginBottom: 25,
   },
 
   searchInput: {
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
 
   categoryRow: {
     flexDirection: "row",
-    marginBottom: 15,
+    marginBottom: 25,
   },
 
   categoryBtn: {
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: "#F7FAFF",
     borderRadius: 15,
-    marginBottom: 15,
+    marginBottom: 35,
     overflow: "hidden",
   },
 
