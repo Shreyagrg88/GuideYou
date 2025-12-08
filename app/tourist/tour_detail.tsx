@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F7FF",
     padding: 20,
   },
-
+  
   backButton: {
     marginBottom: 10,
     width: 40,
@@ -117,6 +117,7 @@ const styles = StyleSheet.create({
   flexDirection: "row",
   alignItems: "center",
   marginBottom: 30,
+  marginTop: 30,
   },
 
   title: {
@@ -179,7 +180,6 @@ const styles = StyleSheet.create({
   cardRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 20,
   },
 
   infoCard: {
@@ -188,6 +188,9 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 15,
     alignItems: "center",
+    marginBottom: 25,
+
+    
   },
 
   cardTitle: {
@@ -208,7 +211,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderRadius: 12,
-    marginBottom: 25,
+    marginBottom: 40,
+    marginTop: 20,
+
   },
 
   weatherTitle: {

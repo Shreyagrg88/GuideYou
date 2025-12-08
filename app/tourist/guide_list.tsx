@@ -128,8 +128,8 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 5,
-    marginBottom: 20,
+    marginTop: 30,
+    marginBottom: 30,
     width: "95%",
   },
 
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F7FF",
     padding: 15,
     borderRadius: 15,
-    marginBottom: 20,
+    marginBottom: 32,
   },
 
   cardHeader: {
