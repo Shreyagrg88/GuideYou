@@ -172,6 +172,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 30,
     width: "95%",
+    marginBottom: 30,
+
   },
 
   title: {
@@ -185,7 +187,6 @@ const styles = StyleSheet.create({
   },
 
 
-  // Tabs
   tabRow: {
     flexDirection: "row",
     justifyContent: "space-between",
