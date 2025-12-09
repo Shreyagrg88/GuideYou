@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff", 
     padding: 16, 
     borderRadius: 16,
-    marginTop: 21,
+    marginTop: 25,
     borderWidth: 1,
     borderColor: "#E5E7EB", 
     shadowColor: "#000",
@@ -134,6 +134,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
+    marginBottom: 20,
+
   },
 
   performanceHeader: {
@@ -169,6 +171,10 @@ const styles = StyleSheet.create({
     borderRadius: 12, 
     borderWidth: 1, 
     borderColor: "#E3EEFF", 
+    marginBottom: 20,
+    marginTop: 20,
+
+
   },
 
   boxTitle: {

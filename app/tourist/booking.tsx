@@ -12,17 +12,14 @@ import { useRouter } from "expo-router";
 export default function BookingPage() {
   const router = useRouter();
 
-  // --- Calendar state ---
   const today = new Date();
-  const [month, setMonth] = useState(11); // December = 11
+  const [month, setMonth] = useState(11);
   const [year, setYear] = useState(2025);
   const [selectedDate, setSelectedDate] = useState<number | null>(22);
 
-  // --- Example unavailable & available days ---
   const unavailableDates = [3, 4, 10, 11, 12];
   const availableDates = [1, 6, 13, 20, 23, 24, 25, 26];
 
-  // Generate days for month
   const getDaysInMonth = (y: number, m: number) =>
     new Date(y, m + 1, 0).getDate();
 
@@ -110,7 +107,6 @@ export default function BookingPage() {
 
         {/* Days */}
         <View style={styles.daysGrid}>
-          {/* Empty slots */}
           {Array.from({ length: firstDay }).map((_, i) => (
             <View key={`e-${i}`} style={styles.dayCell} />
           ))}
