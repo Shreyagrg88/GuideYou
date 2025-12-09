@@ -1,33 +1,48 @@
-
 import { View, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 
 export default function TouristNavBar() {
+  const pathname = usePathname();
+
+  const isActive = (route: string) => pathname.includes(route);
+
   return (
     <View style={styles.wrapper}>
       <View style={styles.container}>
 
-        
-        {/* Home */}
         <TouchableOpacity onPress={() => router.push("/tourist/home_tourist")}>
-          <Ionicons name="home-outline" size={27} color="#7A7A7A" />
+          <Ionicons
+            name="home-outline"
+            size={27}
+            color={isActive("home_tourist") ? "#007BFF" : "#7A7A7A"}
+          />
         </TouchableOpacity>
 
-        {/* Chat */}
         <TouchableOpacity onPress={() => router.push("/tourist/chat_tourist")}>
-          <Ionicons name="chatbubble-outline" size={27} color="#7A7A7A" />
+          <Ionicons
+            name="chatbubble-outline"
+            size={27}
+            color={isActive("chat_tourist") ? "#007BFF" : "#7A7A7A"}
+          />
         </TouchableOpacity>
 
-        {/* Bookings */}
         <TouchableOpacity onPress={() => router.push("/tourist/bookings_tourist")}>
-          <Ionicons name="albums-outline" size={27} color="#7A7A7A" />
+          <Ionicons
+            name="albums-outline"
+            size={27}
+            color={isActive("bookings_tourist") ? "#007BFF" : "#7A7A7A"}
+          />
         </TouchableOpacity>
 
-        {/* Profile */}
         <TouchableOpacity onPress={() => router.push("/tourist/profile_tourist")}>
-          <Ionicons name="person-outline" size={27} color="#7A7A7A" />
+          <Ionicons
+            name="person-outline"
+            size={27}
+            color={isActive("profile_tourist") ? "#007BFF" : "#7A7A7A"}
+          />
         </TouchableOpacity>
+
       </View>
     </View>
   );
@@ -41,6 +56,7 @@ const styles = StyleSheet.create({
     right: 0,
     paddingBottom: 10,
     backgroundColor: "transparent",
+    zIndex: 999,
   },
 
   container: {
@@ -57,20 +73,5 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowRadius: 8,
     elevation: 5,
-  },
-
-  plusBtn: {
-    width: 55,
-    height: 55,
-    borderRadius: 30,
-    backgroundColor: "#007BFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: -35, 
-    shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 6,
-    elevation: 6,
   },
 });

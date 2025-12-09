@@ -11,7 +11,6 @@ export default function GuideNavBar() {
     <View style={styles.wrapper}>
       <View style={styles.container}>
 
-        {/* HOME */}
         <TouchableOpacity onPress={() => router.push("/guide/home_guide")}>
           <Ionicons
             name="home-outline"
@@ -20,7 +19,6 @@ export default function GuideNavBar() {
           />
         </TouchableOpacity>
 
-        {/* CHAT */}
         <TouchableOpacity onPress={() => router.push("/guide/chat_guide")}>
           <Ionicons
             name="chatbubble-outline"
@@ -29,7 +27,6 @@ export default function GuideNavBar() {
           />
         </TouchableOpacity>
 
-        {/* PLUS BUTTON */}
         <TouchableOpacity
           style={styles.plusBtn}
           onPress={() => router.push("/guide/create_activity")}
@@ -37,7 +34,6 @@ export default function GuideNavBar() {
           <Ionicons name="add" size={30} color="#fff" />
         </TouchableOpacity>
 
-        {/* BOOKINGS */}
         <TouchableOpacity onPress={() => router.push("/guide/bookings_guide")}>
           <Ionicons
             name="albums-outline"
@@ -46,7 +42,6 @@ export default function GuideNavBar() {
           />
         </TouchableOpacity>
 
-        {/* PROFILE */}
         <TouchableOpacity onPress={() => router.push("/guide/profile_guide")}>
           <Ionicons
             name="person-outline"
