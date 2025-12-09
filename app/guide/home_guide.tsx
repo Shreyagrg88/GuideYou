@@ -6,7 +6,12 @@ import GuideNavbar from "../components/guide_navbar";
 export default function GuideHome() {
   return (
     <View style={styles.wrapper}>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }} // IMPORTANT FOR FIXED NAVBAR
+      >
         <View style={styles.headerRow}>
           <Text style={styles.logo}>
             Guide<Text style={{ color: "#007BFF" }}>You</Text>
@@ -22,9 +27,10 @@ export default function GuideHome() {
         <View style={styles.performanceCard}>
           <View style={styles.performanceHeader}>
             <Text style={styles.performanceTitle}>Performance</Text>
+
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.thisMonth}>This Month</Text>
-                <Ionicons name="chevron-down" size={14} color="#007BFF" style={{ marginLeft: 2 }}/>
+              <Text style={styles.thisMonth}>This Month</Text>
+              <Ionicons name="chevron-down" size={14} color="#007BFF" style={{ marginLeft: 2 }} />
             </TouchableOpacity>
           </View>
 
@@ -68,9 +74,10 @@ export default function GuideHome() {
 
           <View style={styles.bookingInfo}>
             <Text style={styles.bookingTitle}>ABC Trek</Text>
+
             <View style={styles.row}>
               <Ionicons name="calendar-outline" size={14} color="#888" />
-              <Text style={styles.bookingDate}>Nov 29- Dec 4</Text>
+              <Text style={styles.bookingDate}>Nov 29 - Dec 4</Text>
             </View>
 
             <View style={styles.row}>
@@ -79,11 +86,12 @@ export default function GuideHome() {
             </View>
           </View>
         </View>
-
-        <View style={{ height: 20 }} />
       </ScrollView>
 
-      <GuideNavbar />
+      {/* FIXED NAVBAR */}
+      <View style={styles.navbarWrapper}>
+        <GuideNavbar />
+      </View>
     </View>
   );
 }
@@ -97,8 +105,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 55, 
+    paddingTop: 55,
     backgroundColor: "#fff",
+  },
+
+  navbarWrapper: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 999,
+    backgroundColor: "#fff",
+    elevation: 12,
   },
 
   headerRow: {
@@ -109,7 +127,7 @@ const styles = StyleSheet.create({
 
   logo: {
     fontSize: 26,
-    fontFamily: "Nunito_400Regular", 
+    fontFamily: "Nunito_400Regular",
     fontWeight: "700",
     color: "#000",
   },
@@ -123,26 +141,25 @@ const styles = StyleSheet.create({
   },
 
   performanceCard: {
-    backgroundColor: "#fff", 
-    padding: 16, 
+    backgroundColor: "#fff",
+    padding: 16,
     borderRadius: 16,
     marginTop: 25,
     borderWidth: 1,
-    borderColor: "#E5E7EB", 
+    borderColor: "#E5E7EB",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
-    marginBottom: 20,
-
+    marginBottom: 10,
   },
 
   performanceHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 12, 
-    alignItems: 'center',
+    marginBottom: 12,
+    alignItems: "center",
   },
 
   performanceTitle: {
@@ -165,38 +182,36 @@ const styles = StyleSheet.create({
   },
 
   performanceBox: {
-    backgroundColor: "#F3F7FF", 
+    backgroundColor: "#F3F7FF",
     width: "48%",
     padding: 14,
-    borderRadius: 12, 
-    borderWidth: 1, 
-    borderColor: "#E3EEFF", 
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E3EEFF",
     marginBottom: 20,
     marginTop: 20,
-
-
   },
 
   boxTitle: {
     fontFamily: "Nunito_400Regular",
-    color: "#6B7280", 
+    color: "#6B7280",
     marginBottom: 4,
     fontSize: 13,
   },
 
   boxValue: {
     fontFamily: "Nunito_400Regular",
-    fontSize: 18, 
+    fontSize: 18,
     fontWeight: "700",
     color: "#000",
   },
 
   requestBtn: {
     marginTop: 20,
-    backgroundColor: "#fff", 
+    backgroundColor: "#fff",
     padding: 20,
     borderRadius: 16,
-    borderColor: "#E5E7EB", 
+    borderColor: "#E5E7EB",
     borderWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -229,9 +244,9 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    fontSize: 18, 
+    fontSize: 18,
     fontFamily: "Nunito_400Regular",
-    fontWeight: "700", 
+    fontWeight: "700",
     color: "#000",
   },
 
@@ -249,7 +264,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    // Shadow for elevation effect
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -259,14 +273,14 @@ const styles = StyleSheet.create({
 
   bookingImage: {
     width: "100%",
-    height: 180, 
-    resizeMode: 'cover',
+    height: 180,
+    resizeMode: "cover",
   },
 
   labelTag: {
     position: "absolute",
-    top: 14, 
-    left: 14, 
+    top: 14,
+    left: 14,
     backgroundColor: "#007BFF",
     paddingHorizontal: 12,
     paddingVertical: 5,
@@ -281,13 +295,13 @@ const styles = StyleSheet.create({
   },
 
   bookingInfo: {
-    padding: 16, 
+    padding: 16,
     gap: 8,
   },
 
   bookingTitle: {
     fontFamily: "Nunito_400Regular",
-    fontSize: 18, 
+    fontSize: 18,
     fontWeight: "700",
     color: "#000",
     marginBottom: 4,
@@ -296,18 +310,18 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8, 
+    gap: 8,
   },
 
   bookingDate: {
     fontFamily: "Nunito_400Regular",
     color: "#888",
-    fontSize: 14, 
+    fontSize: 14,
   },
 
   bookingUser: {
     fontFamily: "Nunito_400Regular",
     color: "#888",
-    fontSize: 14, 
+    fontSize: 14,
   },
 });

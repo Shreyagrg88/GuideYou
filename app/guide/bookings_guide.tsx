@@ -9,12 +9,12 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import GuideNavbar from "../components/guide_navbar";
 
 export default function BookingRequestScreen() {
   const router = useRouter();
   const [tab, setTab] = useState<"upcoming" | "past" | "requests">("requests");
 
-  // DATA ------------------------------
   const upcoming = [
     {
       date: "28",
@@ -119,51 +119,45 @@ export default function BookingRequestScreen() {
     ));
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={styles.titleRow}>
-              <TouchableOpacity onPress={() => router.back()}>
-                <Ionicons name="chevron-back" size={26} color="#000" />
-              </TouchableOpacity>
-      
-              <Text style={styles.title}>
-                Booking Detail        </Text>
+    <View style={styles.mainContainer}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Booking Detail</Text>
+        </View>
+
+        <View style={styles.tabRow}>
+          {["upcoming", "past", "requests"].map((t) => (
+            <TouchableOpacity key={t} onPress={() => setTab(t as any)}>
+              <Text style={[styles.tab, tab === t && styles.activeTabText]}>
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </Text>
+              {tab === t && <View style={styles.activeLine} />}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Tab content */}
+        <View style={{ marginTop: 20, paddingBottom: 100 }}>
+          {tab === "upcoming" && renderUpcoming()}
+          {tab === "past" && renderPast()}
+          {tab === "requests" && renderRequests()}
+        </View>
+
+      </ScrollView>
+
+      <GuideNavbar />
     </View>
-
-      {/* Tabs */}
-      <View style={styles.tabRow}>
-        {["upcoming", "past", "requests"].map((t) => (
-          <TouchableOpacity key={t} onPress={() => setTab(t as any)}>
-            <Text
-              style={[
-                styles.tab,
-                tab === t && styles.activeTabText,
-              ]}
-            >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </Text>
-            {tab === t && <View style={styles.activeLine} />}
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Content */}
-      <View style={{ marginTop: 20 }}>
-        {tab === "upcoming" && renderUpcoming()}
-        {tab === "past" && renderPast()}
-        {tab === "requests" && renderRequests()}
-      </View>
-
-      <View style={{ height: 50 }} />
-    </ScrollView>
   );
 }
 
-// STYLES --------------------------------------------------------------
 const styles = StyleSheet.create({
-  container: {
+  mainContainer: {
     flex: 1,
     backgroundColor: "#fff",
+  },
+
+  container: {
     padding: 20,
   },
 
@@ -171,21 +165,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginTop: 30,
-    width: "95%",
     marginBottom: 30,
-
+    width: "100%",
   },
 
   title: {
     fontSize: 20,
     fontFamily: "Nunito_700Bold",
-    marginLeft: 100,
-    flexShrink: 1,
-    lineHeight: 26,
-    alignItems: "center",
-
+    textAlign: "center",
   },
-
 
   tabRow: {
     flexDirection: "row",
@@ -205,13 +193,12 @@ const styles = StyleSheet.create({
   },
 
   activeLine: {
-    height: 2.5,
+    height: 3,
     backgroundColor: "#1B8BFF",
-    marginTop: 5,
     borderRadius: 5,
+    marginTop: 4,
   },
 
-  // Booking Cards
   card: {
     backgroundColor: "#F5F8FF",
     borderRadius: 12,
@@ -232,45 +219,40 @@ const styles = StyleSheet.create({
   },
 
   date: {
+    fontFamily: "Nunito_700Bold",
     color: "#fff",
     fontSize: 18,
-    fontFamily: "Nunito_700Bold",
   },
 
   month: {
+    fontFamily: "Nunito_700Bold",
     color: "#fff",
     fontSize: 12,
     marginTop: -3,
-    fontFamily: "Nunito_700Bold",
   },
 
   trekTitle: {
-    fontSize: 16,
     fontFamily: "Nunito_700Bold",
+    fontSize: 16,
   },
 
   subUser: {
-    fontSize: 14,
     fontFamily: "Nunito_400Regular",
+    fontSize: 14,
     color: "#777",
-  },
-
-  statusBox: {
-    marginRight: 10,
   },
 
   statusText: {
     fontFamily: "Nunito_700Bold",
   },
 
-  // Request Cards
   requestCard: {
-    flexDirection: "row",
-    padding: 15,
     backgroundColor: "#F5F8FF",
     borderRadius: 12,
-    marginBottom: 15,
+    padding: 15,
+    flexDirection: "row",
     alignItems: "center",
+    marginBottom: 15,
   },
 
   profilePic: {
@@ -285,31 +267,29 @@ const styles = StyleSheet.create({
   },
 
   reqTrek: {
-    color: "#777",
     fontFamily: "Nunito_700Bold",
+    color: "#777",
     marginTop: -2,
   },
 
   reqDate: {
-    fontSize: 12,
-    marginTop: -2,
-    color: "#999",
     fontFamily: "Nunito_400Regular",
+    color: "#999",
+    fontSize: 12,
   },
 
   partyBox: {
     backgroundColor: "#E3EDFF",
-    paddingHorizontal: 8,
     paddingVertical: 3,
+    paddingHorizontal: 8,
     borderRadius: 6,
     marginTop: 5,
-    alignSelf: "flex-start",
   },
 
   partyText: {
-    color: "#1B8BFF",
     fontFamily: "Nunito_700Bold",
     fontSize: 12,
+    color: "#1B8BFF",
   },
 
   acceptBtn: {
@@ -320,7 +300,16 @@ const styles = StyleSheet.create({
   },
 
   acceptText: {
-    color: "#fff",
     fontFamily: "Nunito_700Bold",
+    color: "#fff",
   },
+
+  statusBox: {
+  paddingVertical: 6,
+  paddingHorizontal: 12,
+  borderRadius: 8,
+  alignSelf: "flex-start",
+  marginBottom: 8,
+},
+
 });
