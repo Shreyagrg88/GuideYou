@@ -1,21 +1,35 @@
 import { View, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 
 export default function GuideNavBar() {
+  const pathname = usePathname();
+
+  const isActive = (route: string) => pathname.includes(route);
+
   return (
     <View style={styles.wrapper}>
       <View style={styles.container}>
 
-        
+        {/* HOME */}
         <TouchableOpacity onPress={() => router.push("/guide/home_guide")}>
-          <Ionicons name="home-outline" size={27} color="#7A7A7A" />
+          <Ionicons
+            name="home-outline"
+            size={27}
+            color={isActive("home_guide") ? "#007BFF" : "#7A7A7A"}
+          />
         </TouchableOpacity>
 
+        {/* CHAT */}
         <TouchableOpacity onPress={() => router.push("/guide/chat_guide")}>
-          <Ionicons name="chatbubble-outline" size={27} color="#7A7A7A" />
+          <Ionicons
+            name="chatbubble-outline"
+            size={27}
+            color={isActive("chat_guide") ? "#007BFF" : "#7A7A7A"}
+          />
         </TouchableOpacity>
 
+        {/* PLUS BUTTON */}
         <TouchableOpacity
           style={styles.plusBtn}
           onPress={() => router.push("/guide/create_activity")}
@@ -23,13 +37,24 @@ export default function GuideNavBar() {
           <Ionicons name="add" size={30} color="#fff" />
         </TouchableOpacity>
 
+        {/* BOOKINGS */}
         <TouchableOpacity onPress={() => router.push("/guide/bookings_guide")}>
-          <Ionicons name="albums-outline" size={27} color="#7A7A7A" />
+          <Ionicons
+            name="albums-outline"
+            size={27}
+            color={isActive("bookings_guide") ? "#007BFF" : "#7A7A7A"}
+          />
         </TouchableOpacity>
 
+        {/* PROFILE */}
         <TouchableOpacity onPress={() => router.push("/guide/profile_guide")}>
-          <Ionicons name="person-outline" size={27} color="#7A7A7A" />
+          <Ionicons
+            name="person-outline"
+            size={27}
+            color={isActive("profile_guide") ? "#007BFF" : "#7A7A7A"}
+          />
         </TouchableOpacity>
+
       </View>
     </View>
   );
@@ -43,6 +68,7 @@ const styles = StyleSheet.create({
     right: 0,
     paddingBottom: 10,
     backgroundColor: "transparent",
+    zIndex: 999,
   },
 
   container: {
@@ -68,7 +94,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#007BFF",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: -35, 
+    marginTop: -35,
+
     shadowColor: "#000",
     shadowOpacity: 0.3,
     shadowOffset: { width: 0, height: 3 },

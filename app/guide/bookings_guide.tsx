@@ -137,7 +137,6 @@ export default function BookingRequestScreen() {
           ))}
         </View>
 
-        {/* Tab content */}
         <View style={{ marginTop: 20, paddingBottom: 100 }}>
           {tab === "upcoming" && renderUpcoming()}
           {tab === "past" && renderPast()}
@@ -167,6 +166,8 @@ const styles = StyleSheet.create({
     marginTop: 30,
     marginBottom: 30,
     width: "100%",
+    justifyContent: "center",
+    position: "relative",
   },
 
   title: {
