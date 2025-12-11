@@ -74,13 +74,12 @@ export default function LicenseVerification() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color="#000" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>License Verification</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <View style={styles.titleRow}>
+              <TouchableOpacity onPress={() => router.back()}>
+                <Ionicons name="chevron-back" size={26} color="#000" />
+              </TouchableOpacity>
+      <Text style={styles.title}>License Verification</Text>
+    </View>
 
       <Ionicons
         name="shield-checkmark-outline"
@@ -89,7 +88,7 @@ export default function LicenseVerification() {
         style={{ alignSelf: "center", marginBottom: 15 }}
       />
 
-      <Text style={styles.title}>Verify Your License</Text>
+      <Text style={styles.titletwo}>Verify Your License</Text>
       <Text style={styles.subtitle}>
         Build trust with tourists by verifying your official tour guide license.
       </Text>
@@ -151,22 +150,35 @@ const styles = StyleSheet.create({
     backgroundColor: "#F2F7FF",
     padding: 20,
   },
-  headerRow: {
+
+    titleRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 15,
-    justifyContent: "space-between",
+    marginTop: 30,
+    width: "95%",
+    position: "relative",
+    marginBottom: 30,
   },
-  headerTitle: {
-    fontSize: 25,
-    fontFamily: "Nunito_700Bold",
-  },
+
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontFamily: "Nunito_700Bold",
-    textAlign: "center",
-    color: "#000",
+    flexShrink: 1,
+    lineHeight: 26,
+    alignItems: "center",
+    marginLeft: 80,
+    
   },
+
+  titletwo: {
+    fontSize: 18,
+    fontFamily: "Nunito_700Bold",
+    marginLeft: 100,
+    flexShrink: 1,
+    lineHeight: 26,
+    alignItems: "center",
+  },
+
   subtitle: {
     textAlign: "center",
     color: "#555",
