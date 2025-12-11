@@ -11,11 +11,20 @@ export default function TouristNavBar() {
     <View style={styles.wrapper}>
       <View style={styles.container}>
 
+        {/* Home */}
         <TouchableOpacity onPress={() => router.push("/tourist/home_tourist")}>
           <Ionicons
             name="home-outline"
             size={27}
             color={isActive("home_tourist") ? "#007BFF" : "#7A7A7A"}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => router.push("/tourist/search")}>
+          <Ionicons
+            name="search-outline"
+            size={27}
+            color={isActive("search_tourist") ? "#007BFF" : "#7A7A7A"}
           />
         </TouchableOpacity>
 
@@ -27,7 +36,10 @@ export default function TouristNavBar() {
           />
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.push("/tourist/bookings_tourist")}>
+        {/* Bookings */}
+        <TouchableOpacity
+          onPress={() => router.push("/tourist/bookings_tourist")}
+        >
           <Ionicons
             name="albums-outline"
             size={27}
@@ -35,6 +47,7 @@ export default function TouristNavBar() {
           />
         </TouchableOpacity>
 
+        {/* Profile */}
         <TouchableOpacity onPress={() => router.push("/tourist/profile_tourist")}>
           <Ionicons
             name="person-outline"

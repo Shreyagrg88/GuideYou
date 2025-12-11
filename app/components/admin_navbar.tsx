@@ -10,11 +10,11 @@ export default function AdminNavBar() {
           <Ionicons name="home-outline" size={27} color="#7A7A7A" />
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.push("/guide/chat_guide")}>
+        <TouchableOpacity onPress={() => router.push("/admin/report")}>
           <Ionicons name="chatbubble-outline" size={27} color="#7A7A7A" />
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.push("/guide/bookings_guide")}>
+        <TouchableOpacity onPress={() => router.push("/admin/users")}>
           <Ionicons name="albums-outline" size={27} color="#7A7A7A" />
         </TouchableOpacity>
 
