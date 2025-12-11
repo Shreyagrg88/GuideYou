@@ -8,24 +8,22 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 
-
-const expertiseList = [
-  "City Tours",
-  "Historical Tours",
-  "Cultural Experiences",
-  "Food Tours",
-  "Adventure Activities",
-  "Hiking",
-  "Trekking",
-  "Wildlife Tours",
-  "Photography Tours",
-  "Shopping Assistance",
-  "Festival Guide",
-  "Nightlife Guide",
-  "Local Transport Assistance",
-  "Spiritual Tours",
-  "Beach Tours",
-  "Language Translation",
+export const expertiseList = [
+  "Adventure Guide",               
+  "Cultural Experiences",         
+  "Food Tours",                    
+  "Nightlife Guide",               
+  "Photography Tours",             
+  "Shopping Assistance",           
+  "Music & Entertainment Guide",   
+  "Sports Activities Guide",     
+  "Art & Creative Tours",          
+  "Historical Tours",              
+  "Nature & Wildlife Guide",       
+  "Local Experiences Guide",       
+  "Hiking & Trekking Guide",      
+  "Festival Guide",                
+  "Architecture Tours",            
 ];
 
 export default function ExpertiseScreen() {
