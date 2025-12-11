@@ -101,11 +101,11 @@ export default function GuideList() {
           </View>
 
           <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.bookButton}>
+            <TouchableOpacity style={styles.bookButton} onPress={() => router.push("/tourist/booking")}>
               <Text style={styles.bookText}>Book</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.messageButton}>
+            <TouchableOpacity style={styles.messageButton} onPress={() => router.push("/tourist/chat_tourist")}>
               <Text style={styles.messageText}>Message</Text>
             </TouchableOpacity>
           </View>

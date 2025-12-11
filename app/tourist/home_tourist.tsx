@@ -31,6 +31,14 @@ const trips = [
     image:
       "https://cdn.kimkim.com/files/a/content_articles/featured_photos/7d682b1c719ef1e1efffb28c33cec64ca4c31371/big-a1d4c2e965a8a9b8c800587f1b7a7dfd.jpg",
   },
+    {
+    id: "3",
+    title: "Trek to Shrey Phokshundo Lake",
+    days: "10 DAYS TRIP",
+    rating: 4.5,
+    image:
+      "https://cdn.kimkim.com/files/a/content_articles/featured_photos/7d682b1c719ef1e1efffb28c33cec64ca4c31371/big-a1d4c2e965a8a9b8c800587f1b7a7dfd.jpg",
+  },
 ];
 
 export default function HomePage() {
@@ -68,10 +76,6 @@ export default function HomePage() {
           Discover amazing places and guides with us
         </Text>
 
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={18} color="#777" />
-          <TextInput placeholder="Search places..." style={styles.searchInput} />
-        </View>
 
         <View style={styles.categoryRow}>
           {categories.map((cat) => (
