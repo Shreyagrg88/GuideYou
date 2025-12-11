@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DropDownPicker from "react-native-dropdown-picker";
+import { router } from "expo-router";
 
 export default function AddNewActivity() {
   const [categoryOpen, setCategoryOpen] = useState(false);
@@ -25,11 +26,14 @@ export default function AddNewActivity() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
 
-      <View style={styles.headerRow}>
-        <Ionicons name="arrow-back" size={22} color="#000" />
-        <Text style={styles.headerTitle}>Add New Activity</Text>
-        <View style={{ width: 22 }} /> 
-      </View>
+      <View style={styles.titleRow}>
+              <TouchableOpacity onPress={() => router.back()}>
+                <Ionicons name="chevron-back" size={26} color="#000" />
+              </TouchableOpacity>
+      
+              <Text style={styles.title}>
+                Booking Detail        </Text>
+    </View>
 
       <Text style={styles.label}>Activity Name</Text>
       <TextInput style={styles.input} />
@@ -42,7 +46,6 @@ export default function AddNewActivity() {
         style={[styles.input, styles.multilineInput]}
         multiline
         textAlignVertical="top"
-        placeholder="Describe the activity and what to expect"
       />
 
       <Text style={styles.label}>Category</Text>
@@ -56,9 +59,9 @@ export default function AddNewActivity() {
         style={styles.dropdown}
         dropDownContainerStyle={styles.dropdownContainer}
         placeholder="Select Category"
-        placeholderStyle={{ fontFamily: "Nunito_400" }}
-        labelStyle={{ fontFamily: "Nunito_400" }}
-        listItemLabelStyle={{ fontFamily: "Nunito_400" }}
+        placeholderStyle={{ fontFamily: "Nunito_400Regular" }}
+        labelStyle={{ fontFamily: "Nunito_400Regular" }}
+        listItemLabelStyle={{ fontFamily: "Nunito_400Regular" }}
       />
 
       <Text style={styles.label}>Photo Gallery</Text>
@@ -131,21 +134,27 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9F9F9",
   },
 
-  headerRow: {
+  titleRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingBottom: 15,
+    marginTop: 30,
+    width: "95%",
+    marginBottom: 30,
+
   },
 
-  headerTitle: {
-    fontSize: 18,
+  title: {
+    fontSize: 20,
     fontFamily: "Nunito_700Bold",
+    marginLeft: 100,
+    flexShrink: 1,
+    lineHeight: 26,
+    alignItems: "center",
   },
 
   label: {
-    fontSize: 14,
-    fontFamily: "Nunito_400Regular",
+    fontSize: 16,
+    fontFamily: "Nunito_700Bold",
     marginTop: 15,
   },
 
@@ -294,6 +303,6 @@ const styles = StyleSheet.create({
   publishText: {
     color: "#fff",
     fontFamily: "Nunito_700Bold",
-    fontSize: 15,
+    fontSize: 16,
   },
 });

@@ -40,7 +40,6 @@ export default function BookingPage() {
     } else setMonth(month + 1);
   };
 
-  // Participants
   const [count, setCount] = useState(1);
 
   return (
@@ -54,7 +53,6 @@ export default function BookingPage() {
                 Booking Detail        </Text>
     </View>
 
-      {/* Profile Card */}
       <View style={styles.profileCard}>
         <Image
           source={{
@@ -75,7 +73,6 @@ export default function BookingPage() {
         <Ionicons name="checkmark-circle" size={26} color="#2ecc71" />
       </View>
 
-      {/* Select Date */}
       <Text style={styles.sectionTitle}>Select Date</Text>
 
       <View style={styles.calendarBox}>
@@ -96,7 +93,6 @@ export default function BookingPage() {
           </TouchableOpacity>
         </View>
 
-        {/* Week Row */}
         <View style={styles.weekRow}>
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
             <Text key={d} style={styles.weekText}>
@@ -105,7 +101,6 @@ export default function BookingPage() {
           ))}
         </View>
 
-        {/* Days */}
         <View style={styles.daysGrid}>
           {Array.from({ length: firstDay }).map((_, i) => (
             <View key={`e-${i}`} style={styles.dayCell} />
