@@ -43,6 +43,10 @@ export default function Login() {
         router.push("/tourist/home_tourist");
       } else if (data.user.role === "guide") {
         router.push("/guide/home_guide");
+      } else if (data.user.role === "admin") {
+        router.push("/admin/home_admin");
+      } else {
+        Alert.alert("Error", "Unknown role. Please contact support.");
       }
     } catch (err) {
       console.error(err);
