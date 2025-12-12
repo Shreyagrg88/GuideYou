@@ -1,12 +1,14 @@
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  StyleSheet,
-  ScrollView,
+  View,
 } from "react-native";
-import { useRouter } from "expo-router";
 
 const interestsList = [
   "Adventure",
@@ -28,7 +30,10 @@ const interestsList = [
 
 export default function InterestsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const userId = params.userId as string;
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const toggleInterest = (interest: string) => {
     setSelectedInterests((prev) =>
@@ -36,6 +41,39 @@ export default function InterestsScreen() {
         ? prev.filter((item) => item !== interest)
         : [...prev, interest]
     );
+  };
+
+  const handleContinue = async () => {
+    try {
+      setLoading(true);
+
+      const requestBody = { userId, interests: selectedInterests };
+      console.log("Sending request:", requestBody);
+
+      const response = await fetch(
+        "http://localhost:5000/api/auth/set-interests",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert("Error", data.message || data.msg || "Failed to save interests");
+        return;
+      }
+      // Success - show success message and navigate
+      Alert.alert("Success", "Your interests have been saved successfully!");
+      router.push("/tourist/home_tourist");
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Network Error", "Please check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -82,13 +120,17 @@ export default function InterestsScreen() {
       <TouchableOpacity
         style={[
           styles.continueButton,
-          selectedInterests.length === 0 && { opacity: 0.6 },
+          (selectedInterests.length === 0 || loading) && styles.continueButtonDisabled,
         ]}
         activeOpacity={0.9}
-        onPress={() => router.push("/tourist/home_tourist")}
-        disabled={selectedInterests.length === 0}
+        onPress={handleContinue}
+        disabled={selectedInterests.length === 0 || loading}
       >
-        <Text style={styles.continueText}>Continue</Text>
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.continueText}>Continue</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -178,5 +220,8 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_700Bold",
     color: "#fff",
     fontSize: 17,
+  },
+  continueButtonDisabled: {
+    opacity: 0.6,
   },
 });

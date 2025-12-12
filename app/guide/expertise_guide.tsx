@@ -1,12 +1,14 @@
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  StyleSheet,
-  ScrollView,
+  View,
 } from "react-native";
-import { useRouter } from "expo-router";
 
 export const expertiseList = [
   "Adventure Guide",               
@@ -28,7 +30,10 @@ export const expertiseList = [
 
 export default function ExpertiseScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const userId = params.userId as string;
   const [selectedExpertise, setSelectedExpertise] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const toggleExpertise = (item: string) => {
     setSelectedExpertise((prev) =>
@@ -36,6 +41,44 @@ export default function ExpertiseScreen() {
         ? prev.filter((i) => i !== item)
         : [...prev, item]
     );
+  };
+
+  const handleContinue = async () => {
+    try {
+      setLoading(true);
+
+      const requestBody = { userId, expertise: selectedExpertise };
+      console.log("Sending request:", requestBody);
+
+      const response = await fetch(
+        "http://localhost:5000/api/auth/set-expertise",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("API Error Response:", data);
+        Alert.alert(
+          "Error", 
+          data.message || data.msg || data.error || JSON.stringify(data) || "Failed to save expertise"
+        );
+        return;
+      }
+
+      // Success - show success message and navigate
+      Alert.alert("Success", "Your expertise has been saved successfully!");
+      router.push("/guide/verification");
+    } catch (err) {
+      console.error("Network Error:", err);
+      Alert.alert("Network Error", "Please check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -80,11 +123,16 @@ export default function ExpertiseScreen() {
       </ScrollView>
 
       <TouchableOpacity
-        style={styles.continueButton}
+        style={[styles.continueButton, loading && styles.continueButtonDisabled]}
         activeOpacity={0.9}
-        onPress={() => router.push("/guide/verification")}
+        onPress={handleContinue}
+        disabled={loading}
       >
-        <Text style={styles.continueText}>Continue</Text>
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.continueText}>Continue</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -174,5 +222,8 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_700Bold",
     color: "#fff",
     fontSize: 17,
+  },
+  continueButtonDisabled: {
+    opacity: 0.6,
   },
 });

@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   FlatList,
   Modal,
   StyleSheet,
@@ -29,14 +30,33 @@ export default function Signup() {
     { id: "tourist", label: "Tourist" },
   ];
 
+  const isValidEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const handleSignup = async () => {
+    // Validate all fields are filled
     if (!role || !username || !email || !password || !confirmPassword) {
-      alert("Please fill in all fields!");
+      Alert.alert("Validation Error", "Please fill in all fields!");
       return;
     }
 
+    // Validate email format
+    if (!isValidEmail(email)) {
+      Alert.alert("Validation Error", "Please enter a valid email address!");
+      return;
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      Alert.alert("Validation Error", "Password must be at least 6 characters long!");
+      return;
+    }
+
+    // Validate passwords match
     if (password !== confirmPassword) {
-      alert("Passwords do not match!");
+      Alert.alert("Validation Error", "Passwords do not match!");
       return;
     }
 
@@ -61,19 +81,58 @@ export default function Signup() {
       const data = await response.json();
 
       if (!response.ok) {
-        alert(data.message || "Signup failed!");
+        // Parse and show user-friendly error messages
+        let errorMessage = "Signup failed! Please try again.";
+        
+        if (data.msg) {
+          errorMessage = data.msg;
+        } else if (data.message) {
+          errorMessage = data.message;
+        } else if (data.error) {
+          errorMessage = data.error;
+        } else if (typeof data === "string") {
+          errorMessage = data;
+        }
+
+        // Check for common error patterns and provide specific messages
+        const errorLower = errorMessage.toLowerCase();
+        if (errorLower.includes("email") && (errorLower.includes("exist") || errorLower.includes("already") || errorLower.includes("use"))) {
+          errorMessage = "This email is already in use. Please use a different email or try logging in.";
+        } else if (errorLower.includes("password") && (errorLower.includes("short") || errorLower.includes("length") || errorLower.includes("minimum"))) {
+          errorMessage = "Password is too short. Please use at least 6 characters.";
+        } else if (errorLower.includes("username") && (errorLower.includes("exist") || errorLower.includes("already") || errorLower.includes("taken"))) {
+          errorMessage = "This username is already taken. Please choose a different username.";
+        }
+
+        Alert.alert("Signup Failed", errorMessage);
         return;
       }
 
-      alert("Signup Successful!");
+      // Extract userId from response
+      const userId = data.user?.id;
 
+      if (!userId) {
+        Alert.alert("Error", "Signup successful but user ID not found. Please try again.");
+        return;
+      }
+
+      Alert.alert("Success", "Signup Successful!");
+
+      // Pass userId as route parameter
       if (role === "tourist") {
-        router.push("/tourist/interest_tourist");
+        router.push({
+          pathname: "/tourist/interest_tourist",
+          params: { userId: userId },
+        });
       } else {
-        router.push("/guide/expertise_guide");
+        router.push({
+          pathname: "/guide/expertise_guide",
+          params: { userId: userId },
+        });
       }
     } catch (err) {
-      alert("Network error. Please try again.");
+      console.error("Signup error:", err);
+      Alert.alert("Network Error", "Unable to connect to the server. Please check your internet connection and try again.");
     } finally {
       setLoading(false);
     }
