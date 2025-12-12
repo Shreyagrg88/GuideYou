@@ -1,6 +1,6 @@
-import { View, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
 
 export default function AdminNavBar() {
   return (
@@ -11,11 +11,11 @@ export default function AdminNavBar() {
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.push("/admin/report")}>
-          <Ionicons name="chatbubble-outline" size={27} color="#7A7A7A" />
+          <Ionicons name="flag-outline" size={27} color="#7A7A7A" />
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.push("/admin/users")}>
-          <Ionicons name="albums-outline" size={27} color="#7A7A7A" />
+        <TouchableOpacity onPress={() => router.push("/admin/verification")}>
+          <Ionicons name="document-text-outline" size={27} color="#7A7A7A" />
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.push("/guide/profile_guide")}>
