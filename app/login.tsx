@@ -1,9 +1,18 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import {
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 export default function Login() {
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -12,23 +21,26 @@ export default function Login() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert("Error", "Please fill in all fields!");
+      Alert.alert("Error", "Please fill in all fields");
       return;
     }
 
     if (!isValidEmail(email)) {
-      Alert.alert("Error", "Please enter a valid email!");
+      Alert.alert("Error", "Please enter a valid email");
       return;
     }
 
     try {
       setLoading(true);
 
-      const response = await fetch("http://localhost:5000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await fetch(
+        "http://192.168.1.77:5000/api/auth/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        }
+      );
 
       const data = await response.json();
 
@@ -37,20 +49,87 @@ export default function Login() {
         return;
       }
 
-      Alert.alert("Success", "Login successful!");
+      const { user, token } = data;
 
-      if (data.user.role === "tourist") {
-        router.push("/tourist/home_tourist");
-      } else if (data.user.role === "guide") {
-        router.push("/guide/home_guide");
-      } else if (data.user.role === "admin") {
-        router.push("/admin/home_admin");
-      } else {
-        Alert.alert("Error", "Unknown role. Please contact support.");
+      if (!token || !user) {
+        Alert.alert("Error", "Invalid server response");
+        return;
       }
-    } catch (err) {
-      console.error(err);
-      Alert.alert("Network Error", "Please try again.");
+
+      await AsyncStorage.setItem("token", token);
+      await AsyncStorage.setItem("userRole", user.role);
+      await AsyncStorage.setItem("userId", user.id);
+
+
+      if (user.role === "tourist") {
+        router.push("/tourist/home_tourist");
+        return;
+      }
+
+      if (user.role === "admin") {
+        router.push("/admin/home_admin");
+        return;
+      }
+
+      if (user.role !== "guide") {
+        Alert.alert("Error", "Unknown role");
+        return;
+      }
+
+
+      let hasLicenseFile = false;
+      let licenseStatus: string | null = null;
+      let submittedAt: string | null = null;
+
+      try {
+        const licenseResponse = await fetch(
+          `http://192.168.1.77:5000/api/license/status/${user.id}`
+        );
+
+        if (licenseResponse.ok) {
+          const licenseData = await licenseResponse.json();
+
+          if (licenseData.license?.file) {
+            hasLicenseFile = true;
+            licenseStatus = licenseData.license.status;
+            submittedAt = licenseData.license.submittedAt;
+          }
+        }
+      } catch (error) {
+        console.error("License check failed:", error);
+      }
+
+      if (!hasLicenseFile) {
+        Alert.alert(
+          "License Required",
+          "You must upload and verify your license before accessing the app."
+        );
+        router.push({
+          pathname: "/guide/verification",
+          params: { userId: user.id },
+        });
+        return;
+      }
+
+      // 2️⃣ License pending / rejected
+      if (licenseStatus !== "approved") {
+        router.push({
+          pathname: "/guide/verification_status",
+          params: {
+            userId: user.id,
+            licenseStatus,
+            submittedAt,
+          },
+        });
+        return;
+      }
+
+      // 3️⃣ License approved
+      router.push("/guide/home_guide");
+
+    } catch (error) {
+      console.error("Login error:", error);
+      Alert.alert("Network Error", "Please try again later");
     } finally {
       setLoading(false);
     }
@@ -68,6 +147,7 @@ export default function Login() {
         keyboardType="email-address"
         value={email}
         onChangeText={setEmail}
+        autoCapitalize="none"
       />
 
       <TextInput
@@ -95,7 +175,8 @@ export default function Login() {
 
       <TouchableOpacity onPress={() => router.push("/signup")}>
         <Text style={styles.linkText}>
-          Don’t have an account? <Text style={styles.linkHighlight}>Signup</Text>
+          Don’t have an account?{" "}
+          <Text style={styles.linkHighlight}>Signup</Text>
         </Text>
       </TouchableOpacity>
     </View>
