@@ -57,8 +57,7 @@ export default function GuideList() {
           <Ionicons name="chevron-back" size={26} color="#000" />
         </TouchableOpacity>
 
-        <Text style={styles.title}>
-          Guides For You        </Text>
+        <Text style={styles.title}>Guides For You</Text>
       </View>
 
       {guides.map((g) => (
@@ -129,18 +128,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginTop: 30,
-    marginBottom: 30,
-    width: "95%",
+    marginBottom: 20,
   },
 
   title: {
     fontSize: 20,
     fontFamily: "Nunito_700Bold",
-    marginLeft: 100,
-    flexShrink: 1,
-    lineHeight: 26,
-    alignItems: "center",
-
+    marginLeft: 80,
   },
 
   card: {
