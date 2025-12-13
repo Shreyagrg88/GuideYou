@@ -2,15 +2,18 @@ import React from "react";
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import GuideNavbar from "../components/guide_navbar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function GuideHome() {
+  const insets = useSafeAreaInsets();
+  
   return (
     <View style={styles.wrapper}>
 
       <ScrollView
         style={styles.container}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }} // IMPORTANT FOR FIXED NAVBAR
+        contentContainerStyle={{ paddingBottom: 90 + insets.bottom }} 
       >
         <View style={styles.headerRow}>
           <Text style={styles.logo}>
