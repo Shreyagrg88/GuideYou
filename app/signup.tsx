@@ -64,7 +64,7 @@ export default function Signup() {
       setLoading(true);
 
       const response = await fetch(
-        "http://localhost:5000/api/auth/signup",
+        "http://192.168.1.77:5000/api/auth/signup",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -81,7 +81,6 @@ export default function Signup() {
       const data = await response.json();
 
       if (!response.ok) {
-        // Parse and show user-friendly error messages
         let errorMessage = "Signup failed! Please try again.";
         
         if (data.msg) {
@@ -94,7 +93,6 @@ export default function Signup() {
           errorMessage = data;
         }
 
-        // Check for common error patterns and provide specific messages
         const errorLower = errorMessage.toLowerCase();
         if (errorLower.includes("email") && (errorLower.includes("exist") || errorLower.includes("already") || errorLower.includes("use"))) {
           errorMessage = "This email is already in use. Please use a different email or try logging in.";
@@ -108,7 +106,6 @@ export default function Signup() {
         return;
       }
 
-      // Extract userId from response
       const userId = data.user?.id;
 
       if (!userId) {
@@ -118,14 +115,13 @@ export default function Signup() {
 
       Alert.alert("Success", "Signup Successful!");
 
-      // Pass userId as route parameter
       if (role === "tourist") {
-        router.push({
+        router.replace({
           pathname: "/tourist/interest_tourist",
           params: { userId: userId },
         });
       } else {
-        router.push({
+        router.replace({
           pathname: "/guide/expertise_guide",
           params: { userId: userId },
         });
