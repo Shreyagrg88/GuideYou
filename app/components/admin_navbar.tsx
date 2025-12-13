@@ -1,10 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AdminNavBar() {
+  const insets = useSafeAreaInsets();
+  
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       <View style={styles.container}>
         <TouchableOpacity onPress={() => router.push("/admin/home_admin")}>
           <Ionicons name="home-outline" size={27} color="#7A7A7A" />
