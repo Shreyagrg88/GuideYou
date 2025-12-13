@@ -1,25 +1,51 @@
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
+  ActivityIndicator,
+  Alert,
   StyleSheet,
+  Text,
   TouchableOpacity,
+  View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+
+type LicenseStatus = "pending" | "viewed" | "approved" | "rejected";
 
 export default function VerificationStatus() {
   const router = useRouter();
+  const { userId } = useLocalSearchParams<{ userId: string }>();
 
-  const [status, setStatus] = useState<"submitted" | "viewed" | "verified">(
-    "submitted"
-  );
+  const [status, setStatus] = useState<LicenseStatus>("pending");
+  const [loading, setLoading] = useState(true);
 
   const fetchStatus = async () => {
     try {
-      console.log("API will be added later");
+      const response = await fetch(
+        `http://192.168.1.77:5000/api/license/status/${userId}`
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert("Error", data.msg || "Failed to fetch status");
+        return;
+      }
+
+      // Handle different response structures
+      // Backend may return: { status: "pending" } or { license: { status: "pending" } }
+      const statusValue = data.status || data.license?.status;
+      
+      if (!statusValue) {
+        Alert.alert("Error", "Invalid license status response");
+        return;
+      }
+
+      setStatus(statusValue);
     } catch (error) {
-      console.log("Status fetch error:", error);
+      console.error("Status fetch error:", error);
+      Alert.alert("Error", "Network error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -27,24 +53,33 @@ export default function VerificationStatus() {
     fetchStatus();
   }, []);
 
-  const isActive = (step: string) => {
-    if (status === "submitted" && step === "submitted") return true;
-    if (status === "viewed" && (step === "submitted" || step === "viewed"))
-      return true;
-    if (status === "verified") return true;
+  const isActive = (step: "submitted" | "viewed" | "verified") => {
+    if (status === "pending") return step === "submitted";
+    if (status === "viewed")
+      return step === "submitted" || step === "viewed";
+    if (status === "approved") return true;
+    if (status === "rejected")
+      return step === "submitted" || step === "viewed";
     return false;
   };
 
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007BFF" />
+        <Text style={styles.loadingText}>
+          Checking verification status...
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Verification Status</Text>
-        <View style={{ width: 24, position: "absolute", right: 0 }} />
-      </View>
+      <Text style={styles.headerTitle}>Verification Status</Text>
 
       <View style={styles.card}>
         <View style={styles.timelineContainer}>
-
           <View style={styles.timelineItem}>
             <View
               style={isActive("submitted") ? styles.dotActive : styles.dotInactive}
@@ -67,7 +102,6 @@ export default function VerificationStatus() {
 
           <View style={styles.line} />
 
-          {/* Viewed */}
           <View style={styles.timelineItem}>
             <View
               style={isActive("viewed") ? styles.dotActive : styles.dotInactive}
@@ -90,7 +124,6 @@ export default function VerificationStatus() {
 
           <View style={styles.line} />
 
-          {/* Verified */}
           <View style={styles.timelineItem}>
             <View
               style={isActive("verified") ? styles.dotActive : styles.dotInactive}
@@ -105,121 +138,136 @@ export default function VerificationStatus() {
               >
                 Verified
               </Text>
-              <Text style={styles.statusDesc}>Pending final approval</Text>
+              <Text style={styles.statusDesc}>
+                Pending final approval
+              </Text>
             </View>
           </View>
-
         </View>
       </View>
 
-      <Text style={styles.bottomMessage}>
-        Your documents are being{"\n"}reviewed.
-      </Text>
+      {status === "approved" ? (
+        <>
+          <Text style={styles.approvedMessage}>
+            Your license has been{"\n"}verified successfully!
+          </Text>
+          <TouchableOpacity
+            style={styles.continueButton}
+            onPress={() => router.push("/guide/home_guide")}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.continueButtonText}>Continue</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <Text style={styles.bottomMessage}>
+          Your documents are being{"\n"}reviewed.
+        </Text>
+      )}
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#E8F2FF",
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    padding: 20,
+    paddingTop: 40,
   },
-
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 30,
-    position: "relative",
-    marginTop: 30,
-  },
-
   headerTitle: {
     fontSize: 22,
     fontFamily: "Nunito_700Bold",
-    color: "#000",
+    textAlign: "center",
+    marginBottom: 30,
   },
-
   card: {
-    backgroundColor: "#FFFFFF",
-    paddingVertical: 35,
-    paddingHorizontal: 25,
+    backgroundColor: "#fff",
+    padding: 30,
     borderRadius: 20,
-    alignSelf: "center",
-    width: "100%",           
-    minHeight: "60%",        
-    justifyContent: "center",
   },
-
   timelineContainer: {
-    flexDirection: "column",
-    gap: 30,                 
+    gap: 30,
   },
-
   timelineItem: {
     flexDirection: "row",
-    alignItems: "flex-start",
   },
-
   dotActive: {
     width: 18,
     height: 18,
-    borderRadius: 20,
+    borderRadius: 9,
     backgroundColor: "#007BFF",
     marginRight: 20,
-    marginTop: 5,
+    marginTop: 4,
   },
-
   dotInactive: {
     width: 18,
     height: 18,
-    borderRadius: 20,
+    borderRadius: 9,
     backgroundColor: "#BDBDBD",
     marginRight: 20,
-    marginTop: 5,
+    marginTop: 4,
   },
-
   line: {
     width: 2,
     height: 60,
     backgroundColor: "#BDBDBD",
-    alignSelf: "flex-start",
-    marginLeft: 9,
+    marginLeft: 8,
   },
-
   textContainer: {
-    flexShrink: 1,
+    flex: 1,
   },
-
   statusTitleActive: {
+    fontSize: 18,
     color: "#007BFF",
-    fontSize: 18,
     fontFamily: "Nunito_700Bold",
   },
-
   statusTitleInactive: {
-    color: "#999",
     fontSize: 18,
+    color: "#999",
     fontFamily: "Nunito_700Bold",
   },
-
   statusDesc: {
     fontSize: 14,
-    marginTop: 3,
     color: "#666",
+    marginTop: 4,
     fontFamily: "Nunito_400Regular",
-    width: "90%",            
-
   },
-
   bottomMessage: {
     marginTop: 30,
     textAlign: "center",
     fontSize: 16,
     fontFamily: "Nunito_700Bold",
-    color: "#000",
-    lineHeight: 22,
+  },
+  approvedMessage: {
+    marginTop: 30,
+    textAlign: "center",
+    fontSize: 16,
+    fontFamily: "Nunito_700Bold",
+    color: "#007BFF",
+  },
+  continueButton: {
+    backgroundColor: "#007BFF",
+    borderRadius: 30,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    alignItems: "center",
+    marginTop: 20,
+    alignSelf: "center",
+  },
+  continueButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontFamily: "Nunito_700Bold",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 10,
+    fontFamily: "Nunito_400Regular",
   },
 });
