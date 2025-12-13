@@ -11,29 +11,39 @@ import {
 } from "react-native";
 
 export const expertiseList = [
-  "Adventure Guide",               
-  "Cultural Experiences",         
-  "Food Tours",                    
-  "Nightlife Guide",               
-  "Photography Tours",             
-  "Shopping Assistance",           
-  "Music & Entertainment Guide",   
-  "Sports Activities Guide",     
-  "Art & Creative Tours",          
-  "Historical Tours",              
-  "Nature & Wildlife Guide",       
-  "Local Experiences Guide",       
-  "Hiking & Trekking Guide",      
-  "Festival Guide",                
-  "Architecture Tours",            
+  "Adventure Guide",
+  "Cultural Experiences",
+  "Food Tours",
+  "Nightlife Guide",
+  "Photography Tours",
+  "Shopping Assistance",
+  "Music & Entertainment Guide",
+  "Sports Activities Guide",
+  "Art & Creative Tours",
+  "Historical Tours",
+  "Nature & Wildlife Guide",
+  "Local Experiences Guide",
+  "Hiking & Trekking Guide",
+  "Festival Guide",
+  "Architecture Tours",
 ];
 
 export default function ExpertiseScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const userId = params.userId as string;
+
+  const userId = Array.isArray(params.userId)
+    ? params.userId[0]
+    : params.userId;
+
   const [selectedExpertise, setSelectedExpertise] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+
+  if (!userId) {
+    Alert.alert("Error", "User session expired. Please login again.");
+    router.replace("/login");
+    return null;
+  }
 
   const toggleExpertise = (item: string) => {
     setSelectedExpertise((prev) =>
@@ -44,38 +54,46 @@ export default function ExpertiseScreen() {
   };
 
   const handleContinue = async () => {
+    if (selectedExpertise.length === 0) {
+      Alert.alert("Validation", "Please select at least one expertise.");
+      return;
+    }
+
     try {
       setLoading(true);
 
-      const requestBody = { userId, expertise: selectedExpertise };
-      console.log("Sending request:", requestBody);
-
       const response = await fetch(
-        "http://localhost:5000/api/auth/set-expertise",
+        "http://192.168.1.77:5000/api/auth/set-expertise",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
+          body: JSON.stringify({
+            userId,
+            expertise: selectedExpertise,
+          }),
         }
       );
 
       const data = await response.json();
 
       if (!response.ok) {
-        console.error("API Error Response:", data);
         Alert.alert(
-          "Error", 
-          data.message || data.msg || data.error || JSON.stringify(data) || "Failed to save expertise"
+          "Error",
+          data.message || data.msg || "Failed to save expertise"
         );
         return;
       }
 
-      // Success - show success message and navigate
-      Alert.alert("Success", "Your expertise has been saved successfully!");
-      router.push("/guide/verification");
+      Alert.alert("Success", "Your expertise has been saved!");
+
+      router.push({
+        pathname: "/guide/verification",
+        params: { userId },
+      });
+
     } catch (err) {
       console.error("Network Error:", err);
-      Alert.alert("Network Error", "Please check your connection and try again.");
+      Alert.alert("Network Error", "Please try again.");
     } finally {
       setLoading(false);
     }
@@ -89,17 +107,18 @@ export default function ExpertiseScreen() {
       </Text>
 
       <TouchableOpacity
-        onPress={() => router.push("/guide/verification")}
+        onPress={() =>
+          router.push({
+            pathname: "/guide/verification",
+            params: { userId: userId },
+          })
+        }
         style={styles.skipButton}
-        activeOpacity={0.7}
       >
         <Text style={styles.skipText}>Skip for now</Text>
       </TouchableOpacity>
 
-      <ScrollView
-        contentContainerStyle={styles.grid}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.grid}>
         {expertiseList.map((item) => (
           <TouchableOpacity
             key={item}
@@ -108,7 +127,6 @@ export default function ExpertiseScreen() {
               selectedExpertise.includes(item) && styles.selected,
             ]}
             onPress={() => toggleExpertise(item)}
-            activeOpacity={0.8}
           >
             <Text
               style={[
@@ -124,7 +142,6 @@ export default function ExpertiseScreen() {
 
       <TouchableOpacity
         style={[styles.continueButton, loading && styles.continueButtonDisabled]}
-        activeOpacity={0.9}
         onPress={handleContinue}
         disabled={loading}
       >
@@ -138,6 +155,7 @@ export default function ExpertiseScreen() {
   );
 }
 
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -150,7 +168,7 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_700Bold",
     fontSize: 26,
     color: "#000",
-    marginBottom: 6,
+    marginBottom: 5,
     textAlign: "center",
   },
   subtitle: {
