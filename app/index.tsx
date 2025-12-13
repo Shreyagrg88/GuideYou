@@ -7,7 +7,7 @@ export default function SplashScreen() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      router.push("/getstarted");
+      router.replace("/getstarted");
     }, 2000);
     return () => clearTimeout(timer);
   }, []);
