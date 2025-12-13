@@ -9,12 +9,17 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TourDetails() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={{ paddingBottom: 30 + insets.bottom }}
+    >
 
       <View style={styles.titleRow}>
       <TouchableOpacity onPress={() => router.back()}>
@@ -96,7 +101,6 @@ export default function TourDetails() {
         <Text style={styles.primaryButtonText}>Find guides</Text>
       </TouchableOpacity>
 
-      <View style={{ height: 50 }} />
     </ScrollView>
   );
 }
@@ -114,18 +118,16 @@ const styles = StyleSheet.create({
   },
 
   titleRow: {
-  flexDirection: "row",
-  alignItems: "center",
-  marginBottom: 30,
-  marginTop: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 30,
+    marginBottom: 20,
   },
 
   title: {
-  fontSize: 22,
-  fontFamily: "Nunito_700Bold",
-  marginLeft: 25,
-  flexShrink: 1, // to prevent overflow
-  alignItems: "center",
+    fontSize: 20,
+    fontFamily: "Nunito_700Bold",
+    marginLeft: 20,
   },
 
   mainImage: {
