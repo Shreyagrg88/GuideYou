@@ -1,140 +1,154 @@
-import React, { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState } from "react";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import {
   View,
   Text,
   TouchableOpacity,
-  Image,
   StyleSheet,
   Alert,
 } from "react-native";
-import { useRouter } from "expo-router";
-import * as ImagePicker from "expo-image-picker";
-import * as DocumentPicker from "expo-document-picker";
-import { Ionicons } from "@expo/vector-icons";
 
-export default function LicenseVerification() {
+export default function LicenseUpload() {
   const router = useRouter();
+  const { userId } = useLocalSearchParams<{ userId: string }>();
 
-  const [file, setFile] = useState<{
+  const [loading, setLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<{
     uri: string;
-    type: "image" | "pdf";
-    name?: string;
+    name: string;
+    type: string;
   } | null>(null);
 
-  const pickImage = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (permission.status !== "granted") {
-      Alert.alert("Permission needed", "Allow access to your gallery.");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setFile({
-        uri: result.assets[0].uri,
-        type: "image",
-        name: result.assets[0].fileName || "image.jpg",
-      });
-    }
-  };
-
-
   const pickPDF = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: "application/pdf",
-    });
-
-    if (!result.canceled && result.assets?.length > 0) {
-      const pdf = result.assets[0];
-      setFile({
-        uri: pdf.uri,
-        type: "pdf",
-        name: pdf.name || "document.pdf",
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "application/pdf",
       });
+
+      if (!result.canceled && result.assets?.length > 0) {
+        const pdf = result.assets[0];
+        setSelectedFile({
+          uri: pdf.uri,
+          name: pdf.name,
+          type: "application/pdf",
+        });
+      }
+    } catch (error) {
+      console.error("PDF pick error:", error);
     }
   };
 
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 1,
+      });
 
-  const handleSubmit = () => {
-    if (!file) {
-      Alert.alert("Upload needed", "Please upload your license first.");
+      if (!result.canceled && result.assets?.length > 0) {
+        const img = result.assets[0];
+        setSelectedFile({
+          uri: img.uri,
+          name: "license.jpg",
+          type: "image/jpeg",
+        });
+      }
+    } catch (error) {
+      console.error("Image pick error:", error);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedFile) {
+      Alert.alert("Error", "Please upload a license file");
       return;
     }
 
-    Alert.alert("Submitted", "Your license has been submitted.");
+    try {
+      setLoading(true);
 
-    router.push("/guide/verification_status");
+      const formData = new FormData();
+      formData.append("userId", userId);
+      formData.append("license", {
+        uri: selectedFile.uri,
+        name: selectedFile.name,
+        type: selectedFile.type,
+      } as any);
+
+      const response = await fetch(
+        "http://192.168.1.77:5000/api/license/upload",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert("Error", data.msg || "Failed to upload license");
+        return;
+      }
+
+      Alert.alert(
+        "Success",
+        "License submitted for verification. Review within 48 hours."
+      );
+
+      router.replace({
+        pathname: "/guide/verification_status",
+        params: { userId: userId },
+      });
+
+    } catch (error) {
+      console.error("Upload error:", error);
+      Alert.alert("Error", "Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.titleRow}>
-              <TouchableOpacity onPress={() => router.back()}>
-                <Ionicons name="chevron-back" size={26} color="#000" />
-              </TouchableOpacity>
-      <Text style={styles.title}>License Verification</Text>
-    </View>
+      <Text style={styles.title}>Verify Your License</Text>
 
-      <Ionicons
-        name="shield-checkmark-outline"
-        size={60}
-        color="#007BFF"
-        style={{ alignSelf: "center", marginBottom: 15 }}
-      />
-
-      <Text style={styles.titletwo}>Verify Your License</Text>
       <Text style={styles.subtitle}>
         Build trust with tourists by verifying your official tour guide license.
       </Text>
 
-      <View style={styles.uploadBox}>
-        {file ? (
-          file.type === "image" ? (
-            <Image
-              source={{ uri: file.uri }}
-              style={styles.previewImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={{ alignItems: "center" }}>
-              <Ionicons name="document-text-outline" size={50} color="#007BFF" />
-              <Text style={{ marginTop: 10 }}>{file.name}</Text>
-            </View>
-          )
-        ) : (
-          <View style={styles.placeholder}>
-            <Ionicons name="cloud-upload-outline" size={40} color="#007BFF" />
-            <Text style={styles.placeholderText}>
-              Upload License (Image or PDF)
-            </Text>
-          </View>
-        )}
+      <View style={styles.uploadCard}>
+        <Text style={styles.uploadText}>Upload License (Image or PDF)</Text>
 
-        <View style={{ flexDirection: "row", marginTop: 15 }}>
-          <TouchableOpacity style={styles.chooseFileBtn} onPress={pickImage}>
-            <Text style={styles.chooseFileText}>Upload Image</Text>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity style={styles.uploadButton} onPress={pickImage}>
+            <Text style={styles.uploadButtonText}>Upload Image</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.chooseFileBtn, { marginLeft: 10 }]}
-            onPress={pickPDF}
-          >
-            <Text style={styles.chooseFileText}>Upload PDF</Text>
+          <TouchableOpacity style={styles.uploadButton} onPress={pickPDF}>
+            <Text style={styles.uploadButtonText}>Upload PDF</Text>
           </TouchableOpacity>
         </View>
+
+        {selectedFile && (
+          <Text style={styles.selectedFile}>
+            Selected: {selectedFile.name}
+          </Text>
+        )}
       </View>
 
-      <Text style={styles.privacyText}>Your data is handled securely.</Text>
+      <Text style={styles.securityText}>Your data is handled securely.</Text>
 
-      {/* Submit */}
-      <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-        <Text style={styles.submitText}>Submit for Verification</Text>
+      <TouchableOpacity
+        style={[styles.submitButton, loading && { opacity: 0.6 }]}
+        onPress={handleSubmit}
+        disabled={loading}
+      >
+        <Text style={styles.submitButtonText}>
+          {loading ? "Submitting..." : "Submit for Verification"}
+        </Text>
       </TouchableOpacity>
 
       <Text style={styles.reviewText}>
@@ -147,105 +161,94 @@ export default function LicenseVerification() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F2F7FF",
+    backgroundColor: "#fff",
     padding: 20,
-  },
-
-    titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 30,
-    width: "95%",
-    position: "relative",
-    marginBottom: 30,
   },
 
   title: {
-    fontSize: 20,
+    fontSize: 24,
     fontFamily: "Nunito_700Bold",
-    flexShrink: 1,
-    lineHeight: 26,
-    alignItems: "center",
-    marginLeft: 80,
-    
-  },
-
-  titletwo: {
-    fontSize: 18,
-    fontFamily: "Nunito_700Bold",
-    marginLeft: 100,
-    flexShrink: 1,
-    lineHeight: 26,
-    alignItems: "center",
+    textAlign: "center",
+    marginTop: 30,
+    marginBottom: 30,
   },
 
   subtitle: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 30,
     textAlign: "center",
-    color: "#555",
-    marginBottom: 20,
     fontFamily: "Nunito_400Regular",
   },
-  uploadBox: {
+
+  uploadCard: {
     backgroundColor: "#fff",
+    borderRadius: 10,
     padding: 20,
-    borderRadius: 12,
+    marginBottom: 20,
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: "#d8e2f1",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  placeholder: {
-    alignItems: "center",
-    paddingVertical: 25,
+    borderColor: "#E0E0E0",
   },
 
-  placeholderText: {
-    marginTop: 10,
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 10,
+  uploadText: {
+    fontSize: 16,
+    marginBottom: 20,
+    color: "#333",
     fontFamily: "Nunito_700Bold",
-
   },
-  chooseFileBtn: {
-    backgroundColor: "#e5efff",
+
+  buttonRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%",
+  },
+
+  uploadButton: {
+    backgroundColor: "#E8F1FF",
+    paddingVertical: 12,
     paddingHorizontal: 20,
-    paddingVertical: 8,
     borderRadius: 8,
+  },
+
+  uploadButtonText: {
+    color: "#007BFF",
     fontFamily: "Nunito_700Bold",
   },
-  chooseFileText: {
+
+  selectedFile: {
+    marginTop: 15,
+    fontSize: 14,
     color: "#007BFF",
     fontFamily: "Nunito_400Regular",
   },
-  previewImage: {
-    width: 250,
-    height: 150,
-    borderRadius: 10,
+
+  securityText: {
+    fontSize: 12,
+    color: "#999",
+    textAlign: "center",
+    marginBottom: 20,
+    fontFamily: "Nunito_400Regular",
   },
+
   submitButton: {
     backgroundColor: "#007BFF",
-    paddingVertical: 15,
     borderRadius: 30,
-    marginTop: 20,
+    paddingVertical: 14,
     alignItems: "center",
-
+    marginBottom: 15,
   },
-  submitText: {
+
+  submitButtonText: {
     color: "#fff",
     fontSize: 16,
     fontFamily: "Nunito_700Bold",
   },
-  privacyText: {
-    textAlign: "center",
-    color: "#777",
-    marginTop: 10,
-    fontSize: 12,
-  },
+
   reviewText: {
+    fontSize: 12,
+    color: "#999",
     textAlign: "center",
-    marginTop: 15,
-    color: "#777",
-    fontSize: 13,
+    fontFamily: "Nunito_400Regular",
   },
 });
