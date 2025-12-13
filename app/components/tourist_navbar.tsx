@@ -1,14 +1,16 @@
-import { View, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, usePathname } from "expo-router";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TouristNavBar() {
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
 
   const isActive = (route: string) => pathname.includes(route);
 
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       <View style={styles.container}>
 
         {/* Home */}
