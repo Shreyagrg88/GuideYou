@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const categories = ["For you", "Nature", "Food", "Culture"];
 
@@ -44,6 +45,7 @@ const trips = [
 export default function HomePage() {
   const [activeCategory, setActiveCategory] = useState("For you");
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const renderTrip = ({ item }: any) => (
     <TouchableOpacity
@@ -104,6 +106,7 @@ export default function HomePage() {
           renderItem={renderTrip}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 90 + insets.bottom }}
         />
       </View>
       <TouristNavBar />
