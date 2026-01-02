@@ -1,8 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -15,6 +19,7 @@ export default function Login() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const isValidEmail = (email: string) => /\S+@\S+\.\S+/.test(email);
@@ -34,7 +39,7 @@ export default function Login() {
       setLoading(true);
 
       const response = await fetch(
-        "http://192.168.1.77:5000/api/auth/login",
+        "http://192.168.1.67:5000/api/auth/login",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -83,7 +88,7 @@ export default function Login() {
 
       try {
         const licenseResponse = await fetch(
-          `http://192.168.1.77:5000/api/license/status/${user.id}`
+          `http://192.168.1.67:5000/api/license/status/${user.id}`
         );
 
         if (licenseResponse.ok) {
@@ -111,7 +116,6 @@ export default function Login() {
         return;
       }
 
-      // 2️⃣ License pending / rejected
       if (licenseStatus !== "approved") {
         router.push({
           pathname: "/guide/verification_status",
@@ -124,7 +128,6 @@ export default function Login() {
         return;
       }
 
-      // 3️⃣ License approved
       router.push("/guide/home_guide");
 
     } catch (error) {
@@ -136,50 +139,72 @@ export default function Login() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Login</Text>
-      <Text style={styles.subtitle}>Welcome back</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#777"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#777"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-
-      <TouchableOpacity style={styles.forgotContainer}>
-        <Text style={styles.forgot}>Forgot password?</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, loading && { opacity: 0.6 }]}
-        onPress={handleLogin}
-        disabled={loading}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.buttonText}>
-          {loading ? "Logging in..." : "Login"}
-        </Text>
-      </TouchableOpacity>
+        <Text style={styles.title}>Login</Text>
+        <Text style={styles.subtitle}>Welcome back</Text>
 
-      <TouchableOpacity onPress={() => router.push("/signup")}>
-        <Text style={styles.linkText}>
-          Don’t have an account?{" "}
-          <Text style={styles.linkHighlight}>Signup</Text>
-        </Text>
-      </TouchableOpacity>
-    </View>
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          placeholderTextColor="#777"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+        />
+
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Password"
+            placeholderTextColor="#777"
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+          />
+          <TouchableOpacity
+            style={styles.eyeIcon}
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            <Ionicons
+              name={showPassword ? "eye-off" : "eye"}
+              size={20}
+              color="#777"
+            />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={styles.forgotContainer}>
+          <Text style={styles.forgot}>Forgot password?</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.button, loading && { opacity: 0.6 }]}
+          onPress={handleLogin}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>
+            {loading ? "Logging in..." : "Login"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => router.push("/signup")}>
+          <Text style={styles.linkText}>
+            Don't have an account?{" "}
+            <Text style={styles.linkHighlight}>Signup</Text>
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -187,8 +212,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 30,
     justifyContent: "center",
+    paddingVertical: 40,
   },
   title: {
     fontFamily: "Nunito_700Bold",
@@ -208,6 +237,22 @@ const styles = StyleSheet.create({
     padding: 14,
     fontFamily: "Nunito_400Regular",
     marginBottom: 15,
+  },
+  passwordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F2F6FA",
+    borderRadius: 10,
+    marginBottom: 15,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 14,
+    fontFamily: "Nunito_400Regular",
+  },
+  eyeIcon: {
+    padding: 14,
+    paddingLeft: 0,
   },
   forgotContainer: {
     alignItems: "flex-end",

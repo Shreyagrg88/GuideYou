@@ -1,5 +1,7 @@
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -14,10 +16,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import * as WebBrowser from "expo-web-browser";
 
-const BASE_URL = "http://192.168.1.77:5000";
+const BASE_URL = "http://192.168.1.68:5000";
 
 type LicenseData = {
   user: {
@@ -197,7 +197,6 @@ export default function ReviewLicense() {
           multiline
         />
 
-        {/* Actions */}
         <View style={styles.actions}>
           <TouchableOpacity
             style={styles.rejectBtn}
@@ -215,7 +214,6 @@ export default function ReviewLicense() {
         </View>
       </ScrollView>
 
-      {/* Full Screen Preview */}
       <Modal
         visible={previewVisible}
         transparent

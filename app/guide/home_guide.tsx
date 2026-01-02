@@ -1,61 +1,146 @@
-import React from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import GuideNavbar from "../components/guide_navbar";
+import React, { useEffect, useState } from "react";
+import {
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import GuideNavbar from "../components/guide_navbar";
 
 export default function GuideHome() {
   const insets = useSafeAreaInsets();
-  
+
+  const [loading, setLoading] = useState(true);
+  const [homepageData, setHomepageData] = useState<any>(null);
+
+  const fetchGuideHomepage = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+
+      const response = await fetch(
+        "http://192.168.1.67:5000/api/guide/homepage",
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("Homepage error:", data);
+        return;
+      }
+
+      setHomepageData(data);
+    } catch (error) {
+      console.error("Homepage fetch error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGuideHomepage();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingWrapper}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
+
+  const nextBooking =
+    homepageData?.upcomingBookings &&
+    homepageData.upcomingBookings.length > 0
+      ? homepageData.upcomingBookings[0]
+      : null;
+
   return (
     <View style={styles.wrapper}>
-
       <ScrollView
         style={styles.container}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 90 + insets.bottom }} 
+        contentContainerStyle={{ paddingBottom: 90 + insets.bottom }}
       >
+        {/* HEADER */}
         <View style={styles.headerRow}>
           <Text style={styles.logo}>
             Guide<Text style={{ color: "#007BFF" }}>You</Text>
           </Text>
 
           <TouchableOpacity>
-            <Ionicons name="notifications-outline" size={24} color="#B0B0B0" />
+            <Ionicons
+              name="notifications-outline"
+              size={24}
+              color="#B0B0B0"
+            />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.greet}>Hi Nima</Text>
+        {/* GREETING */}
+        <Text style={styles.greet}>
+          Hi {homepageData?.guide?.username}
+        </Text>
 
+        {/* PERFORMANCE */}
         <View style={styles.performanceCard}>
           <View style={styles.performanceHeader}>
             <Text style={styles.performanceTitle}>Performance</Text>
 
-            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity
+              style={{ flexDirection: "row", alignItems: "center" }}
+            >
               <Text style={styles.thisMonth}>This Month</Text>
-              <Ionicons name="chevron-down" size={14} color="#007BFF" style={{ marginLeft: 2 }} />
+              <Ionicons
+                name="chevron-down"
+                size={14}
+                color="#007BFF"
+                style={{ marginLeft: 2 }}
+              />
             </TouchableOpacity>
           </View>
 
           <View style={styles.performanceRow}>
             <View style={styles.performanceBox}>
               <Text style={styles.boxTitle}>Earning</Text>
-              <Text style={styles.boxValue}>$3,000</Text>
+              <Text style={styles.boxValue}>
+                ${homepageData?.performance?.earnings}
+              </Text>
             </View>
 
             <View style={styles.performanceBox}>
               <Text style={styles.boxTitle}>Upcoming</Text>
-              <Text style={styles.boxValue}>1 Treks</Text>
+              <Text style={styles.boxValue}>
+                {homepageData?.performance?.upcomingCount} Treks
+              </Text>
             </View>
           </View>
         </View>
 
+        {/* NEW REQUESTS */}
         <TouchableOpacity style={styles.requestBtn}>
           <View style={styles.requestLeft}>
             <Ionicons name="list-outline" size={20} color="#007BFF" />
-            <Text style={styles.requestText}>1 New Booking Requests</Text>
+            <Text style={styles.requestText}>
+              {homepageData?.newRequestsCount} New Booking Requests
+            </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#007BFF" />
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color="#007BFF"
+          />
         </TouchableOpacity>
 
         <View style={styles.sectionHeader}>
@@ -63,35 +148,50 @@ export default function GuideHome() {
           <Text style={styles.seeAll}>See all</Text>
         </View>
 
-        <View style={styles.bookingCard}>
-          <Image
-            source={{
-              uri: "https://www.havenholidaysnepal.com/storage/trip-galleries/55/ABC%20with%20fishtail.JPG0.21441100%201728277965.webp",
-            }}
-            style={styles.bookingImage}
-          />
+        {nextBooking && (
+          <View style={styles.bookingCard}>
+            <Image
+              source={{
+                uri: `http://localhost:5000${nextBooking.activity.photo}`,
+              }}
+              style={styles.bookingImage}
+            />
 
-          <View style={styles.labelTag}>
-            <Text style={styles.labelText}>Next</Text>
-          </View>
-
-          <View style={styles.bookingInfo}>
-            <Text style={styles.bookingTitle}>ABC Trek</Text>
-
-            <View style={styles.row}>
-              <Ionicons name="calendar-outline" size={14} color="#888" />
-              <Text style={styles.bookingDate}>Nov 29 - Dec 4</Text>
+            <View style={styles.labelTag}>
+              <Text style={styles.labelText}>Next</Text>
             </View>
 
-            <View style={styles.row}>
-              <Ionicons name="person-outline" size={14} color="#888" />
-              <Text style={styles.bookingUser}>Human Being</Text>
+            <View style={styles.bookingInfo}>
+              <Text style={styles.bookingTitle}>
+                {nextBooking.activity.name}
+              </Text>
+
+              <View style={styles.row}>
+                <Ionicons
+                  name="calendar-outline"
+                  size={14}
+                  color="#888"
+                />
+                <Text style={styles.bookingDate}>
+                  {nextBooking.dateRange}
+                </Text>
+              </View>
+
+              <View style={styles.row}>
+                <Ionicons
+                  name="person-outline"
+                  size={14}
+                  color="#888"
+                />
+                <Text style={styles.bookingUser}>
+                  {nextBooking.tourist.name}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
       </ScrollView>
 
-      {/* FIXED NAVBAR */}
       <View style={styles.navbarWrapper}>
         <GuideNavbar />
       </View>
@@ -99,9 +199,17 @@ export default function GuideHome() {
   );
 }
 
+
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
+    backgroundColor: "#fff",
+  },
+
+  loadingWrapper: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: "#fff",
   },
 
@@ -150,12 +258,7 @@ const styles = StyleSheet.create({
     marginTop: 25,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
     elevation: 1,
-    marginBottom: 10,
   },
 
   performanceHeader: {
@@ -168,7 +271,6 @@ const styles = StyleSheet.create({
   performanceTitle: {
     fontFamily: "Nunito_700Bold",
     fontSize: 15,
-    fontWeight: "500",
     color: "#000",
   },
 
@@ -176,7 +278,6 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_400Regular",
     color: "#007BFF",
     fontSize: 14,
-    fontWeight: "500",
   },
 
   performanceRow: {
@@ -191,19 +292,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E3EEFF",
-    marginBottom: 20,
     marginTop: 20,
   },
 
   boxTitle: {
-    fontFamily: "Nunito_400Regular",
     color: "#6B7280",
-    marginBottom: 4,
     fontSize: 13,
   },
 
   boxValue: {
-    fontFamily: "Nunito_400Regular",
     fontSize: 18,
     fontWeight: "700",
     color: "#000",
@@ -214,16 +311,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     padding: 20,
     borderRadius: 16,
-    borderColor: "#E5E7EB",
     borderWidth: 1,
+    borderColor: "#E5E7EB",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
 
   requestLeft: {
@@ -233,9 +325,7 @@ const styles = StyleSheet.create({
   },
 
   requestText: {
-    fontFamily: "Nunito_700Bold",
     fontSize: 15,
-    fontWeight: "300",
     color: "#007BFF",
   },
 
@@ -248,36 +338,26 @@ const styles = StyleSheet.create({
 
   sectionTitle: {
     fontSize: 18,
-    fontFamily: "Nunito_400Regular",
     fontWeight: "700",
     color: "#000",
   },
 
   seeAll: {
-    fontFamily: "Nunito_700Bold",
     color: "#007BFF",
     fontSize: 16,
-    fontWeight: "500",
   },
 
   bookingCard: {
     marginTop: 20,
-    backgroundColor: "#fff",
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
 
   bookingImage: {
     width: "100%",
     height: 180,
-    resizeMode: "cover",
   },
 
   labelTag: {
@@ -292,9 +372,7 @@ const styles = StyleSheet.create({
 
   labelText: {
     color: "#fff",
-    fontFamily: "Nunito_400Regular",
     fontSize: 13,
-    fontWeight: "600",
   },
 
   bookingInfo: {
@@ -303,11 +381,9 @@ const styles = StyleSheet.create({
   },
 
   bookingTitle: {
-    fontFamily: "Nunito_400Regular",
     fontSize: 18,
     fontWeight: "700",
     color: "#000",
-    marginBottom: 4,
   },
 
   row: {
@@ -317,14 +393,10 @@ const styles = StyleSheet.create({
   },
 
   bookingDate: {
-    fontFamily: "Nunito_400Regular",
     color: "#888",
-    fontSize: 14,
   },
 
   bookingUser: {
-    fontFamily: "Nunito_400Regular",
     color: "#888",
-    fontSize: 14,
   },
 });

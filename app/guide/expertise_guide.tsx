@@ -63,7 +63,7 @@ export default function ExpertiseScreen() {
       setLoading(true);
 
       const response = await fetch(
-        "http://192.168.1.77:5000/api/auth/set-expertise",
+        "http://192.168.1.67:5000/api/auth/set-expertise",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

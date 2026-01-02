@@ -79,7 +79,7 @@ export default function LicenseUpload() {
       } as any);
 
       const response = await fetch(
-        "http://192.168.1.77:5000/api/license/upload",
+        "http://192.168.1.67:5000/api/license/upload",
         {
           method: "POST",
           body: formData,

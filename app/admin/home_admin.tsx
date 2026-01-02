@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
@@ -12,7 +11,7 @@ import {
 } from "react-native";
 import AdminNavBar from "../components/admin_navbar";
 
-const BASE_URL = "http://192.168.1.77:5000";
+const BASE_URL = "http://192.168.137.1:5000";
 
 type Stats = {
   guides: { total: number; active: number };
@@ -47,7 +46,7 @@ export default function HomeAdmin() {
 
   const fetchAdminData = async () => {
     try {
-      const token = await AsyncStorage.getItem("token"); // ✅ CORRECT KEY
+      const token = await AsyncStorage.getItem("token"); 
 
       if (!token) {
         Alert.alert("Unauthorized", "Please login again");
@@ -114,7 +113,6 @@ export default function HomeAdmin() {
           </View>
         </View>
 
-        {/* Tabs */}
         <View style={styles.segment}>
           <TouchableOpacity
             style={[styles.segmentItem, isGuideTab && styles.activeTab]}
@@ -131,7 +129,6 @@ export default function HomeAdmin() {
           </TouchableOpacity>
         </View>
 
-        {/* Stats */}
         <View style={styles.statRow}>
           <View style={styles.statCard}>
             <Text>Total</Text>
@@ -166,7 +163,6 @@ export default function HomeAdmin() {
           </View>
         )}
 
-        {/* Recent Users */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>
             Recent {isGuideTab ? "Guides" : "Tourists"}

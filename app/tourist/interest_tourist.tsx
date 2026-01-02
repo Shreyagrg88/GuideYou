@@ -51,7 +51,7 @@ export default function InterestsScreen() {
       console.log("Sending request:", requestBody);
 
       const response = await fetch(
-        "http://localhost:5000/api/auth/set-interests",
+        "http://192.168.1.68:5000/api/auth/set-interests",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
