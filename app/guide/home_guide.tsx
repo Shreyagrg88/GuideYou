@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Image,
   ScrollView,
@@ -9,21 +11,45 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import GuideNavbar from "../components/guide_navbar";
+
+const BASE_URL = "http://192.168.1.67:5000";
 
 export default function GuideHome() {
   const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
   const [homepageData, setHomepageData] = useState<any>(null);
+  const [guideName, setGuideName] = useState<string | null>(null);
+
+  const fetchGuideProfile = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) return;
+
+      const response = await fetch(`${BASE_URL}/api/guide/profile`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+      if (response.ok && data.guide) {
+        setGuideName(data.guide.fullName || data.guide.username || null);
+      }
+    } catch (error) {
+      console.error("Profile fetch error:", error);
+    }
+  };
 
   const fetchGuideHomepage = async () => {
     try {
       const token = await AsyncStorage.getItem("token");
 
       const response = await fetch(
-        "http://192.168.1.67:5000/api/guide/homepage",
+        `${BASE_URL}/api/guide/homepage`,
         {
           method: "GET",
           headers: {
@@ -48,9 +74,19 @@ export default function GuideHome() {
     }
   };
 
+  const fetchAllData = async () => {
+    await Promise.all([fetchGuideHomepage(), fetchGuideProfile()]);
+  };
+
   useEffect(() => {
-    fetchGuideHomepage();
+    fetchAllData();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchAllData();
+    }, [])
+  );
 
   if (loading) {
     return (
@@ -90,7 +126,7 @@ export default function GuideHome() {
 
         {/* GREETING */}
         <Text style={styles.greet}>
-          Hi {homepageData?.guide?.username}
+          Hi {guideName || homepageData?.guide?.fullName || homepageData?.guide?.username || "there"}
         </Text>
 
         {/* PERFORMANCE */}
@@ -122,7 +158,7 @@ export default function GuideHome() {
             <View style={styles.performanceBox}>
               <Text style={styles.boxTitle}>Upcoming</Text>
               <Text style={styles.boxValue}>
-                {homepageData?.performance?.upcomingCount} Treks
+                {homepageData?.performance?.upcomingCount} Tours
               </Text>
             </View>
           </View>

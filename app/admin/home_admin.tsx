@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import AdminNavBar from "../components/admin_navbar";
 
-const BASE_URL = "http://192.168.137.1:5000";
+const BASE_URL = "http://192.168.1.67:5000";
 
 type Stats = {
   guides: { total: number; active: number };
@@ -61,8 +61,8 @@ export default function HomeAdmin() {
       const [statsRes, guidesRes, touristsRes, licenseRes] =
         await Promise.all([
           fetch(`${BASE_URL}/api/admin/stats`, { headers }),
-          fetch(`${BASE_URL}/api/admin/guides/recent?limit=5`, { headers }),
-          fetch(`${BASE_URL}/api/admin/tourists/recent?limit=5`, { headers }),
+          fetch(`${BASE_URL}/api/admin/guides/recent?limit=7`, { headers }),
+          fetch(`${BASE_URL}/api/admin/tourists/recent?limit=7`, { headers }),
           fetch(`${BASE_URL}/api/license/pending`, { headers }),
         ]);
 

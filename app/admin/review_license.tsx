@@ -17,7 +17,7 @@ import {
   View,
 } from "react-native";
 
-const BASE_URL = "http://192.168.1.68:5000";
+const BASE_URL = "http://192.168.1.67:5000";
 
 type LicenseData = {
   user: {

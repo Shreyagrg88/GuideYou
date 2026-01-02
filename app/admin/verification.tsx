@@ -13,7 +13,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import AdminNavBar from "../components/admin_navbar";
 
-const BASE_URL = "http://192.168.1.68:5000";
+const BASE_URL = "http://192.168.1.67:5000";
 
 type LicenseItem = {
   userId: string;
