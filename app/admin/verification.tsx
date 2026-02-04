@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -23,15 +23,65 @@ type LicenseItem = {
   status: string;
 };
 
+type ActivityItem = {
+  id: string;
+  name: string;
+  guideName: string;
+  submittedAt: string;
+};
+
+function mapActivity(item: any): ActivityItem {
+  const guide = item.guide || {};
+  const guideName = guide.username || guide.fullName || guide.name || "Guide";
+  const submittedAt = item.createdAt || item.submittedAt || new Date().toISOString();
+  return { id: item.id, name: item.name || "Activity", guideName, submittedAt };
+}
+
 export default function VerificationRequest() {
   const router = useRouter();
-
+  const [activeSection, setActiveSection] = useState<"licenses" | "activities">("licenses");
   const [licenses, setLicenses] = useState<LicenseItem[]>([]);
+  const [pendingActivities, setPendingActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
 
   useEffect(() => {
     fetchPendingLicenses();
+    fetchPendingActivities();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPendingLicenses();
+      fetchPendingActivities();
+    }, [])
+  );
+
+  const fetchPendingActivities = async () => {
+    setActivitiesLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        setPendingActivities([]);
+        return;
+      }
+      const response = await fetch(`${API_URL}/api/admin/activities/pending?limit=50`, {
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      if (!response.ok) {
+        setPendingActivities([]);
+        return;
+      }
+      const data = await response.json();
+      const list = data.activities || data || [];
+      setPendingActivities(Array.isArray(list) ? list.map(mapActivity) : []);
+    } catch (error: any) {
+      console.error("Pending activities error:", error);
+      setPendingActivities([]);
+    } finally {
+      setActivitiesLoading(false);
+    }
+  };
 
   const fetchPendingLicenses = async () => {
     try {
@@ -72,50 +122,88 @@ export default function VerificationRequest() {
     );
   }
 
+  const isLicenses = activeSection === "licenses";
+
   return (
     <View style={styles.root}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} />
         </TouchableOpacity>
-
-        <Text style={styles.headerTitle}>Verification Request</Text>
-
+        <Text style={styles.headerTitle}>Verification</Text>
         <View style={{ width: 24 }} />
       </View>
 
-      {/* List */}
+      <View style={styles.segment}>
+        <TouchableOpacity
+          style={[styles.segmentItem, isLicenses && styles.activeSegment]}
+          onPress={() => setActiveSection("licenses")}
+        >
+          <Text style={isLicenses ? styles.segmentTextActive : styles.segmentText}>Licenses</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segmentItem, !isLicenses && styles.activeSegment]}
+          onPress={() => setActiveSection("activities")}
+        >
+          <Text style={!isLicenses ? styles.segmentTextActive : styles.segmentText}>Activities</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView contentContainerStyle={styles.list}>
-        {licenses.length === 0 && (
-          <Text style={styles.emptyText}>No pending license requests</Text>
+        {isLicenses ? (
+          <>
+            {loading ? (
+              <ActivityIndicator size="small" style={{ marginTop: 20 }} />
+            ) : licenses.length === 0 ? (
+              <Text style={styles.emptyText}>No pending license requests</Text>
+            ) : (
+              licenses.map((item) => (
+                <View key={item.userId} style={styles.card}>
+                  <View>
+                    <Text style={styles.name}>{item.username}</Text>
+                    <Text style={styles.date}>Submitted: {new Date(item.submittedAt).toDateString()}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.reviewBtn}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/admin/review_license",
+                        params: { userId: item.userId, licenseFile: item.licenseFile },
+                      })
+                    }
+                  >
+                    <Text style={styles.reviewText}>Review</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+          </>
+        ) : (
+          <>
+            {activitiesLoading ? (
+              <ActivityIndicator size="small" style={{ marginTop: 20 }} />
+            ) : pendingActivities.length === 0 ? (
+              <Text style={styles.emptyText}>No pending activities to review</Text>
+            ) : (
+              pendingActivities.map((item) => (
+                <View key={item.id} style={styles.card}>
+                  <View>
+                    <Text style={styles.name}>{item.name}</Text>
+                    <Text style={styles.date}>
+                      By {item.guideName} · {new Date(item.submittedAt).toDateString()}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.reviewBtn}
+                    onPress={() => router.push({ pathname: "/admin/review_activity" as const, params: { activityId: item.id } })}
+                  >
+                    <Text style={styles.reviewText}>Review</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+          </>
         )}
-
-        {licenses.map((item) => (
-          <View key={item.userId} style={styles.card}>
-            <View>
-              <Text style={styles.name}>{item.username}</Text>
-              <Text style={styles.date}>
-                Submitted: {new Date(item.submittedAt).toDateString()}
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.reviewBtn}
-              onPress={() =>
-                router.push({
-                  pathname: "/admin/review_license",
-                  params: {
-                    userId: item.userId,
-                    licenseFile: item.licenseFile,
-                  },
-                })
-              }
-            >
-              <Text style={styles.reviewText}>Review</Text>
-            </TouchableOpacity>
-          </View>
-        ))}
       </ScrollView>
 
       <AdminNavBar />
@@ -147,6 +235,33 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontFamily: "Nunito_700Bold",
+  },
+
+  segment: {
+    flexDirection: "row",
+    backgroundColor: "#E8EEF4",
+    marginHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  segmentItem: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  activeSegment: {
+    backgroundColor: "#007BFF",
+    borderRadius: 12,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontFamily: "Nunito_400Regular",
+    color: "#666",
+  },
+  segmentTextActive: {
+    fontSize: 14,
+    fontFamily: "Nunito_700Bold",
+    color: "#FFF",
   },
 
   list: {

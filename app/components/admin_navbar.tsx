@@ -21,7 +21,7 @@ export default function AdminNavBar() {
           <Ionicons name="document-text-outline" size={27} color="#7A7A7A" />
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.push("/guide/profile_guide")}>
+        <TouchableOpacity onPress={() => router.push("/admin/admin_profile")}>
           <Ionicons name="person-outline" size={27} color="#7A7A7A" />
         </TouchableOpacity>
       </View>
