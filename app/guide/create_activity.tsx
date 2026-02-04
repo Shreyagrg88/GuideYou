@@ -4,16 +4,16 @@ import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -171,22 +171,26 @@ export default function AddNewActivity() {
         return;
       }
 
-      Alert.alert("Success!", "Activity published successfully!", [
-        {
-          text: "OK",
-          onPress: () => {
-            setName("");
-            setLocation("");
-            setDescription("");
-            setEquipment("");
-            setCategory(null);
-            setDuration(3);
-            setDifficulty("Moderate");
-            setPhotos([]);
-            router.back();
+      Alert.alert(
+        "Submitted for review",
+        "Your activity has been sent for admin review. Once approved, it will be published and visible to tourists. If it's not approved, you'll see the reason in My Activities and can edit and resubmit.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              setName("");
+              setLocation("");
+              setDescription("");
+              setEquipment("");
+              setCategory(null);
+              setDuration(3);
+              setDifficulty("Moderate");
+              setPhotos([]);
+              router.back();
+            },
           },
-        },
-      ]);
+        ]
+      );
     } catch (error) {
       console.error("Upload error:", error);
       Alert.alert(
