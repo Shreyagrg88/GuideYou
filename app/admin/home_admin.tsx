@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -31,17 +32,39 @@ type LicenseItem = {
   submittedAt: string;
 };
 
+type ActivityItem = {
+  id: string;
+  name: string;
+  guideName: string;
+  submittedAt: string;
+};
+
+function mapActivity(item: any): ActivityItem {
+  const guide = item.guide || {};
+  const guideName = guide.username || guide.fullName || guide.name || "Guide";
+  const submittedAt = item.createdAt || item.submittedAt || new Date().toISOString();
+  return { id: item.id, name: item.name || "Activity", guideName, submittedAt };
+}
+
 export default function HomeAdmin() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"guides" | "tourists">("guides");
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentGuides, setRecentGuides] = useState<UserItem[]>([]);
   const [recentTourists, setRecentTourists] = useState<UserItem[]>([]);
   const [pendingLicenses, setPendingLicenses] = useState<LicenseItem[]>([]);
+  const [pendingActivities, setPendingActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchAdminData();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchAdminData();
+    }, [])
+  );
 
   const fetchAdminData = async () => {
     try {
@@ -57,12 +80,13 @@ export default function HomeAdmin() {
         "Content-Type": "application/json",
       };
 
-      const [statsRes, guidesRes, touristsRes, licenseRes] =
+      const [statsRes, guidesRes, touristsRes, licenseRes, activitiesRes] =
         await Promise.all([
           fetch(`${API_URL}/api/admin/stats`, { headers }),
           fetch(`${API_URL}/api/admin/guides/recent?limit=7`, { headers }),
           fetch(`${API_URL}/api/admin/tourists/recent?limit=7`, { headers }),
           fetch(`${API_URL}/api/license/pending`, { headers }),
+          fetch(`${API_URL}/api/admin/activities/pending?limit=50`, { headers }),
         ]);
 
       if (!statsRes.ok) throw new Error(await statsRes.text());
@@ -79,6 +103,14 @@ export default function HomeAdmin() {
       setRecentGuides(guidesData.guides || []);
       setRecentTourists(touristsData.tourists || []);
       setPendingLicenses(licenseData.licenses || []);
+
+      if (activitiesRes.ok) {
+        const activitiesData = await activitiesRes.json();
+        const list = activitiesData.activities || activitiesData || [];
+        setPendingActivities(Array.isArray(list) ? list.map(mapActivity) : []);
+      } else {
+        setPendingActivities([]);
+      }
     } catch (error: any) {
       console.error("Admin fetch error:", error);
       Alert.alert("Error", error.message || "Failed to load admin data");
@@ -146,18 +178,36 @@ export default function HomeAdmin() {
             <Text style={styles.cardTitle}>
               Pending License Requests ({pendingLicenses.length})
             </Text>
-
             {pendingLicenses.length === 0 && (
               <Text style={styles.subText}>No pending licenses</Text>
             )}
-
             {pendingLicenses.map((item) => (
               <View key={item.userId} style={styles.listItem}>
                 <Text>{item.username}</Text>
-                <Text style={styles.subText}>
-                  Submitted: {new Date(item.submittedAt).toDateString()}
-                </Text>
+                <Text style={styles.subText}>Submitted: {new Date(item.submittedAt).toDateString()}</Text>
               </View>
+            ))}
+          </View>
+        )}
+
+        {/* Pending Activities to Review */}
+        {isGuideTab && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>
+              Pending Activities to Review ({pendingActivities.length})
+            </Text>
+            {pendingActivities.length === 0 && (
+              <Text style={styles.subText}>No pending activities</Text>
+            )}
+            {pendingActivities.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.listItem}
+                onPress={() => router.push({ pathname: "/admin/review_activity" as const, params: { activityId: item.id } })}
+              >
+                <Text>{item.name}</Text>
+                <Text style={styles.subText}>By {item.guideName} · {new Date(item.submittedAt).toDateString()}</Text>
+              </TouchableOpacity>
             ))}
           </View>
         )}
