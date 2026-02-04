@@ -22,14 +22,7 @@ export default function TouristNavBar() {
           />
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.push("/tourist/search")}>
-          <Ionicons
-            name="search-outline"
-            size={27}
-            color={isActive("search_tourist") ? "#007BFF" : "#7A7A7A"}
-          />
-        </TouchableOpacity>
-
+        {/* Chat */}
         <TouchableOpacity onPress={() => router.push("/tourist/chat_tourist")}>
           <Ionicons
             name="chatbubble-outline"

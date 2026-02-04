@@ -16,8 +16,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-const BASE_URL = "http://192.168.1.67:5000";
+import { API_URL } from "../../constants/api";
 
 type ActivityData = {
   id: string;
@@ -72,20 +71,60 @@ export default function TourDetails() {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 
+  // Review eligibility state
+  const [canReview, setCanReview] = useState(false);
+  const [canReviewReason, setCanReviewReason] = useState("");
+  const [canReviewLoading, setCanReviewLoading] = useState(false);
+  const [bookingEndDate, setBookingEndDate] = useState<string | null>(null);
+
   useEffect(() => {
     if (id) {
       fetchActivityDetail(id);
       fetchReviews(id);
+      checkCanReview(id);
       fetchMyReview(id);
     }
   }, [id]);
+
+  const checkCanReview = async (activityId: string) => {
+    setCanReviewLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        setCanReview(false);
+        setCanReviewReason("Please login to write a review");
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/reviews/activity/${activityId}/can-review`,
+        { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } }
+      );
+      const data = await response.json();
+
+      if (response.ok) {
+        setCanReview(data.canReview);
+        setCanReviewReason(data.reason);
+        if (data.bookingEndDate) setBookingEndDate(data.bookingEndDate);
+      } else {
+        setCanReview(false);
+        setCanReviewReason(data.msg || "Unable to check review eligibility");
+      }
+    } catch (error) {
+      console.error("Can review check error:", error);
+      setCanReview(false);
+      setCanReviewReason("Unable to check review eligibility");
+    } finally {
+      setCanReviewLoading(false);
+    }
+  };
 
   const fetchActivityDetail = async (activityId: string) => {
     try {
       setLoading(true);
 
       const response = await fetch(
-        `${BASE_URL}/api/activities/${activityId}`,
+        `${API_URL}/api/activities/${activityId}`,
         {
           method: "GET",
           headers: {
@@ -116,7 +155,7 @@ export default function TourDetails() {
     try {
       setReviewLoading(true);
       const response = await fetch(
-        `${BASE_URL}/api/reviews/activity/${activityId}`,
+        `${API_URL}/api/reviews/activity/${activityId}`,
         {
           method: "GET",
           headers: {
@@ -142,7 +181,7 @@ export default function TourDetails() {
       if (!token) return;
 
       const response = await fetch(
-        `${BASE_URL}/api/reviews/activity/${activityId}/my-review`,
+        `${API_URL}/api/reviews/activity/${activityId}/my-review`,
         {
           method: "GET",
           headers: {
@@ -184,7 +223,7 @@ export default function TourDetails() {
         return;
       }
 
-      const response = await fetch(`${BASE_URL}/api/reviews`, {
+      const response = await fetch(`${API_URL}/api/reviews`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -200,6 +239,11 @@ export default function TourDetails() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 403) {
+          Alert.alert("Cannot Submit Review", data.msg || "You are not eligible to review this activity");
+          checkCanReview(id!);
+          return;
+        }
         Alert.alert("Error", data.msg || "Failed to submit review");
         return;
       }
@@ -240,7 +284,7 @@ export default function TourDetails() {
   }
 
   const photoUrls = activity.photos && activity.photos.length > 0
-    ? activity.photos.map(photo => `${BASE_URL}${photo}`)
+    ? activity.photos.map(photo => `${API_URL}${photo}`)
     : [];
 
   return (
@@ -367,76 +411,70 @@ export default function TourDetails() {
         Reviews {reviews && reviews.reviewCount > 0 && `(${reviews.reviewCount})`}
       </Text>
 
-      {/* Review Form */}
-      <View style={styles.reviewFormContainer}>
-        <TouchableOpacity
-          style={styles.reviewFormToggle}
-          onPress={() => setShowReviewForm(!showReviewForm)}
-        >
-          <Text style={styles.reviewFormToggleText}>
-            {myReview ? "Edit Your Review" : "Write a Review"}
-          </Text>
-          <Ionicons
-            name={showReviewForm ? "chevron-up" : "chevron-down"}
-            size={20}
-            color="#007BFF"
-          />
-        </TouchableOpacity>
+      {/* Review Form - Conditional based on eligibility */}
+      {canReviewLoading ? (
+        <View style={styles.reviewEligibilityContainer}>
+          <ActivityIndicator size="small" color="#007BFF" />
+          <Text style={styles.reviewEligibilityText}>Checking review eligibility...</Text>
+        </View>
+      ) : canReview ? (
+        <View style={styles.reviewFormContainer}>
+          <TouchableOpacity
+            style={styles.reviewFormToggle}
+            onPress={() => setShowReviewForm(!showReviewForm)}
+          >
+            <Text style={styles.reviewFormToggleText}>
+              {myReview ? "Edit Your Review" : "Write a Review"}
+            </Text>
+            <Ionicons name={showReviewForm ? "chevron-up" : "chevron-down"} size={20} color="#007BFF" />
+          </TouchableOpacity>
 
-        {showReviewForm && (
-          <View style={styles.reviewForm}>
-            <Text style={styles.reviewFormLabel}>Rating</Text>
-            <View style={styles.ratingSelector}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <TouchableOpacity
-                  key={star}
-                  onPress={() => setRating(star)}
-                  style={styles.starButton}
-                >
-                  <Ionicons
-                    name={star <= rating ? "star" : "star-outline"}
-                    size={32}
-                    color="#FFD700"
-                  />
-                </TouchableOpacity>
-              ))}
+          {showReviewForm && (
+            <View style={styles.reviewForm}>
+              <Text style={styles.reviewFormLabel}>Rating</Text>
+              <View style={styles.ratingSelector}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <TouchableOpacity key={star} onPress={() => setRating(star)} style={styles.starButton}>
+                    <Ionicons name={star <= rating ? "star" : "star-outline"} size={32} color="#FFD700" />
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.reviewFormLabel}>Comment (Optional)</Text>
+              <TextInput
+                style={styles.reviewCommentInput}
+                multiline
+                numberOfLines={4}
+                placeholder="Share your experience..."
+                value={comment}
+                onChangeText={setComment}
+                maxLength={1000}
+              />
+              {comment.length > 0 && <Text style={styles.charCount}>{comment.length} / 1000 characters</Text>}
+
+              <TouchableOpacity
+                style={[styles.submitReviewButton, submittingReview && styles.submitReviewButtonDisabled]}
+                onPress={submitReview}
+                disabled={submittingReview}
+              >
+                <Text style={styles.submitReviewButtonText}>
+                  {submittingReview ? "Submitting..." : myReview ? "Update Review" : "Submit Review"}
+                </Text>
+              </TouchableOpacity>
             </View>
-
-            <Text style={styles.reviewFormLabel}>Comment (Optional)</Text>
-            <TextInput
-              style={styles.reviewCommentInput}
-              multiline
-              numberOfLines={4}
-              placeholder="Share your experience..."
-              value={comment}
-              onChangeText={setComment}
-              maxLength={1000}
-            />
-            {comment.length > 0 && (
-              <Text style={styles.charCount}>
-                {comment.length} / 1000 characters
-              </Text>
-            )}
-
-            <TouchableOpacity
-              style={[
-                styles.submitReviewButton,
-                submittingReview && styles.submitReviewButtonDisabled,
-              ]}
-              onPress={submitReview}
-              disabled={submittingReview}
-            >
-              <Text style={styles.submitReviewButtonText}>
-                {submittingReview
-                  ? "Submitting..."
-                  : myReview
-                  ? "Update Review"
-                  : "Submit Review"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+          )}
+        </View>
+      ) : (
+        <View style={styles.cannotReviewContainer}>
+          <Ionicons name="information-circle-outline" size={24} color="#666" />
+          <Text style={styles.cannotReviewText}>{canReviewReason}</Text>
+          {bookingEndDate && (
+            <Text style={styles.bookingEndDateText}>
+              Your booking ends on: {new Date(bookingEndDate).toLocaleDateString()}
+            </Text>
+          )}
+        </View>
+      )}
 
       {/* Reviews List */}
       {reviewLoading ? (
@@ -488,7 +526,14 @@ export default function TourDetails() {
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={() => router.push("/tourist/guide_list")}
+        onPress={() => router.push({
+          pathname: "/tourist/guide_list",
+          params: { 
+            category: activity.category,
+            activityId: activity.id,
+            duration: activity.duration.toString()
+          }
+        })}
         style={styles.primaryButton}
       >
         <Text style={styles.primaryButtonText}>Find guides</Text>
@@ -704,6 +749,46 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     fontFamily: "Nunito_400Regular",
+  },
+  reviewEligibilityContainer: {
+    backgroundColor: "#E7F0FF",
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewEligibilityText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: "#666",
+    fontFamily: "Nunito_400Regular",
+  },
+  cannotReviewContainer: {
+    backgroundColor: "#FFF5E6",
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    marginTop: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#FFD699",
+  },
+  cannotReviewText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: "#666",
+    fontFamily: "Nunito_400Regular",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  bookingEndDateText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "#007BFF",
+    fontFamily: "Nunito_700Bold",
   },
   reviewFormContainer: {
     backgroundColor: "#E7F0FF",

@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -10,10 +11,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { API_URL } from "../../constants/api";
 import AdminNavBar from "../components/admin_navbar";
-
-const BASE_URL = "http://192.168.1.67:5000";
 
 type LicenseItem = {
   userId: string;
@@ -43,7 +42,7 @@ export default function VerificationRequest() {
         return;
       }
 
-      const response = await fetch(`${BASE_URL}/api/license/pending`, {
+      const response = await fetch(`${API_URL}/api/license/pending`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,

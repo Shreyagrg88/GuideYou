@@ -1,57 +1,92 @@
-import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  TouchableOpacity,
-  ScrollView,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { API_URL } from "../../constants/api";
+
+type Guide = {
+  id: string;
+  name: string;
+  role: string;
+  location: string;
+  experience: string;
+  charge: string;
+  rating: string;
+  image: string;
+  description: string;
+};
 
 export default function GuideList() {
   const router = useRouter();
+  const { category, activityId, duration } = useLocalSearchParams<{ 
+    category: string;
+    activityId?: string;
+    duration?: string;
+  }>();
 
-  const guides = [
-    {
-      id: 1,
-      name: "Nema Sherpa",
-      role: "Trek Guide",
-      location: "Pokhara",
-      experience: "10 Y",
-      charge: "$200",
-      rating: "4.5",
-      image:
-        "https://images.squarespace-cdn.com/content/v1/5522d488e4b05f384d080ecd/1563991565432-7GP2C8383XRQLW8PSWBK/bishnu_mardi_himal.jpeg",
-    },
-    {
-      id: 2,
-      name: "Dawa Rai",
-      role: "Trek Guide",
-      location: "Pokhara",
-      experience: "10 Y",
-      charge: "$200",
-      rating: "4.5",
-      image:
-        "https://www.nepalguideinfo.com/new/wp-content/uploads/2025/01/Sanjib.jpg",
-    },
-    {
-      id: 3,
-      name: "Kumari Poudel",
-      role: "Trek Guide",
-      location: "Pokhara",
-      experience: "10 Y",
-      charge: "$200",
-      rating: "4.5",
-      image:
-        "https://communitytrek.com/uploads/photos/3/Guide/Climbing-Guide.jpg",
-    },
-  ];
+  const [guides, setGuides] = useState<Guide[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchGuides = async (categoryParam: string) => {
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `${API_URL}/api/tourist/guides?category=${encodeURIComponent(categoryParam)}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert("Error", data.msg || "Failed to load guides");
+        setGuides([]);
+        return;
+      }
+
+      setGuides(data.guides || []);
+    } catch (error) {
+      console.error("Fetch guides error:", error);
+      Alert.alert("Error", "Failed to load guides. Please try again.");
+      setGuides([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (category) {
+      fetchGuides(category);
+    } else {
+      Alert.alert("Error", "Category not provided");
+      setLoading(false);
+    }
+  }, [category]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007BFF" />
+        <Text style={styles.loadingText}>Loading guides...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
-
       <View style={styles.titleRow}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={26} color="#000" />
@@ -60,56 +95,89 @@ export default function GuideList() {
         <Text style={styles.title}>Guides For You</Text>
       </View>
 
-      {guides.map((g) => (
-        <View key={g.id} style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Image source={{ uri: g.image }} style={styles.profilePic} />
-
-            <View style={{ marginLeft: 10, flex: 1 }}>
-              <Text style={styles.guideName}>{g.name}</Text>
-              <Text style={styles.guideRole}>
-                {g.role}  •  {g.location}
-              </Text>
-            </View>
-
-            <Ionicons name="checkmark-circle" size={26} color="#00C851" />
-          </View>
-
-          <Text style={styles.description}>
-            I am a Trek tour guide who has 10 years of experience in trekking
-            and can speak fluent English, French and Spanish.
+      {guides.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>
+            No guides found for this category.
           </Text>
-
-          <View style={styles.infoRow}>
-            <View style={styles.infoBox}>
-              <Text style={styles.infoValue}>{g.experience}</Text>
-              <Text style={styles.infoLabel}>Experience</Text>
-            </View>
-
-            <View style={styles.infoBox}>
-              <Text style={[styles.infoValue, { color: "#E63946" }]}>
-                {g.charge}
-              </Text>
-              <Text style={styles.infoLabel}>Charge</Text>
-            </View>
-
-            <View style={styles.infoBox}>
-              <Text style={styles.infoValue}>⭐ {g.rating}</Text>
-              <Text style={styles.infoLabel}>Rating</Text>
-            </View>
-          </View>
-
-          <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.bookButton} onPress={() => router.push("/tourist/booking")}>
-              <Text style={styles.bookText}>Book</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.messageButton} onPress={() => router.push("/tourist/chat_tourist")}>
-              <Text style={styles.messageText}>Message</Text>
-            </TouchableOpacity>
-          </View>
         </View>
-      ))}
+      ) : (
+        guides.map((g) => (
+          <View key={g.id} style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Image
+                source={{
+                  uri: g.image.startsWith("http")
+                    ? g.image
+                    : `${API_URL}${g.image}`,
+                }}
+                style={styles.profilePic}
+              />
+
+              <View style={{ marginLeft: 10, flex: 1 }}>
+                <Text style={styles.guideName}>{g.name}</Text>
+                <Text style={styles.guideRole}>
+                  {g.role} • {g.location}
+                </Text>
+              </View>
+
+              <Ionicons name="checkmark-circle" size={26} color="#00C851" />
+            </View>
+
+            <Text style={styles.description}>
+              {g.description || "No description available."}
+            </Text>
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoBox}>
+                <Text style={styles.infoValue}>{g.experience}</Text>
+                <Text style={styles.infoLabel}>Experience</Text>
+              </View>
+
+              <View style={styles.infoBox}>
+                <Text style={[styles.infoValue, { color: "#E63946" }]}>
+                  {g.charge}
+                </Text>
+                <Text style={styles.infoLabel}>Charge</Text>
+              </View>
+
+              <View style={styles.infoBox}>
+                <Text style={styles.infoValue}>⭐ {g.rating}</Text>
+                <Text style={styles.infoLabel}>Rating</Text>
+              </View>
+            </View>
+
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.bookButton}
+                onPress={() => router.push({
+                  pathname: "/tourist/booking",
+                  params: {
+                    guideId: g.id,
+                    guideName: g.name,
+                    guideRole: g.role,
+                    guideLocation: g.location,
+                    guideRating: g.rating,
+                    guideImage: g.image.startsWith("http") ? g.image : `${API_URL}${g.image}`,
+                    guideCharge: g.charge,
+                    activityId: activityId || undefined,
+                    duration: duration || undefined,
+                  }
+                })}
+              >
+                <Text style={styles.bookText}>Book</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.messageButton}
+                onPress={() => router.push("/tourist/chat_tourist")}
+              >
+                <Text style={styles.messageText}>Message</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))
+      )}
 
       <View style={{ height: 80 }} />
     </ScrollView>
@@ -123,6 +191,19 @@ const styles = StyleSheet.create({
     padding: 20,
   },
 
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+  },
+
+  loadingText: {
+    marginTop: 10,
+    fontFamily: "Nunito_400Regular",
+    color: "#666",
+    fontSize: 14,
+  },
 
   titleRow: {
     flexDirection: "row",
@@ -135,6 +216,18 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: "Nunito_700Bold",
     marginLeft: 80,
+  },
+
+  emptyContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+
+  emptyText: {
+    fontSize: 16,
+    color: "#666",
+    fontFamily: "Nunito_400Regular",
+    textAlign: "center",
   },
 
   card: {
@@ -201,13 +294,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 15,
+    gap: 12,
   },
 
   bookButton: {
     backgroundColor: "#007BFF",
     paddingVertical: 10,
-    paddingHorizontal: 55,
+    paddingHorizontal: 40,
     borderRadius: 8,
+    
   },
 
   bookText: {
@@ -219,8 +314,8 @@ const styles = StyleSheet.create({
   messageButton: {
     backgroundColor: "#E6E6E6",
     paddingVertical: 10,
-    paddingHorizontal: 55,
-    borderRadius: 8,
+    paddingHorizontal: 40,
+    borderRadius: 5,
   },
 
   messageText: {

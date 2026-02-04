@@ -15,9 +15,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import GuideNavbar from "../components/guide_navbar";
+import { API_URL } from "../../constants/api";
 
 const NAVBAR_HEIGHT = 70;
-const BASE_URL = "http://192.168.1.67:5000";
 
 type GuideProfile = {
   id: string;
@@ -46,7 +46,6 @@ export default function Profile() {
     fetchProfile();
   }, []);
 
-  // Refresh profile when screen comes into focus (e.g., returning from edit profile)
   useFocusEffect(
     useCallback(() => {
       fetchProfile();
@@ -59,48 +58,56 @@ export default function Profile() {
       const token = await AsyncStorage.getItem("token");
 
       if (!token) {
-        Alert.alert("Authentication Required", "Please login again");
-        router.push("/login");
+        router.replace("/login");
         return;
       }
 
-      const response = await fetch(`${BASE_URL}/api/guide/profile`, {
-        method: "GET",
+      const response = await fetch(`${API_URL}/api/guide/profile`, {
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
         },
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        if (response.status === 401) {
-          Alert.alert("Session Expired", "Please login again");
-          router.push("/login");
-        } else {
-          Alert.alert("Error", data.msg || "Failed to load profile");
-        }
+        router.replace("/login");
         return;
       }
 
       setProfile(data.guide);
     } catch (error) {
-      console.error("Profile fetch error:", error);
-      Alert.alert("Error", "Failed to load profile. Please try again.");
+      Alert.alert("Error", "Failed to load profile");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            await AsyncStorage.multiRemove(["token", "user", "role"]);
+            router.replace("/login");
+          },
+        },
+      ]
+    );
   };
 
   const getAvatarUri = () => {
     if (!profile?.avatar) {
       return "https://images.unsplash.com/photo-1544005313-94ddf0286df2";
     }
-    if (profile.avatar.startsWith("http")) {
-      return profile.avatar;
-    }
-    return `${BASE_URL}${profile.avatar}`;
+    return profile.avatar.startsWith("http")
+      ? profile.avatar
+      : `${API_URL}${profile.avatar}`;
   };
 
   if (loading) {
@@ -112,54 +119,38 @@ export default function Profile() {
     );
   }
 
-  if (!profile) {
-    return (
-      <View style={[styles.root, styles.loadingContainer]}>
-        <Text style={styles.errorText}>Failed to load profile</Text>
-        <TouchableOpacity
-          style={styles.retryButton}
-          onPress={fetchProfile}
-        >
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  if (!profile) return null;
 
   return (
     <View style={styles.root}>
-      {/* Scrollable Content */}
       <ScrollView
         style={styles.container}
         contentContainerStyle={{
-          paddingBottom: NAVBAR_HEIGHT + insets.bottom + 20,
+          paddingBottom: NAVBAR_HEIGHT + insets.bottom + 30,
         }}
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.push("/guide/home_guide")}>
             <Ionicons name="chevron-back" size={s(26)} color="#000" />
           </TouchableOpacity>
-
-          <Text style={[styles.headerTitle, { fontSize: s(18) }]}>
+          <Text style={[styles.headerTitle, { fontSize: s(20) }]}>
             Profile
           </Text>
-
           <View style={{ width: 26 }} />
         </View>
 
+        {/* Profile Info */}
         <View style={styles.profileSection}>
           <Image
             source={{ uri: getAvatarUri() }}
             style={[styles.avatar, { width: s(90), height: s(90) }]}
           />
-
           <Text style={[styles.name, { fontSize: s(18) }]}>
             {profile.fullName || profile.username}
           </Text>
-
           <Text style={[styles.role, { fontSize: s(14) }]}>
-            {profile.mainExpertise || profile.expertise?.[0] || "Guide"}
+            {profile.mainExpertise || "Guide"}
           </Text>
         </View>
 
@@ -179,9 +170,27 @@ export default function Profile() {
 
           <ProfileOption
             icon="time-outline"
-            label="Edit your availability"
+            label="Edit Availability"
             onPress={() => router.push("/guide/availability")}
           />
+
+          {/* LOGOUT */}
+          <TouchableOpacity
+            style={[styles.optionCard, styles.logoutCard]}
+            onPress={handleLogout}
+          >
+            <View style={styles.optionLeft}>
+              <View style={[styles.iconBox, styles.logoutIconBox]}>
+                <Ionicons
+                  name="log-out-outline"
+                  size={20}
+                  color="#E53935"
+                />
+              </View>
+              <Text style={styles.logoutText}>Logout</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#E53935" />
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -196,9 +205,6 @@ export default function Profile() {
     </View>
   );
 }
-
-
-
 
 function ProfileOption({
   icon,
@@ -219,87 +225,71 @@ function ProfileOption({
       </View>
       <Ionicons name="chevron-forward" size={18} color="#777" />
     </TouchableOpacity>
-
   );
 }
 
-
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: "#F3F7FF",
-  },
-
-  container: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
+  root: { flex: 1, backgroundColor: "#F3F7FF" },
+  container: { flex: 1, paddingHorizontal: 20 },
 
   header: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
     marginTop: 40,
     marginBottom: 30,
   },
 
-  headerTitle: {
-    fontFamily: "Nunito_700Bold",
-  },
+  headerTitle: { fontFamily: "Nunito_700Bold" },
 
-  profileSection: {
-    alignItems: "center",
-    marginBottom: 30,
-  },
+  profileSection: { alignItems: "center", marginBottom: 30 },
 
-  avatar: {
-    borderRadius: 100,
-    marginBottom: 14,
-  },
+  avatar: { borderRadius: 100, marginBottom: 14 },
 
-  name: {
-    fontFamily: "Nunito_700Bold",
-    marginBottom: 4,
-  },
+  name: { fontFamily: "Nunito_700Bold" },
 
-  role: {
-    fontFamily: "Nunito_400Regular",
-    color: "#777",
-  },
+  role: { fontFamily: "Nunito_400Regular", color: "#777" },
 
-  optionsWrapper: {
-    gap: 14,
-  },
+  optionsWrapper: { gap: 14 },
 
   optionCard: {
     backgroundColor: "#E7F0FF",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    padding: 16,
     borderRadius: 14,
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
   },
 
-  optionLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  optionLeft: { flexDirection: "row", alignItems: "center" },
 
   iconBox: {
     width: 36,
     height: 36,
     borderRadius: 10,
     backgroundColor: "#D6E6FF",
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
     marginRight: 14,
   },
 
   optionText: {
     fontFamily: "Nunito_400Regular",
     fontSize: 15,
-    color: "#000",
+  },
+
+  /* LOGOUT */
+  logoutCard: {
+    backgroundColor: "#FFF1F1",
+  },
+
+  logoutIconBox: {
+    backgroundColor: "#FDECEA",
+  },
+
+  logoutText: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 15,
+    color: "#E53935",
   },
 
   navbarWrapper: {
@@ -311,30 +301,15 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",
   },
+
   loadingContainer: {
     justifyContent: "center",
     alignItems: "center",
   },
+
   loadingText: {
     marginTop: 10,
-    color: "#666",
     fontFamily: "Nunito_400Regular",
-  },
-  errorText: {
-    fontSize: 16,
     color: "#666",
-    fontFamily: "Nunito_700Bold",
-    marginBottom: 20,
-  },
-  retryButton: {
-    backgroundColor: "#007BFF",
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 25,
-  },
-  retryButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontFamily: "Nunito_700Bold",
   },
 });

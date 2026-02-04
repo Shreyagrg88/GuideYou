@@ -9,9 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { API_URL } from "../../constants/api";
 import AdminNavBar from "../components/admin_navbar";
-
-const BASE_URL = "http://192.168.1.67:5000";
 
 type Stats = {
   guides: { total: number; active: number };
@@ -60,10 +59,10 @@ export default function HomeAdmin() {
 
       const [statsRes, guidesRes, touristsRes, licenseRes] =
         await Promise.all([
-          fetch(`${BASE_URL}/api/admin/stats`, { headers }),
-          fetch(`${BASE_URL}/api/admin/guides/recent?limit=7`, { headers }),
-          fetch(`${BASE_URL}/api/admin/tourists/recent?limit=7`, { headers }),
-          fetch(`${BASE_URL}/api/license/pending`, { headers }),
+          fetch(`${API_URL}/api/admin/stats`, { headers }),
+          fetch(`${API_URL}/api/admin/guides/recent?limit=7`, { headers }),
+          fetch(`${API_URL}/api/admin/tourists/recent?limit=7`, { headers }),
+          fetch(`${API_URL}/api/license/pending`, { headers }),
         ]);
 
       if (!statsRes.ok) throw new Error(await statsRes.text());

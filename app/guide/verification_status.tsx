@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { API_URL } from "../../constants/api";
 import {
   ActivityIndicator,
   Alert,
@@ -23,7 +24,7 @@ export default function VerificationStatus() {
   const fetchStatus = async () => {
     try {
       const response = await fetch(
-        `http://192.168.1.67:5000/api/license/status/${userId}`
+        `${API_URL}/api/license/status/${userId}`
       );
 
       const data = await response.json();

@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import { API_URL } from "../../constants/api";
 import {
   View,
   Text,
@@ -79,7 +80,7 @@ export default function LicenseUpload() {
       } as any);
 
       const response = await fetch(
-        "http://192.168.1.67:5000/api/license/upload",
+        `${API_URL}/api/license/upload`,
         {
           method: "POST",
           body: formData,

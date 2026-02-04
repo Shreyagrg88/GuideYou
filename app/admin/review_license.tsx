@@ -16,8 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
-const BASE_URL = "http://192.168.1.67:5000";
+import { API_URL } from "../../constants/api";
 
 type LicenseData = {
   user: {
@@ -52,7 +51,7 @@ export default function ReviewLicense() {
       if (!token) return;
 
       const res = await fetch(
-        `${BASE_URL}/api/license/${userId}/view`,
+        `${API_URL}/api/license/${userId}/view`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -77,7 +76,7 @@ export default function ReviewLicense() {
       const token = await AsyncStorage.getItem("token");
 
       const res = await fetch(
-        `${BASE_URL}/api/license/${userId}/approve`,
+        `${API_URL}/api/license/${userId}/approve`,
         {
           method: "POST",
           headers: {
@@ -107,7 +106,7 @@ export default function ReviewLicense() {
       const token = await AsyncStorage.getItem("token");
 
       const res = await fetch(
-        `${BASE_URL}/api/license/${userId}/reject`,
+        `${API_URL}/api/license/${userId}/reject`,
         {
           method: "POST",
           headers: {
@@ -166,10 +165,10 @@ export default function ReviewLicense() {
         <Text style={styles.sectionTitle}>Documents</Text>
 
         <TouchableOpacity onPress={() => setPreviewVisible(true)}>
-          <Image
-            source={{ uri: data.license.fileUrl }}
-            style={styles.document}
-          />
+        <Image
+          source={{ uri: data.license.fileUrl }}
+          style={styles.document}
+        />
         </TouchableOpacity>
 
         <TouchableOpacity

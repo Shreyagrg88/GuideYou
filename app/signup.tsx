@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import { API_URL } from "../constants/api";
 import {
   Alert,
   FlatList,
@@ -69,7 +70,7 @@ export default function Signup() {
       setLoading(true);
 
       const response = await fetch(
-        "http://192.168.1.67:5000/api/auth/signup",
+        `${API_URL}/api/auth/signup`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

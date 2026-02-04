@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import { API_URL } from "../constants/api";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -39,7 +40,7 @@ export default function Login() {
       setLoading(true);
 
       const response = await fetch(
-        "http://192.168.1.67:5000/api/auth/login",
+        `${API_URL}/api/auth/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -88,7 +89,7 @@ export default function Login() {
 
       try {
         const licenseResponse = await fetch(
-          `http://192.168.1.67:5000/api/license/status/${user.id}`
+          `${API_URL}/api/license/status/${user.id}`
         );
 
         if (licenseResponse.ok) {
@@ -128,7 +129,7 @@ export default function Login() {
         return;
       }
 
-      router.push("/guide/home_guide");
+      router.replace("/guide/home_guide");
 
     } catch (error) {
       console.error("Login error:", error);

@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
+import { API_URL } from "../../constants/api";
 import {
   ActivityIndicator,
   Alert,
@@ -63,7 +64,7 @@ export default function ExpertiseScreen() {
       setLoading(true);
 
       const response = await fetch(
-        "http://192.168.1.67:5000/api/auth/set-expertise",
+        `${API_URL}/api/auth/set-expertise`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
+import { API_URL } from "../../constants/api";
 import {
   ActivityIndicator,
   Alert,
@@ -51,7 +52,7 @@ export default function InterestsScreen() {
       console.log("Sending request:", requestBody);
 
       const response = await fetch(
-        "http://192.168.1.67:5000/api/auth/set-interests",
+        `${API_URL}/api/auth/set-interests`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

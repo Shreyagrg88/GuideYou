@@ -4,20 +4,19 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-const BASE_URL = "http://192.168.1.67:5000";
+import { API_URL } from "../../constants/api";
 
 type GuideProfile = {
   id: string;
@@ -29,6 +28,7 @@ type GuideProfile = {
   mainExpertise: string;
   location: string;
   expertise: string[];
+  yearsOfExperience?: number | string;
 };
 
 export default function EditProfile() {
@@ -42,6 +42,7 @@ export default function EditProfile() {
   const [bio, setBio] = useState("");
   const [mainExpertise, setMainExpertise] = useState("");
   const [location, setLocation] = useState("");
+  const [yearsOfExperience, setYearsOfExperience] = useState("");
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [originalAvatar, setOriginalAvatar] = useState<string | null>(null);
 
@@ -63,7 +64,7 @@ export default function EditProfile() {
         return;
       }
 
-      const response = await fetch(`${BASE_URL}/api/guide/profile`, {
+      const response = await fetch(`${API_URL}/api/guide/profile`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -88,6 +89,7 @@ export default function EditProfile() {
       setBio(profile.bio || "");
       setMainExpertise(profile.mainExpertise || "");
       setLocation(profile.location || "");
+      setYearsOfExperience(profile.yearsOfExperience?.toString() || "");
       setOriginalAvatar(profile.avatar || null);
     } catch (error) {
       console.error("Profile fetch error:", error);
@@ -151,6 +153,12 @@ export default function EditProfile() {
       if (location.trim()) {
         formData.append("location", location.trim());
       }
+      if (yearsOfExperience.trim()) {
+        const years = parseInt(yearsOfExperience.trim(), 10);
+        if (!isNaN(years) && years >= 0) {
+          formData.append("yearsOfExperience", years.toString());
+        }
+      }
 
       // Only append avatar if user selected a new image
       if (avatarUri) {
@@ -161,7 +169,7 @@ export default function EditProfile() {
         } as any);
       }
 
-      const response = await fetch(`${BASE_URL}/api/guide/profile`, {
+      const response = await fetch(`${API_URL}/api/guide/profile`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -207,7 +215,7 @@ export default function EditProfile() {
       if (originalAvatar.startsWith("http")) {
         return originalAvatar;
       }
-      return `${BASE_URL}${originalAvatar}`;
+      return `${API_URL}${originalAvatar}`;
     }
     return "https://images.unsplash.com/photo-1544005313-94ddf0286df2";
   };
@@ -233,13 +241,12 @@ export default function EditProfile() {
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={s(26)} color="#000" />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { fontSize: s(18) }]}>
+        <Text style={[styles.headerTitle, { fontSize: s(20) }]}>
           Edit Profile
         </Text>
         <View style={{ width: 26 }} />
       </View>
 
-      {/* Avatar */}
       <View style={styles.avatarWrapper}>
         <Image
           source={{ uri: getAvatarUri() }}
@@ -305,6 +312,21 @@ export default function EditProfile() {
             maxLength={100}
           />
         </View>
+
+        <Text style={styles.label}>Years of Experience</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g., 5"
+          placeholderTextColor="#999"
+          value={yearsOfExperience}
+          onChangeText={(text) => {
+            // Only allow numbers
+            const numericValue = text.replace(/[^0-9]/g, "");
+            setYearsOfExperience(numericValue);
+          }}
+          keyboardType="numeric"
+          maxLength={3}
+        />
       </View>
 
       {/* Save Button */}

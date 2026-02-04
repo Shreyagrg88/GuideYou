@@ -17,11 +17,11 @@ import {
 } from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { API_URL } from "../../constants/api";
 
 import LocationAutocomplete from "../components/locationAutocomplete";
 
 export default function AddNewActivity() {
-  // -------------------- FORM STATE --------------------
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
@@ -35,7 +35,6 @@ export default function AddNewActivity() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // -------------------- STATIC DATA --------------------
   const categories = [
     "Adventure",
     "Culture",
@@ -54,7 +53,6 @@ export default function AddNewActivity() {
     "Architecture",
   ].map((item) => ({ label: item, value: item }));
 
-  // -------------------- IMAGE PICKER --------------------
   const pickImage = async () => {
     if (photos.length >= 10) {
       Alert.alert(
@@ -89,7 +87,6 @@ export default function AddNewActivity() {
     }
   };
 
-  // -------------------- SUBMIT HANDLER --------------------
   const publishActivity = async () => {
     if (!name || !location || !description || !category) {
       Alert.alert(
@@ -142,7 +139,7 @@ export default function AddNewActivity() {
       });
 
       const response = await fetch(
-        "http://192.168.1.67:5000/api/activities",
+        `${API_URL}/api/activities`,
         {
           method: "POST",
           headers: {
@@ -201,7 +198,6 @@ export default function AddNewActivity() {
     }
   };
 
-  // -------------------- UI --------------------
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F3F7FF" }}>
       <KeyboardAvoidingView
@@ -376,18 +372,17 @@ export default function AddNewActivity() {
   );
 }
 
-// -------------------- STYLES (UNCHANGED) --------------------
 const styles = StyleSheet.create({
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 2,
     marginBottom: 25,
   },
   title: {
     fontSize: 20,
     fontFamily: "Nunito_700Bold",
-    marginLeft: 100,
+    marginLeft: 80,
   },
   label: {
     fontSize: 16,

@@ -127,6 +127,7 @@ export default function LocationAutocomplete({ value, onSelect }: Props) {
       {showDropdown && results.length > 0 && (
         <View style={styles.dropdown}>
           <FlatList
+            nestedScrollEnabled={true}
             keyboardShouldPersistTaps="handled"
             data={results}
             keyExtractor={(item) => item.place_id.toString()}

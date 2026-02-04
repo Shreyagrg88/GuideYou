@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  BackHandler,
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,12 +13,12 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { API_URL } from "../../constants/api";
 import GuideNavbar from "../components/guide_navbar";
-
-const BASE_URL = "http://192.168.1.67:5000";
 
 export default function GuideHome() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [homepageData, setHomepageData] = useState<any>(null);
@@ -27,7 +29,7 @@ export default function GuideHome() {
       const token = await AsyncStorage.getItem("token");
       if (!token) return;
 
-      const response = await fetch(`${BASE_URL}/api/guide/profile`, {
+      const response = await fetch(`${API_URL}/api/guide/profile`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -49,7 +51,7 @@ export default function GuideHome() {
       const token = await AsyncStorage.getItem("token");
 
       const response = await fetch(
-        `${BASE_URL}/api/guide/homepage`,
+        `${API_URL}/api/guide/homepage`,
         {
           method: "GET",
           headers: {
@@ -88,6 +90,21 @@ export default function GuideHome() {
     }, [])
   );
 
+  // Exit app when back button is pressed on homepage
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      const backHandler = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          BackHandler.exitApp(); // Exit the app directly
+          return true; // Prevent default back behavior
+        }
+      );
+
+      return () => backHandler.remove();
+    }
+  }, []);
+
   if (loading) {
     return (
       <View style={styles.loadingWrapper}>
@@ -107,7 +124,7 @@ export default function GuideHome() {
       <ScrollView
         style={styles.container}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 90 + insets.bottom }}
+        contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
       >
         {/* HEADER */}
         <View style={styles.headerRow}>
@@ -151,7 +168,7 @@ export default function GuideHome() {
             <View style={styles.performanceBox}>
               <Text style={styles.boxTitle}>Earning</Text>
               <Text style={styles.boxValue}>
-                ${homepageData?.performance?.earnings}
+                ${homepageData?.performance?.earnings || 0 }
               </Text>
             </View>
 
@@ -165,7 +182,13 @@ export default function GuideHome() {
         </View>
 
         {/* NEW REQUESTS */}
-        <TouchableOpacity style={styles.requestBtn}>
+        <TouchableOpacity 
+          style={styles.requestBtn}
+          onPress={() => router.push({
+            pathname: "/guide/bookings_guide",
+            params: { tab: "requests" }
+          })}
+        >
           <View style={styles.requestLeft}>
             <Ionicons name="list-outline" size={20} color="#007BFF" />
             <Text style={styles.requestText}>
@@ -188,7 +211,11 @@ export default function GuideHome() {
           <View style={styles.bookingCard}>
             <Image
               source={{
-                uri: `http://localhost:5000${nextBooking.activity.photo}`,
+                uri: nextBooking.activity?.photo 
+                  ? (nextBooking.activity.photo.startsWith("http") 
+                      ? nextBooking.activity.photo 
+                      : `${API_URL}${nextBooking.activity.photo}`)
+                  : `https://via.placeholder.com/400x180?text=No+Image`,
               }}
               style={styles.bookingImage}
             />
@@ -199,7 +226,7 @@ export default function GuideHome() {
 
             <View style={styles.bookingInfo}>
               <Text style={styles.bookingTitle}>
-                {nextBooking.activity.name}
+                {nextBooking.activity?.name || "Custom Tour"}
               </Text>
 
               <View style={styles.row}>
