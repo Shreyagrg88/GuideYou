@@ -3,19 +3,19 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import GuideNavbar from "../components/guide_navbar";
 import { API_URL } from "../../constants/api";
+import GuideNavbar from "../components/guide_navbar";
 
 const NAVBAR_HEIGHT = 70;
 
@@ -29,6 +29,7 @@ type GuideProfile = {
   mainExpertise: string;
   location: string;
   expertise: string[];
+  yearsOfExperience?: number | string;
 };
 
 export default function Profile() {
@@ -140,56 +141,76 @@ export default function Profile() {
           <View style={{ width: 26 }} />
         </View>
 
-        {/* Profile Info */}
-        <View style={styles.profileSection}>
+        {/* Profile block – Instagram-style (like tourists see) */}
+        <View style={styles.profileBlock}>
           <Image
             source={{ uri: getAvatarUri() }}
-            style={[styles.avatar, { width: s(90), height: s(90) }]}
+            style={[styles.avatar, { width: s(100), height: s(100) }]}
           />
-          <Text style={[styles.name, { fontSize: s(18) }]}>
+          <Text style={[styles.displayName, { fontSize: s(20) }]}>
             {profile.fullName || profile.username}
           </Text>
-          <Text style={[styles.role, { fontSize: s(14) }]}>
+          <Text style={[styles.mainExpertise, { fontSize: s(14) }]}>
             {profile.mainExpertise || "Guide"}
           </Text>
+          {profile.bio ? (
+            <Text style={[styles.bio, { fontSize: s(14) }]}>{profile.bio}</Text>
+          ) : null}
+          {profile.yearsOfExperience != null && profile.yearsOfExperience !== "" ? (
+            <Text style={[styles.meta, { fontSize: s(13) }]}>
+              {Number(profile.yearsOfExperience) === 1
+                ? "1 year of experience"
+                : `${profile.yearsOfExperience} years of experience`}
+            </Text>
+          ) : null}
+          {profile.location ? (
+            <View style={styles.locationRow}>
+              <Ionicons name="location-outline" size={s(14)} color="#666" />
+              <Text style={[styles.locationText, { fontSize: s(13) }]}>{profile.location}</Text>
+            </View>
+          ) : null}
+          {profile.expertise && profile.expertise.length > 0 ? (
+            <View style={styles.expertiseWrap}>
+              {profile.expertise.slice(0, 5).map((e, i) => (
+                <View key={i} style={styles.expertiseChip}>
+                  <Text style={styles.expertiseChipText}>{e}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
 
-        {/* Options */}
-        <View style={styles.optionsWrapper}>
-          <ProfileOption
-            icon="person-outline"
-            label="Edit Profile"
+        {/* Action buttons */}
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={styles.primaryBtn}
             onPress={() => router.push("/guide/edit_profile")}
-          />
+          >
+            <Ionicons name="pencil-outline" size={18} color="#007BFF" />
+            <Text style={styles.primaryBtnText}>Edit Profile</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={() => router.push("/guide/availability")}
+          >
+            <Ionicons name="calendar-outline" size={18} color="#007BFF" />
+            <Text style={styles.primaryBtnText}>Edit Availability</Text>
+          </TouchableOpacity>
+        </View>
 
+        {/* Menu list */}
+        <View style={styles.menuList}>
           <ProfileOption
             icon="card-outline"
             label="Payment Method"
             onPress={() => router.push("/guide/payment")}
           />
-
-          <ProfileOption
-            icon="time-outline"
-            label="Edit Availability"
-            onPress={() => router.push("/guide/availability")}
-          />
-
-          {/* LOGOUT */}
-          <TouchableOpacity
-            style={[styles.optionCard, styles.logoutCard]}
-            onPress={handleLogout}
-          >
-            <View style={styles.optionLeft}>
-              <View style={[styles.iconBox, styles.logoutIconBox]}>
-                <Ionicons
-                  name="log-out-outline"
-                  size={20}
-                  color="#E53935"
-                />
-              </View>
+          <TouchableOpacity style={[styles.menuRow, styles.logoutRow]} onPress={handleLogout}>
+            <View style={styles.menuRowLeft}>
+              <Ionicons name="log-out-outline" size={20} color="#E53935" />
               <Text style={styles.logoutText}>Logout</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#E53935" />
+            <Ionicons name="chevron-forward" size={18} color="#999" />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -216,14 +237,12 @@ function ProfileOption({
   onPress: () => void;
 }) {
   return (
-    <TouchableOpacity style={styles.optionCard} onPress={onPress}>
-      <View style={styles.optionLeft}>
-        <View style={styles.iconBox}>
-          <Ionicons name={icon} size={20} color="#007BFF" />
-        </View>
-        <Text style={styles.optionText}>{label}</Text>
+    <TouchableOpacity style={styles.menuRow} onPress={onPress}>
+      <View style={styles.menuRowLeft}>
+        <Ionicons name={icon} size={20} color="#333" />
+        <Text style={styles.menuRowText}>{label}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color="#777" />
+      <Ionicons name="chevron-forward" size={18} color="#999" />
     </TouchableOpacity>
   );
 }
@@ -235,62 +254,77 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 40,
-    marginBottom: 30,
+    marginBottom: 24,
   },
+  headerTitle: { fontFamily: "Nunito_700Bold", fontSize: 20 },
 
-  headerTitle: { fontFamily: "Nunito_700Bold" },
-
-  profileSection: { alignItems: "center", marginBottom: 30 },
-
-  avatar: { borderRadius: 100, marginBottom: 14 },
-
-  name: { fontFamily: "Nunito_700Bold" },
-
-  role: { fontFamily: "Nunito_400Regular", color: "#777" },
-
-  optionsWrapper: { gap: 14 },
-
-  optionCard: {
-    backgroundColor: "#E7F0FF",
-    padding: 16,
-    borderRadius: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
+  profileBlock: {
     alignItems: "center",
+    marginBottom: 24,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 3,
   },
-
-  optionLeft: { flexDirection: "row", alignItems: "center" },
-
-  iconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "#D6E6FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-  },
-
-  optionText: {
+  avatar: { borderRadius: 100, marginBottom: 12 },
+  displayName: { fontFamily: "Nunito_700Bold", color: "#1a1a1a", marginBottom: 4 },
+  mainExpertise: { fontFamily: "Nunito_700Bold", color: "#007BFF", marginBottom: 8 },
+  bio: {
     fontFamily: "Nunito_400Regular",
-    fontSize: 15,
+    color: "#444",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 8,
+    paddingHorizontal: 8,
   },
+  meta: { fontFamily: "Nunito_400Regular", color: "#666", marginBottom: 6 },
+  locationRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 10 },
+  locationText: { fontFamily: "Nunito_400Regular", color: "#666" },
+  expertiseWrap: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8 },
+  expertiseChip: {
+    backgroundColor: "#E7F0FF",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  expertiseChipText: { fontFamily: "Nunito_400Regular", fontSize: 12, color: "#333" },
 
-  /* LOGOUT */
-  logoutCard: {
-    backgroundColor: "#FFF1F1",
+  actionRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
+  primaryBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FFF",
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#007BFF",
   },
+  primaryBtnText: { fontFamily: "Nunito_700Bold", fontSize: 14, color: "#007BFF" },
 
-  logoutIconBox: {
-    backgroundColor: "#FDECEA",
+  menuList: { gap: 0, backgroundColor: "#FFF", borderRadius: 16, overflow: "hidden", marginBottom: 20 },
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
   },
-
-  logoutText: {
-    fontFamily: "Nunito_700Bold",
-    fontSize: 15,
-    color: "#E53935",
-  },
+  menuRowLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  menuRowText: { fontFamily: "Nunito_700Bold", fontSize: 15, color: "#333" },
+  logoutRow: { borderBottomWidth: 0 },
+  logoutText: { fontFamily: "Nunito_700Bold", fontSize: 15, color: "#E53935" },
 
   navbarWrapper: {
     position: "absolute",
@@ -301,15 +335,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",
   },
-
-  loadingContainer: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  loadingText: {
-    marginTop: 10,
-    fontFamily: "Nunito_400Regular",
-    color: "#666",
-  },
+  loadingContainer: { justifyContent: "center", alignItems: "center" },
+  loadingText: { marginTop: 10, fontFamily: "Nunito_400Regular", color: "#666" },
 });
