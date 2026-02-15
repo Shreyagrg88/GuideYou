@@ -29,6 +29,7 @@ type GuideProfile = {
   location: string;
   expertise: string[];
   yearsOfExperience?: number | string;
+  languages?: string[];
 };
 
 export default function EditProfile() {
@@ -43,6 +44,7 @@ export default function EditProfile() {
   const [mainExpertise, setMainExpertise] = useState("");
   const [location, setLocation] = useState("");
   const [yearsOfExperience, setYearsOfExperience] = useState("");
+  const [languagesStr, setLanguagesStr] = useState("");
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [originalAvatar, setOriginalAvatar] = useState<string | null>(null);
 
@@ -90,6 +92,7 @@ export default function EditProfile() {
       setMainExpertise(profile.mainExpertise || "");
       setLocation(profile.location || "");
       setYearsOfExperience(profile.yearsOfExperience?.toString() || "");
+      setLanguagesStr(Array.isArray(profile.languages) ? profile.languages.join(", ") : "");
       setOriginalAvatar(profile.avatar || null);
     } catch (error) {
       console.error("Profile fetch error:", error);
@@ -158,6 +161,14 @@ export default function EditProfile() {
         if (!isNaN(years) && years >= 0) {
           formData.append("yearsOfExperience", years.toString());
         }
+      }
+
+      const languagesArray = languagesStr
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (languagesArray.length > 0) {
+        formData.append("languages", languagesArray.join(", "));
       }
 
       // Only append avatar if user selected a new image
@@ -320,12 +331,21 @@ export default function EditProfile() {
           placeholderTextColor="#999"
           value={yearsOfExperience}
           onChangeText={(text) => {
-            // Only allow numbers
             const numericValue = text.replace(/[^0-9]/g, "");
             setYearsOfExperience(numericValue);
           }}
           keyboardType="numeric"
           maxLength={3}
+        />
+
+        <Text style={styles.label}>Languages</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. English, Nepali, Hindi"
+          placeholderTextColor="#999"
+          value={languagesStr}
+          onChangeText={setLanguagesStr}
+          maxLength={200}
         />
       </View>
 
