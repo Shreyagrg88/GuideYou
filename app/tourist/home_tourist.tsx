@@ -3,15 +3,15 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    FlatList,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
@@ -465,48 +465,58 @@ export default function HomePage() {
             {activeSearchFilter === "Guides" && (
               <>
                 {searchResults.guides && searchResults.guides.length > 0 ? (
-                  searchResults.guides.map((guide: any) => (
-                    <TouchableOpacity
-                      key={guide.id}
-                      style={styles.guideCard}
-                      onPress={() => router.push({
-                        pathname: "/tourist/guide_list",
-                        params: { category: guide.mainExpertise || guide.expertise?.[0] || "All" },
-                      })}
-                    >
-                      <Image
-                        source={{
-                          uri: guide.avatar?.startsWith('/')
-                            ? `${API_URL}${guide.avatar}`
-                            : guide.avatar || "https://images.unsplash.com/photo-1544005313-94ddf0286df2"
-                        }}
-                        style={styles.guideAvatar}
-                      />
-                      <View style={styles.guideCardContent}>
-                        {guide.verified && (
-                          <View style={styles.verifiedBadge}>
-                            <Ionicons name="checkmark-circle" size={14} color="#00C851" />
-                            <Text style={styles.verifiedText}>Verified Guide</Text>
-                          </View>
-                        )}
-                        <Text style={styles.guideName}>{guide.fullName || guide.username}</Text>
-                        <Text style={styles.guideRole}>
-                          {guide.mainExpertise || guide.expertise?.[0] || "Guide"} • {guide.location}
-                        </Text>
-                        <View style={styles.guideInfoRow}>
-                          <View style={styles.guideInfoItem}>
-                            <Ionicons name="star" size={14} color="#FFD700" />
-                            <Text style={styles.guideInfoText}>{guide.rating || "N/A"}</Text>
-                          </View>
-                          {guide.reviewCount > 0 && (
-                            <Text style={[styles.guideInfoText, { marginLeft: 8 }]}>
-                              ({guide.reviewCount} reviews)
-                            </Text>
+                  searchResults.guides.map((guide: any) => {
+                    const guideImage = guide.avatar?.startsWith("/")
+                      ? `${API_URL}${guide.avatar}`
+                      : guide.avatar || "https://images.unsplash.com/photo-1544005313-94ddf0286df2";
+                    return (
+                      <TouchableOpacity
+                        key={guide.id}
+                        style={styles.guideCard}
+                        onPress={() => router.push({
+                          pathname: "/tourist/guide_profileview",
+                          params: {
+                            guideId: guide.id,
+                            guideName: guide.fullName || guide.username,
+                            guideImage,
+                            guideRole: guide.mainExpertise || guide.expertise?.[0] || "Guide",
+                            guideLocation: guide.location || "",
+                            guideRating: guide.rating != null ? String(guide.rating) : "N/A",
+                            guideCharge: guide.rate != null ? `$${guide.rate}/day` : "$10/day",
+                            description: guide.bio || "",
+                          },
+                        })}
+                      >
+                        <Image
+                          source={{ uri: guideImage }}
+                          style={styles.guideAvatar}
+                        />
+                        <View style={styles.guideCardContent}>
+                          {guide.verified && (
+                            <View style={styles.verifiedBadge}>
+                              <Ionicons name="checkmark-circle" size={14} color="#00C851" />
+                              <Text style={styles.verifiedText}>Verified Guide</Text>
+                            </View>
                           )}
+                          <Text style={styles.guideName}>{guide.fullName || guide.username}</Text>
+                          <Text style={styles.guideRole}>
+                            {guide.mainExpertise || guide.expertise?.[0] || "Guide"} • {guide.location}
+                          </Text>
+                          <View style={styles.guideInfoRow}>
+                            <View style={styles.guideInfoItem}>
+                              <Ionicons name="star" size={14} color="#FFD700" />
+                              <Text style={styles.guideInfoText}>{guide.rating || "N/A"}</Text>
+                            </View>
+                            {guide.reviewCount > 0 && (
+                              <Text style={[styles.guideInfoText, { marginLeft: 8 }]}>
+                                ({guide.reviewCount} reviews)
+                              </Text>
+                            )}
+                          </View>
                         </View>
-                      </View>
-                    </TouchableOpacity>
-                  ))
+                      </TouchableOpacity>
+                    );
+                  })
                 ) : (
                   <Text style={styles.emptyText}>No guides found</Text>
                 )}
