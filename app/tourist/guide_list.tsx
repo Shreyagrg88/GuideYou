@@ -2,14 +2,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
 
@@ -102,81 +102,90 @@ export default function GuideList() {
           </Text>
         </View>
       ) : (
-        guides.map((g) => (
-          <View key={g.id} style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Image
-                source={{
-                  uri: g.image.startsWith("http")
-                    ? g.image
-                    : `${API_URL}${g.image}`,
-                }}
-                style={styles.profilePic}
-              />
+        guides.map((g) => {
+          const guideImage = g.image.startsWith("http") ? g.image : `${API_URL}${g.image}`;
+          const profileParams = {
+            guideId: g.id,
+            guideName: g.name,
+            guideRole: g.role,
+            guideLocation: g.location,
+            guideRating: g.rating,
+            guideImage,
+            guideCharge: g.charge,
+            description: g.description,
+            activityId: activityId || undefined,
+            duration: duration || undefined,
+          };
+          return (
+            <TouchableOpacity
+              key={g.id}
+              style={styles.card}
+              activeOpacity={0.9}
+              onPress={() => router.push({ pathname: "/tourist/guide_profileview", params: profileParams })}
+            >
+              <View style={styles.cardHeader}>
+                <Image
+                  source={{ uri: guideImage }}
+                  style={styles.profilePic}
+                />
 
-              <View style={{ marginLeft: 10, flex: 1 }}>
-                <Text style={styles.guideName}>{g.name}</Text>
-                <Text style={styles.guideRole}>
-                  {g.role} • {g.location}
-                </Text>
+                <View style={{ marginLeft: 10, flex: 1 }}>
+                  <Text style={styles.guideName}>{g.name}</Text>
+                  <Text style={styles.guideRole}>
+                    {g.role} • {g.location}
+                  </Text>
+                </View>
+
+                <Ionicons name="checkmark-circle" size={26} color="#00C851" />
               </View>
 
-              <Ionicons name="checkmark-circle" size={26} color="#00C851" />
-            </View>
+              <Text style={styles.description}>
+                {g.description || "No description available."}
+              </Text>
 
-            <Text style={styles.description}>
-              {g.description || "No description available."}
-            </Text>
+              <View style={styles.infoRow}>
+                <View style={styles.infoBox}>
+                  <Text style={styles.infoValue}>{g.experience}</Text>
+                  <Text style={styles.infoLabel}>Experience</Text>
+                </View>
 
-            <View style={styles.infoRow}>
-              <View style={styles.infoBox}>
-                <Text style={styles.infoValue}>{g.experience}</Text>
-                <Text style={styles.infoLabel}>Experience</Text>
+                <View style={styles.infoBox}>
+                  <Text style={[styles.infoValue, { color: "#E63946" }]}>
+                    {g.charge}
+                  </Text>
+                  <Text style={styles.infoLabel}>Charge</Text>
+                </View>
+
+                <View style={styles.infoBox}>
+                  <Text style={styles.infoValue}>⭐ {g.rating}</Text>
+                  <Text style={styles.infoLabel}>Rating</Text>
+                </View>
               </View>
 
-              <View style={styles.infoBox}>
-                <Text style={[styles.infoValue, { color: "#E63946" }]}>
-                  {g.charge}
-                </Text>
-                <Text style={styles.infoLabel}>Charge</Text>
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  style={styles.bookButton}
+                  onPress={(e) => {
+                    e?.stopPropagation?.();
+                    router.push({ pathname: "/tourist/booking", params: profileParams });
+                  }}
+                >
+                  <Text style={styles.bookText}>Book</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.messageButton}
+                  onPress={(e) => {
+                    e?.stopPropagation?.();
+                    router.push("/tourist/chat_tourist");
+                  }}
+                >
+                  <Text style={styles.messageText}>Message</Text>
+                </TouchableOpacity>
               </View>
-
-              <View style={styles.infoBox}>
-                <Text style={styles.infoValue}>⭐ {g.rating}</Text>
-                <Text style={styles.infoLabel}>Rating</Text>
-              </View>
-            </View>
-
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={styles.bookButton}
-                onPress={() => router.push({
-                  pathname: "/tourist/booking",
-                  params: {
-                    guideId: g.id,
-                    guideName: g.name,
-                    guideRole: g.role,
-                    guideLocation: g.location,
-                    guideRating: g.rating,
-                    guideImage: g.image.startsWith("http") ? g.image : `${API_URL}${g.image}`,
-                    guideCharge: g.charge,
-                    activityId: activityId || undefined,
-                    duration: duration || undefined,
-                  }
-                })}
-              >
-                <Text style={styles.bookText}>Book</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.messageButton}
-                onPress={() => router.push("/tourist/chat_tourist")}
-              >
-                <Text style={styles.messageText}>Message</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))
+            </TouchableOpacity>
+          );
+        })
       )}
 
       <View style={{ height: 80 }} />
