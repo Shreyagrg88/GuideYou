@@ -249,9 +249,9 @@ export default function BookingRequestScreen() {
           <Text style={styles.subUser}>{item.tourist.name || item.tourist.username}</Text>
         </View>
         {showChevron ? (
-          <View style={styles.statusBox}>
+        <View style={styles.statusBox}>
             <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{getStatusText(item.status)}</Text>
-          </View>
+        </View>
         ) : (
           <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{getStatusText(item.status)}</Text>
         )}
@@ -302,13 +302,13 @@ export default function BookingRequestScreen() {
                     <Text style={styles.reqDate}>{formatDateRange(req.startDate, req.endDate)}</Text>
                     <View style={styles.partyBox}>
                       <Text style={styles.partyText}>Party of {req.participantCount}</Text>
-                    </View>
-                  </View>
+        </View>
+        </View>
                   <View style={styles.statusBox}>
                     <Text style={[styles.statusText, { color: getStatusColor(req.status) }]}>
                       {getStatusText(req.status)}
-                    </Text>
-                  </View>
+        </Text>
+      </View>
                 </View>
               );
             })}
@@ -329,14 +329,14 @@ export default function BookingRequestScreen() {
               return (
                 <View key={req.id} style={styles.requestCard}>
                   <Image source={{ uri: avatarUri }} style={styles.profilePic} />
-                  <View style={{ flex: 1, marginLeft: 12 }}>
+        <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.reqName}>{req.tourist.name || req.tourist.username}</Text>
                     <Text style={styles.reqTrek}>{req.activity?.name || "Custom Tour"}</Text>
                     <Text style={styles.reqDate}>{formatDateRange(req.startDate, req.endDate)}</Text>
-                    <View style={styles.partyBox}>
+          <View style={styles.partyBox}>
                       <Text style={styles.partyText}>Party of {req.participantCount}</Text>
-                    </View>
-                  </View>
+          </View>
+        </View>
                   <View style={styles.buttonRow}>
                     <TouchableOpacity
                       style={[styles.rejectBtn, processingId === req.id && styles.disabledBtn]}
@@ -351,8 +351,8 @@ export default function BookingRequestScreen() {
                       disabled={processingId === req.id}
                     >
                       {processingId === req.id ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.acceptText}>Accept</Text>}
-                    </TouchableOpacity>
-                  </View>
+        </TouchableOpacity>
+      </View>
                 </View>
               );
             })}
