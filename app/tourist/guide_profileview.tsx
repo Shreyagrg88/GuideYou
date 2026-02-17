@@ -204,7 +204,7 @@ export default function GuideProfileView() {
             ? `${API_URL}${params.guideImage}`
             : "";
     router.push({
-      pathname: "/tourist/booking",
+      pathname: "/tourist/custom_tour_request",
       params: {
         guideId: id,
         guideName: (guide?.fullName || guide?.username || params.guideName) ?? "",
