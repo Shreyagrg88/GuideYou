@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL } from "../../constants/api";
 
 type DateStatus = "available" | "unavailable" | "booked" | "reserved";
@@ -29,6 +30,13 @@ const getConsecutiveDates = (startDate: Date, endDate: Date): Date[] => {
     current.setDate(current.getDate() + 1);
   }
   return dates;
+};
+
+const formatDateForAPI = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
 
 export default function CustomTourRequest() {
@@ -52,42 +60,69 @@ export default function CustomTourRequest() {
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [selectedDateRange, setSelectedDateRange] = useState<Date[]>([]);
   const [dateStatuses, setDateStatuses] = useState<Map<string, DateStatus>>(new Map());
+  const [pricePerPerson, setPricePerPerson] = useState<number>(50);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [participantCount, setParticipantCount] = useState(1);
   const [tourName, setTourName] = useState("");
   const [location, setLocation] = useState("");
   const [noteToGuide, setNoteToGuide] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Mock pricing for frontend-only (will be replaced with API later)
-  const mockPricePerPerson = params.guideCharge
-    ? parseFloat(params.guideCharge.replace("$", "").replace("/day", "").replace(",", "")) || 50
-    : 50;
-
-  // Mock date statuses for frontend demo (will be replaced with API later)
+  // Fetch guide availability and pricing
   useEffect(() => {
-    const mockStatuses = new Map<string, DateStatus>();
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const fetchAvailability = async () => {
+      if (!params.guideId) return;
 
-    // Mark some dates as booked/reserved for demo
-    for (let i = 0; i < 60; i++) {
-      const checkDate = new Date(todayStart);
-      checkDate.setDate(checkDate.getDate() + i);
-      const key = formatDateKey(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
+      setAvailabilityLoading(true);
+      try {
+        const token = await AsyncStorage.getItem("token");
+        const response = await fetch(`${API_URL}/api/tourist/guides/${params.guideId}/availability`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
 
-      // Mock: mark some dates as unavailable
-      if (i % 7 === 0) {
-        mockStatuses.set(key, "booked");
-      } else if (i % 9 === 0) {
-        mockStatuses.set(key, "reserved");
-      } else if (i % 11 === 0) {
-        mockStatuses.set(key, "unavailable");
-      } else {
-        mockStatuses.set(key, "available");
+        if (!response.ok) {
+          throw new Error("Failed to fetch availability");
+        }
+
+        const data = await response.json();
+        
+        // Set pricing
+        if (data.pricing?.perPersonPerDay) {
+          setPricePerPerson(data.pricing.perPersonPerDay);
+        } else if (params.guideCharge) {
+          const parsed = parseFloat(params.guideCharge.replace("$", "").replace("/day", "").replace(",", ""));
+          if (!isNaN(parsed)) setPricePerPerson(parsed);
+        }
+
+        // Process availability dates
+        const statusMap = new Map<string, DateStatus>();
+        if (data.availability && Array.isArray(data.availability)) {
+          data.availability.forEach((item: { date: string; status: DateStatus }) => {
+            if (item.date && item.status) {
+              statusMap.set(item.date, item.status);
+            }
+          });
+        }
+        setDateStatuses(statusMap);
+      } catch (error) {
+        console.error("Error fetching availability:", error);
+        Alert.alert("Error", "Failed to load availability. Please try again.");
+        // Fallback to mock pricing
+        if (params.guideCharge) {
+          const parsed = parseFloat(params.guideCharge.replace("$", "").replace("/day", "").replace(",", ""));
+          if (!isNaN(parsed)) setPricePerPerson(parsed);
+        }
+      } finally {
+        setAvailabilityLoading(false);
       }
-    }
-    setDateStatuses(mockStatuses);
-  }, []);
+    };
+
+    fetchAvailability();
+  }, [params.guideId]);
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
@@ -200,26 +235,8 @@ export default function CustomTourRequest() {
     return dateObj < todayStart;
   };
 
-  const isStartDate = (day: number): boolean => {
-    if (!startDate) return false;
-    return (
-      startDate.getDate() === day &&
-      startDate.getMonth() === currentMonth &&
-      startDate.getFullYear() === currentYear
-    );
-  };
-
-  const isEndDate = (day: number): boolean => {
-    if (!endDate) return false;
-    return (
-      endDate.getDate() === day &&
-      endDate.getMonth() === currentMonth &&
-      endDate.getFullYear() === currentYear
-    );
-  };
-
-  const isInRange = (day: number): boolean => {
-    if (selectedDateRange.length <= 1) return false;
+  const isDateSelected = (day: number): boolean => {
+    if (selectedDateRange.length === 0) return false;
     const checkDate = new Date(currentYear, currentMonth, day);
     return selectedDateRange.some(
       (date) =>
@@ -229,9 +246,21 @@ export default function CustomTourRequest() {
     );
   };
 
+  const isStartDate = (day: number): boolean =>
+    selectedDateRange.length > 0 &&
+    selectedDateRange[0].getDate() === day &&
+    selectedDateRange[0].getMonth() === currentMonth &&
+    selectedDateRange[0].getFullYear() === currentYear;
+
+  const isEndDate = (day: number): boolean =>
+    selectedDateRange.length > 0 &&
+    selectedDateRange[selectedDateRange.length - 1].getDate() === day &&
+    selectedDateRange[selectedDateRange.length - 1].getMonth() === currentMonth &&
+    selectedDateRange[selectedDateRange.length - 1].getFullYear() === currentYear;
+
   const calculateTotal = (): string => {
     const days = selectedDateRange.length || 1;
-    const total = mockPricePerPerson * days * participantCount;
+    const total = pricePerPerson * days * participantCount;
     return `$${total.toFixed(0)}`;
   };
 
@@ -259,7 +288,7 @@ export default function CustomTourRequest() {
     }
   };
 
-  const handleSubmitRequest = () => {
+  const handleSubmitRequest = async () => {
     if (!tourName.trim()) {
       Alert.alert("Required Field", "Please enter the name of the tour.");
       return;
@@ -272,17 +301,64 @@ export default function CustomTourRequest() {
       Alert.alert("Invalid", "Note to guide cannot exceed 500 characters.");
       return;
     }
+    if (!params.guideId) {
+      Alert.alert("Error", "Guide ID is missing. Please try again.");
+      return;
+    }
+    if (selectedDateRange.length === 0) {
+      Alert.alert("Error", "Please select dates for your tour.");
+      return;
+    }
 
-    // Frontend only - just show success message
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Authentication Required", "Please log in to send a tour request.");
+        setSubmitting(false);
+        return;
+      }
+
+      const requestBody = {
+        guideId: params.guideId,
+        startDate: formatDateForAPI(selectedDateRange[0]),
+        endDate: formatDateForAPI(selectedDateRange[selectedDateRange.length - 1]),
+        participantCount: participantCount,
+        tourName: tourName.trim(),
+        location: location.trim(),
+        noteToGuide: noteToGuide.trim() || undefined,
+      };
+
+      const response = await fetch(`${API_URL}/api/tourist/custom-tour-request`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.msg || errorData.message || "Failed to send tour request");
+      }
+
+      await response.json();
+
       Alert.alert(
         "Request Sent!",
         "Your custom tour request has been sent to the guide. They will review and respond soon.",
         [{ text: "OK", onPress: () => router.back() }]
       );
-    }, 1000);
+    } catch (error: any) {
+      console.error("Error submitting tour request:", error);
+      Alert.alert(
+        "Error",
+        error.message || "Failed to send tour request. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const formatDateForSummary = (date: Date): string => {
@@ -337,10 +413,16 @@ export default function CustomTourRequest() {
               <Text style={styles.sectionTitle}>Select Date</Text>
             </View>
 
-            <View style={styles.calendarBox}>
+            {availabilityLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#007BFF" />
+                <Text style={styles.loadingText}>Loading availability...</Text>
+              </View>
+            ) : (
+              <View style={styles.calendarBox}>
               <View style={styles.calendarHeader}>
                 <TouchableOpacity onPress={() => changeMonth("prev")}>
-                  <Ionicons name="chevron-back" size={20} color="#007BFF" />
+                  <Ionicons name="chevron-back" size={20} color="#555" />
                 </TouchableOpacity>
                 <Text style={styles.monthTitle}>
                   {new Date(currentYear, currentMonth).toLocaleString("default", {
@@ -349,7 +431,7 @@ export default function CustomTourRequest() {
                   {currentYear}
                 </Text>
                 <TouchableOpacity onPress={() => changeMonth("next")}>
-                  <Ionicons name="chevron-forward" size={20} color="#007BFF" />
+                  <Ionicons name="chevron-forward" size={20} color="#555" />
                 </TouchableOpacity>
               </View>
 
@@ -369,13 +451,13 @@ export default function CustomTourRequest() {
                   const day = i + 1;
                   const dateStatus = getDateStatus(day);
                   const isPast = isDateInPast(day);
-                  const isStart = isStartDate(day);
-                  const isEnd = isEndDate(day);
-                  const inRange = isInRange(day);
+                  const isSelected = isDateSelected(day);
                   const isBooked = dateStatus === "booked";
                   const isReserved = dateStatus === "reserved";
                   const isUnavailable = dateStatus === "unavailable" || isPast;
                   const isAvailable = dateStatus === "available" && !isPast;
+                  const isStart = isStartDate(day);
+                  const isEnd = isEndDate(day);
 
                   return (
                     <TouchableOpacity
@@ -387,12 +469,13 @@ export default function CustomTourRequest() {
                       <View
                         style={[
                           styles.dayCircle,
-                          (isStart || isEnd) && styles.selectedCircle,
-                          inRange && !isStart && !isEnd && styles.inRangeCircle,
-                          isAvailable && !isStart && !isEnd && !inRange && styles.availableCircle,
+                          isSelected && styles.selectedCircle,
+                          isAvailable && !isSelected && styles.availableCircle,
                           isBooked && styles.bookedCircle,
                           isReserved && styles.reservedCircle,
                           isUnavailable && !isPast && styles.unavailableCircle,
+                          isStart && selectedDateRange.length > 1 && styles.startDateCircle,
+                          isEnd && selectedDateRange.length > 1 && styles.endDateCircle,
                         ]}
                       >
                         <Text
@@ -402,9 +485,8 @@ export default function CustomTourRequest() {
                             isBooked && styles.bookedText,
                             isReserved && styles.reservedText,
                             isUnavailable && !isPast && styles.unavailableText,
-                            isAvailable && !isStart && !isEnd && !inRange && styles.availableText,
-                            (isStart || isEnd) && styles.selectedText,
-                            inRange && !isStart && !isEnd && styles.inRangeText,
+                            isAvailable && !isSelected && styles.availableText,
+                            isSelected && styles.selectedText,
                           ]}
                         >
                           {day}
@@ -415,20 +497,20 @@ export default function CustomTourRequest() {
                 })}
               </View>
             </View>
+            )}
 
             {/* Selected Range Display */}
-            {startDate && (
-              <View style={styles.dateSelectionInfo}>
-                <Text style={styles.dateSelectionText}>
-                  {endDate
-                    ? `${formatDateForSummary(startDate)} - ${formatDateForSummary(endDate)} (${
-                        selectedDateRange.length
-                      } ${selectedDateRange.length === 1 ? "day" : "days"})`
-                    : `Start: ${formatDateForSummary(startDate)} - Select end date`}
+            {selectedDateRange.length > 0 && (
+              <View style={styles.dateRangeInfo}>
+                <Text style={styles.dateRangeLabel}>
+                  Selected:{" "}
+                  {selectedDateRange[0].toLocaleDateString()} -{" "}
+                  {selectedDateRange[selectedDateRange.length - 1].toLocaleDateString()}
                 </Text>
-                {!endDate && (
-                  <Text style={styles.hintText}>Click another date to set end date</Text>
-                )}
+                <Text style={styles.dateRangeSubtext}>
+                  {selectedDateRange.length}{" "}
+                  {selectedDateRange.length === 1 ? "day" : "days"} total
+                </Text>
               </View>
             )}
 
@@ -631,6 +713,21 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     elevation: 3,
   },
+  loadingContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 40,
+    marginBottom: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 3,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontFamily: "Nunito_400Regular",
+    fontSize: 14,
+    color: "#666",
+  },
   calendarHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -656,33 +753,43 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   selectedCircle: { backgroundColor: "#007BFF" },
-  inRangeCircle: { backgroundColor: "#E3F2FD" },
   availableCircle: { backgroundColor: "#E8F5E9", borderWidth: 1, borderColor: "#2ecc71" },
   bookedCircle: { backgroundColor: "#FFEBEE", borderWidth: 1, borderColor: "#E63946" },
   reservedCircle: { backgroundColor: "#FFF3E0", borderWidth: 1, borderColor: "#FFA500" },
   unavailableCircle: { backgroundColor: "#F5F5F5" },
   dayText: { fontFamily: "Nunito_400Regular", fontSize: 14 },
   selectedText: { color: "#fff", fontFamily: "Nunito_700Bold" },
-  inRangeText: { color: "#007BFF", fontFamily: "Nunito_400Regular" },
   availableText: { color: "#2ecc71" },
   bookedText: { color: "#E63946" },
   reservedText: { color: "#FFA500" },
   unavailableText: { color: "#95a5a6" },
   pastText: { color: "#ccc" },
-  dateSelectionInfo: {
+  startDateCircle: {
+    borderTopLeftRadius: 18,
+    borderBottomLeftRadius: 18,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  endDateCircle: {
+    borderTopRightRadius: 18,
+    borderBottomRightRadius: 18,
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
+  },
+  dateRangeInfo: {
     backgroundColor: "#E8F5E9",
     padding: 12,
     borderRadius: 8,
     marginTop: 10,
     marginBottom: 10,
   },
-  dateSelectionText: {
+  dateRangeLabel: {
     fontSize: 14,
     fontFamily: "Nunito_700Bold",
     color: "#2ecc71",
     marginBottom: 4,
   },
-  hintText: {
+  dateRangeSubtext: {
     fontSize: 12,
     fontFamily: "Nunito_400Regular",
     color: "#666",
