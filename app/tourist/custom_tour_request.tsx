@@ -68,7 +68,7 @@ export default function CustomTourRequest() {
   const [noteToGuide, setNoteToGuide] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Fetch guide availability and pricing
+  // Fetch guide availability and pricing (same API shape as booking.tsx)
   useEffect(() => {
     const fetchAvailability = async () => {
       if (!params.guideId) return;
@@ -76,44 +76,72 @@ export default function CustomTourRequest() {
       setAvailabilityLoading(true);
       try {
         const token = await AsyncStorage.getItem("token");
-        const response = await fetch(`${API_URL}/api/tourist/guides/${params.guideId}/availability`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch availability");
-        }
+        const response = await fetch(
+          `${API_URL}/api/tourist/guides/${params.guideId}/availability`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+          }
+        );
 
         const data = await response.json();
-        
-        // Set pricing
-        if (data.pricing?.perPersonPerDay) {
-          setPricePerPerson(data.pricing.perPersonPerDay);
+
+        if (!response.ok) {
+          Alert.alert("Error", data.msg || "Failed to load availability.");
+          setDateStatuses(new Map());
+          setAvailabilityLoading(false);
+          return;
+        }
+
+        // Pricing: support perPersonPerDay or fallback from params
+        if (data.pricing?.perPersonPerDay != null) {
+          setPricePerPerson(Number(data.pricing.perPersonPerDay));
+        } else if (Array.isArray(data.pricing) && data.pricing[0]?.price != null) {
+          setPricePerPerson(Number(data.pricing[0].price));
         } else if (params.guideCharge) {
-          const parsed = parseFloat(params.guideCharge.replace("$", "").replace("/day", "").replace(",", ""));
+          const parsed = parseFloat(
+            params.guideCharge.replace("$", "").replace("/day", "").replace(",", "")
+          );
           if (!isNaN(parsed)) setPricePerPerson(parsed);
         }
 
-        // Process availability dates
+        // Build date status map from API arrays (same format as booking.tsx)
+        // Priority: reserved > booked > unavailable > available
         const statusMap = new Map<string, DateStatus>();
-        if (data.availability && Array.isArray(data.availability)) {
-          data.availability.forEach((item: { date: string; status: DateStatus }) => {
-            if (item.date && item.status) {
-              statusMap.set(item.date, item.status);
-            }
+        const statusSources: Array<{ key: string; status: DateStatus }> = [
+          { key: "availableDates", status: "available" },
+          { key: "unavailableDates", status: "unavailable" },
+          { key: "bookedDates", status: "booked" },
+          { key: "reservedDates", status: "reserved" },
+        ];
+
+        statusSources.forEach(({ key, status }) => {
+          const dates = data[key];
+          if (!Array.isArray(dates)) return;
+          dates.forEach((dateStr: string) => {
+            if (typeof dateStr !== "string") return;
+            const current = statusMap.get(dateStr);
+            const canSet =
+              status === "booked" ||
+              (status === "reserved" && current !== "booked") ||
+              !current ||
+              current === "available";
+            if (canSet) statusMap.set(dateStr, status);
           });
-        }
+        });
+
         setDateStatuses(statusMap);
       } catch (error) {
         console.error("Error fetching availability:", error);
         Alert.alert("Error", "Failed to load availability. Please try again.");
-        // Fallback to mock pricing
+        setDateStatuses(new Map());
         if (params.guideCharge) {
-          const parsed = parseFloat(params.guideCharge.replace("$", "").replace("/day", "").replace(",", ""));
+          const parsed = parseFloat(
+            params.guideCharge.replace("$", "").replace("/day", "").replace(",", "")
+          );
           if (!isNaN(parsed)) setPricePerPerson(parsed);
         }
       } finally {
