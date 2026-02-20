@@ -10,6 +10,8 @@ type Booking = {
   id: string;
   tourist: { id: string; name: string; username: string; avatar?: string };
   activity?: { id: string; name: string; photo?: string } | null;
+  tourName?: string;
+  location?: string;
   startDate: string;
   endDate: string;
   duration: number;
@@ -62,6 +64,8 @@ const transformBooking = (booking: any): Booking => ({
   id: booking.id || `temp-${Date.now()}-${Math.random()}`,
   tourist: { id: booking.tourist?.id || "", name: booking.tourist?.name || "", username: booking.tourist?.username || "", avatar: booking.tourist?.avatar },
   activity: booking.activity ? { id: booking.activity.id || "", name: booking.activity.name || "", photo: booking.activity.photo } : null,
+  tourName: booking.tourName,
+  location: booking.location,
   startDate: booking.startDate || booking.dateRange?.split(' – ')[0] || "",
   endDate: booking.endDate || booking.dateRange?.split(' – ')[1] || "",
   duration: booking.duration || 1,
@@ -236,10 +240,24 @@ export default function BookingRequestScreen() {
     }, [params.tab, fetchBookings])
   );
 
+  // Navigate to booking detail page
+  const navigateToBookingDetail = (booking: Booking) => {
+    router.push({
+      pathname: "/guide/booking_detail",
+      params: {
+        bookingId: booking.id.toString(),
+      },
+    });
+  };
+
   const renderBookingCard = (item: Booking, showChevron = false) => {
     const dateInfo = formatDate(item.startDate);
     return (
-      <View key={item.id} style={styles.card}>
+      <TouchableOpacity 
+        key={item.id} 
+        style={styles.card}
+        onPress={() => navigateToBookingDetail(item)}
+      >
         <View style={styles.dateBox}>
           <Text style={styles.date}>{dateInfo.date}</Text>
           <Text style={styles.month}>{dateInfo.month}</Text>
@@ -256,7 +274,7 @@ export default function BookingRequestScreen() {
           <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{getStatusText(item.status)}</Text>
         )}
         {showChevron && <Ionicons name="chevron-forward" size={22} color="#1B8BFF" />}
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -294,7 +312,11 @@ export default function BookingRequestScreen() {
                 : `https://i.pravatar.cc/300?img=${req.tourist.id.slice(-2)}`;
 
               return (
-                <View key={req.id} style={styles.requestCard}>
+                <TouchableOpacity 
+                  key={req.id} 
+                  style={styles.requestCard}
+                  onPress={() => navigateToBookingDetail(req)}
+                >
                   <Image source={{ uri: avatarUri }} style={styles.profilePic} />
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.reqName}>{req.tourist.name || req.tourist.username}</Text>
@@ -309,7 +331,7 @@ export default function BookingRequestScreen() {
                       {getStatusText(req.status)}
         </Text>
       </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </>
@@ -327,7 +349,11 @@ export default function BookingRequestScreen() {
                 : `https://i.pravatar.cc/300?img=${req.tourist.id.slice(-2)}`;
 
               return (
-                <View key={req.id} style={styles.requestCard}>
+                <TouchableOpacity 
+                  key={req.id} 
+                  style={styles.requestCard}
+                  onPress={() => navigateToBookingDetail(req)}
+                >
                   <Image source={{ uri: avatarUri }} style={styles.profilePic} />
         <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.reqName}>{req.tourist.name || req.tourist.username}</Text>
@@ -340,20 +366,26 @@ export default function BookingRequestScreen() {
                   <View style={styles.buttonRow}>
                     <TouchableOpacity
                       style={[styles.rejectBtn, processingId === req.id && styles.disabledBtn]}
-                      onPress={() => handleBookingAction(req.id, "reject")}
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        handleBookingAction(req.id, "reject");
+                      }}
                       disabled={processingId === req.id}
                     >
                       {processingId === req.id ? <ActivityIndicator size="small" color="#E63946" /> : <Text style={styles.rejectText}>Reject</Text>}
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.acceptBtn, processingId === req.id && styles.disabledBtn]}
-                      onPress={() => handleBookingAction(req.id, "accept")}
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        handleBookingAction(req.id, "accept");
+                      }}
                       disabled={processingId === req.id}
                     >
                       {processingId === req.id ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.acceptText}>Accept</Text>}
         </TouchableOpacity>
       </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </>
