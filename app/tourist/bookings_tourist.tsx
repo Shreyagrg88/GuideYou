@@ -36,6 +36,8 @@ type Booking = {
     category?: string;
     duration?: number;
   } | null;
+  tourName?: string;
+  location?: string;
   startDate: string;
   endDate: string;
   duration: number;
@@ -160,6 +162,16 @@ export default function BookingsTouristScreen() {
       return path;
     }
     return `${API_URL}${path}`;
+  };
+
+  // Navigate to booking detail page
+  const navigateToBookingDetail = (booking: Booking) => {
+    router.push({
+      pathname: "/tourist/booking_detail",
+      params: {
+        bookingId: booking.id.toString(),
+      },
+    });
   };
 
   // Fetch bookings from API
@@ -518,7 +530,11 @@ export default function BookingsTouristScreen() {
       const guideAvatarUri = getImageUrl(item.guide.avatar);
       
       return (
-        <TouchableOpacity key={item.id} style={styles.card}>
+        <TouchableOpacity 
+          key={item.id} 
+          style={styles.card}
+          onPress={() => navigateToBookingDetail(item)}
+        >
           <View style={styles.dateBox}>
             <Text style={styles.date}>{dateInfo.date}</Text>
             <Text style={styles.month}>{dateInfo.month}</Text>
@@ -544,7 +560,10 @@ export default function BookingsTouristScreen() {
               {item.status === "paid" && (
                 <TouchableOpacity
                   style={[styles.cancelBtn, processingId === item.id && styles.disabledBtn]}
-                  onPress={() => handleCancel(item.id)}
+                  onPress={(e) => {
+                    e?.stopPropagation?.();
+                    handleCancel(item.id);
+                  }}
                   disabled={processingId === item.id}
                 >
                   {processingId === item.id ? (
@@ -615,6 +634,7 @@ export default function BookingsTouristScreen() {
             <TouchableOpacity 
               key={item.id} 
               style={[styles.card, isCancelled && styles.cancelledCard]}
+              onPress={() => navigateToBookingDetail(item)}
             >
               <View style={styles.dateBox}>
                 <Text style={styles.date}>{dateInfo.date}</Text>
@@ -679,7 +699,11 @@ export default function BookingsTouristScreen() {
         : "https://images.unsplash.com/photo-1506905925346-21bda4d32df4";
 
       return (
-        <View key={req.id} style={styles.requestCard}>
+        <TouchableOpacity 
+          key={req.id} 
+          style={styles.requestCard}
+          onPress={() => navigateToBookingDetail(req)}
+        >
           <Image source={{ uri: activityPhotoUri }} style={styles.activityPhoto} />
 
           <View style={{ flex: 1, marginLeft: 12 }}>
@@ -703,7 +727,10 @@ export default function BookingsTouristScreen() {
 
           <TouchableOpacity
             style={[styles.cancelBtn, processingId === req.id && styles.disabledBtn]}
-            onPress={() => handleCancel(req.id)}
+            onPress={(e) => {
+              e?.stopPropagation?.();
+              handleCancel(req.id);
+            }}
             disabled={processingId === req.id}
           >
             {processingId === req.id ? (
@@ -712,7 +739,7 @@ export default function BookingsTouristScreen() {
               <Text style={styles.cancelText}>Cancel</Text>
             )}
           </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       );
     });
   };
@@ -746,7 +773,11 @@ export default function BookingsTouristScreen() {
         : null;
 
       return (
-        <View key={req.id} style={[styles.requestCard, isExpired && styles.expiredCard]}>
+        <TouchableOpacity 
+          key={req.id} 
+          style={[styles.requestCard, isExpired && styles.expiredCard]}
+          onPress={() => navigateToBookingDetail(req)}
+        >
           <Image source={{ uri: activityPhotoUri }} style={styles.activityPhoto} />
 
           <View style={{ flex: 1, marginLeft: 12 }}>
@@ -794,7 +825,10 @@ export default function BookingsTouristScreen() {
                 styles.payBtn, 
                 (isExpired || processingId === req.id) && styles.disabledBtn
               ]}
-              onPress={() => handleConfirmPayment(req.id)}
+              onPress={(e) => {
+                e?.stopPropagation?.();
+                handleConfirmPayment(req.id);
+              }}
               disabled={isExpired || processingId === req.id}
             >
               {processingId === req.id ? (
@@ -809,7 +843,10 @@ export default function BookingsTouristScreen() {
 
             <TouchableOpacity
               style={[styles.cancelBtn, processingId === req.id && styles.disabledBtn]}
-              onPress={() => handleCancel(req.id)}
+              onPress={(e) => {
+                e?.stopPropagation?.();
+                handleCancel(req.id);
+              }}
               disabled={processingId === req.id}
             >
               {processingId === req.id ? (
@@ -819,7 +856,7 @@ export default function BookingsTouristScreen() {
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </TouchableOpacity>
       );
     });
   };
