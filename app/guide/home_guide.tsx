@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getNotifications } from "../../api/notifications";
 import { API_URL } from "../../constants/api";
 import GuideNavbar from "../components/guide_navbar";
 
@@ -23,6 +24,13 @@ export default function GuideHome() {
   const [loading, setLoading] = useState(true);
   const [homepageData, setHomepageData] = useState<any>(null);
   const [guideName, setGuideName] = useState<string | null>(null);
+  const [notificationUnread, setNotificationUnread] = useState(0);
+
+  const fetchNotificationUnread = useCallback(async () => {
+    const token = await AsyncStorage.getItem("token");
+    const data = await getNotifications(token, 1, 1);
+    if (data) setNotificationUnread(data.unreadCount ?? 0);
+  }, []);
 
   const fetchGuideProfile = async () => {
     try {
@@ -76,9 +84,9 @@ export default function GuideHome() {
     }
   };
 
-  const fetchAllData = async () => {
-    await Promise.all([fetchGuideHomepage(), fetchGuideProfile()]);
-  };
+  const fetchAllData = useCallback(async () => {
+    await Promise.all([fetchGuideHomepage(), fetchGuideProfile(), fetchNotificationUnread()]);
+  }, [fetchNotificationUnread]);
 
   useEffect(() => {
     fetchAllData();
@@ -132,12 +140,13 @@ export default function GuideHome() {
             Guide<Text style={{ color: "#007BFF" }}>You</Text>
           </Text>
 
-          <TouchableOpacity>
-            <Ionicons
-              name="notifications-outline"
-              size={24}
-              color="#B0B0B0"
-            />
+          <TouchableOpacity onPress={() => router.push("/guide/notifications_guide")} style={{ position: "relative" }}>
+            <Ionicons name="notifications-outline" size={24} color="#B0B0B0" />
+            {notificationUnread > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{notificationUnread > 99 ? "99+" : notificationUnread}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -304,6 +313,23 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_400Regular",
     fontWeight: "700",
     color: "#000",
+  },
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -8,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#E53935",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontFamily: "Nunito_700Bold",
+    color: "#fff",
   },
 
   greet: {

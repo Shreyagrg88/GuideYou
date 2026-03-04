@@ -18,6 +18,13 @@ const getConsecutiveDates = (startDate: Date, days: number): Date[] =>
     return date;
   });
 
+const getTomorrowStart = (): Date => {
+  const t = new Date();
+  t.setDate(t.getDate() + 1);
+  t.setHours(0, 0, 0, 0);
+  return t;
+};
+
 export default function BookingPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -40,12 +47,12 @@ export default function BookingPage() {
 
   const areDatesAvailable = (dates: Date[]): { available: boolean; unavailableDates: string[] } => {
     const unavailableDates: string[] = [];
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    
+    const tomorrowStart = getTomorrowStart();
+
     for (const date of dates) {
       const dateKey = formatDateKey(date.getFullYear(), date.getMonth(), date.getDate());
       const status = dateStatuses.get(dateKey);
-      if (date < todayStart || status === "booked" || status === "reserved" || status === "unavailable") {
+      if (date < tomorrowStart || status === "booked" || status === "reserved" || status === "unavailable") {
         unavailableDates.push(dateKey);
       }
     }
@@ -121,21 +128,21 @@ export default function BookingPage() {
 
   const handleDateSelect = (day: number) => {
     const selectedDateObj = new Date(currentYear, currentMonth, day);
-    
+    const tomorrowStart = getTomorrowStart();
+
     if (activityDuration === 1) {
       const dateKey = formatDateKey(currentYear, currentMonth, day);
       const status = dateStatuses.get(dateKey);
-      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-      
+
       if (status === "booked" || status === "reserved") {
         Alert.alert("Date Unavailable", "This date is already booked or reserved.");
         return;
       }
-      if (status === "unavailable" || selectedDateObj < todayStart) {
-        Alert.alert("Date Unavailable", status === "unavailable" ? "This date is not available." : "Please select a future date.");
+      if (status === "unavailable" || selectedDateObj < tomorrowStart) {
+        Alert.alert("Date Unavailable", status === "unavailable" ? "This date is not available." : "Bookings must start from tomorrow. Same-day booking is not allowed.");
         return;
       }
-      
+
       setSelectedDate(selectedDateObj);
       setSelectedDateRange([selectedDateObj]);
       return;
@@ -160,8 +167,8 @@ export default function BookingPage() {
 
   const isDateInPast = (day: number): boolean => {
     const dateObj = new Date(currentYear, currentMonth, day);
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    return dateObj < todayStart;
+    const tomorrowStart = getTomorrowStart();
+    return dateObj < tomorrowStart;
   };
 
   const isDateSelected = (day: number): boolean => {
@@ -287,6 +294,7 @@ export default function BookingPage() {
 
         <View style={styles.calendarHeaderSection}>
           <Text style={styles.sectionTitle}>Select Date</Text>
+          <Text style={styles.dateHint}>Earliest start date: tomorrow</Text>
           {activityDuration > 1 && <Text style={styles.durationHint}>{activityDuration}-day activity - Select start date</Text>}
         </View>
 
@@ -429,6 +437,7 @@ const styles = StyleSheet.create({
   ratingText: { marginLeft: 4, fontFamily: "Nunito_400Regular", fontSize: 13 },
   calendarHeaderSection: { marginBottom: 10 },
   sectionTitle: { fontSize: 18, fontFamily: "Nunito_700Bold", marginBottom: 5 },
+  dateHint: { fontSize: 12, fontFamily: "Nunito_400Regular", color: "#666", marginBottom: 4 },
   durationHint: { fontSize: 13, fontFamily: "Nunito_400Regular", color: "#007BFF", marginBottom: 5 },
   calendarBox: { backgroundColor: "#fff", borderRadius: 12, padding: 15, marginBottom: 10, elevation: 3 },
   calendarHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },

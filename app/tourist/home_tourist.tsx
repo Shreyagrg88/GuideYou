@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
@@ -14,6 +14,7 @@ import {
     View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getNotifications } from "../../api/notifications";
 import { API_URL } from "../../constants/api";
 import TouristNavBar from "../components/tourist_navbar";
 
@@ -28,6 +29,22 @@ type Guide = {
   rating: string;
   image: string;
   verified: boolean;
+};
+
+/** Start of tomorrow 00:00 local */
+const getTomorrowStart = (): Date => {
+  const t = new Date();
+  t.setDate(t.getDate() + 1);
+  t.setHours(0, 0, 0, 0);
+  return t;
+};
+
+/** YYYY-MM-DD for a date */
+const toDateKey = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 };
 
 export default function HomePage() {
@@ -45,34 +62,99 @@ export default function HomePage() {
   const [scrollPosition, setScrollPosition] = useState(0);
   const [contentWidth, setContentWidth] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [notificationUnread, setNotificationUnread] = useState(0);
+  const [availableGuides, setAvailableGuides] = useState<any[]>([]);
+  const [availableGuidesLoading, setAvailableGuidesLoading] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  // Placeholder guide data (no API for now)
-  const placeholderGuides: Guide[] = [
-    {
-      id: "1",
-      name: "Nema Sherpa",
-      role: "Trek Guide",
-      location: "Pokhara",
-      experience: "10Y",
-      rating: "4.5",
-      image: "https://images.squarespace-cdn.com/content/v1/5522d488e4b05f384d080ecd/1563991565432-7GP2C8383XRQLW8PSWBK/bishnu_mardi_himal.jpeg",
-      verified: true,
-    },
-    {
-      id: "2",
-      name: "Raj Thapa",
-      role: "Adventure Guide",
-      location: "Kathmandu",
-      experience: "8Y",
-      rating: "4.8",
-      image: "https://d1kz4z644261g1.cloudfront.net/guide_profiles/avatars/000/000/048/medium/Ang_Rita_Sherpa.jpg?1521089517",
-      verified: true,
-    },
-  ];
+  const fetchNotificationUnread = useCallback(async () => {
+    const token = await AsyncStorage.getItem("token");
+    const data = await getNotifications(token, 1, 1);
+    if (data) setNotificationUnread(data.unreadCount ?? 0);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotificationUnread();
+    }, [fetchNotificationUnread])
+  );
+
+  /** Fetch guides then filter to those available tomorrow or in the next 7 days (frontend-only). */
+  const fetchAvailableGuides = useCallback(async () => {
+    setAvailableGuidesLoading(true);
+    setAvailableGuides([]);
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const categoriesToTry = ["all", "Trek", "Adventure", "Guide"];
+      let guides: any[] = [];
+      for (const cat of categoriesToTry) {
+        const res = await fetch(
+          `${API_URL}/api/tourist/guides?category=${encodeURIComponent(cat)}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+          }
+        );
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && Array.isArray(data.guides) && data.guides.length > 0) {
+          guides = data.guides;
+          break;
+        }
+      }
+      const tomorrow = getTomorrowStart();
+      const dateKeysToCheck: string[] = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(tomorrow);
+        d.setDate(d.getDate() + i);
+        dateKeysToCheck.push(toDateKey(d));
+      }
+      const maxGuidesToCheck = 12;
+      const withAvailability: any[] = [];
+      for (let i = 0; i < Math.min(guides.length, maxGuidesToCheck); i++) {
+        const g = guides[i];
+        try {
+          const avRes = await fetch(
+            `${API_URL}/api/tourist/guides/${g.id}/availability`,
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            }
+          );
+          const avData = await avRes.json().catch(() => ({}));
+          if (!avRes.ok) continue;
+          const availableSet = new Set(avData.availableDates || []);
+          const bookedSet = new Set(avData.bookedDates || []);
+          const reservedSet = new Set(avData.reservedDates || []);
+          const hasFreeDay = dateKeysToCheck.some(
+            (key) =>
+              availableSet.has(key) && !bookedSet.has(key) && !reservedSet.has(key)
+          );
+          if (hasFreeDay) withAvailability.push(g);
+        } catch {
+          // skip this guide on error
+        }
+      }
+      setAvailableGuides(withAvailability);
+    } catch (e) {
+      console.error("Fetch available guides error:", e);
+      setAvailableGuides([]);
+    } finally {
+      setAvailableGuidesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAvailableGuides();
+  }, [fetchAvailableGuides]);
 
   const fetchHomepageActivities = async () => {
     if (activeFilter === "Guides") {
@@ -323,57 +405,64 @@ export default function HomePage() {
     </TouchableOpacity>
   );
 
-  const renderGuideCard = (guide: Guide) => (
-    <TouchableOpacity
-      key={guide.id}
-      style={styles.guideCard}
-      activeOpacity={0.8}
-      onPress={() =>
-        router.push({
-          pathname: "/tourist/guide_list",
-          params: { category: guide.role },
-        })
-      }
-    >
-      {guide.image ? (
-        <Image source={{ uri: guide.image }} style={styles.guideAvatar} />
-      ) : (
-        <View style={[styles.guideAvatar, styles.placeholderAvatar]}>
-          <Ionicons name="person" size={30} color="#ccc" />
-        </View>
-      )}
-
-      <View style={styles.guideCardContent}>
-        {guide.verified && (
-          <View style={styles.verifiedBadge}>
-            <Ionicons name="checkmark-circle" size={14} color="#00C851" />
-            <Text style={styles.verifiedText}>Verified Guide</Text>
-          </View>
-        )}
-        <Text style={styles.guideName}>{guide.name}</Text>
-        <Text style={styles.guideRole}>
-          {guide.role} • {guide.location}
-        </Text>
-        <View style={styles.guideInfoRow}>
-          <View style={styles.guideInfoItem}>
-            <Ionicons name="time-outline" size={14} color="#666" />
-            <Text style={styles.guideInfoText}>{guide.experience}</Text>
-          </View>
-          <View style={styles.guideInfoItem}>
-            <Ionicons name="star" size={14} color="#FFD700" />
-            <Text style={styles.guideInfoText}>{guide.rating}</Text>
-          </View>
-        </View>
-      </View>
-
+  /** Card for "Available tomorrow & this week" – links to profile, no Message button */
+  const renderAvailableGuideCard = (guide: any) => {
+    const guideImage = guide.avatar?.startsWith("http")
+      ? guide.avatar
+      : guide.image?.startsWith("http")
+        ? guide.image
+        : guide.avatar
+          ? `${API_URL}${guide.avatar}`
+          : guide.image
+            ? `${API_URL}${guide.image}`
+            : "https://i.pravatar.cc/150?img=12";
+    const name = guide.fullName || guide.username || guide.name || "Guide";
+    const role = guide.mainExpertise || guide.expertise?.[0] || guide.role || "Guide";
+    const location = guide.location || "";
+    const rating = guide.rating != null ? String(guide.rating) : "N/A";
+    const charge = guide.rate != null ? `$${guide.rate}/day` : guide.charge || "$10/day";
+    return (
       <TouchableOpacity
-        style={styles.messageButton}
-        onPress={() => router.push("/tourist/chat_tourist")}
+        key={guide.id}
+        style={styles.guideCard}
+        activeOpacity={0.8}
+        onPress={() =>
+          router.push({
+            pathname: "/tourist/guide_profileview",
+            params: {
+              guideId: guide.id,
+              guideName: name,
+              guideImage,
+              guideRole: role,
+              guideLocation: location,
+              guideRating: rating,
+              guideCharge: charge,
+              description: guide.bio || guide.description || "",
+            },
+          })
+        }
       >
-        <Text style={styles.messageButtonText}>Message</Text>
+        <Image source={{ uri: guideImage }} style={styles.guideAvatar} />
+        <View style={styles.guideCardContent}>
+          {guide.verified && (
+            <View style={styles.verifiedBadge}>
+              <Ionicons name="checkmark-circle" size={14} color="#00C851" />
+              <Text style={styles.verifiedText}>Verified Guide</Text>
+            </View>
+          )}
+          <Text style={styles.guideName}>{name}</Text>
+          <Text style={styles.guideRole}>{role} • {location}</Text>
+          <View style={styles.guideInfoRow}>
+            <View style={styles.guideInfoItem}>
+              <Ionicons name="star" size={14} color="#FFD700" />
+              <Text style={styles.guideInfoText}>{rating}</Text>
+            </View>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color="#999" />
       </TouchableOpacity>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <View style={styles.page}>
@@ -382,9 +471,19 @@ export default function HomePage() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 90 + insets.bottom }}
       >
-        <Text style={styles.logo}>
-          Guide<Text style={{ color: "#007BFF" }}>You</Text>
-        </Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.logo}>
+            Guide<Text style={{ color: "#007BFF" }}>You</Text>
+          </Text>
+          <TouchableOpacity onPress={() => router.push("/tourist/notifications_tourist" as any)} style={{ position: "relative" }}>
+            <Ionicons name="notifications-outline" size={24} color="#B0B0B0" />
+            {notificationUnread > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{notificationUnread > 99 ? "99+" : notificationUnread}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.subTitle}>
           Discover amazing places and guides with us
@@ -654,11 +753,20 @@ export default function HomePage() {
           </View>
         )}
 
-            {/* Top Rated guides Section */}
+            {/* Available tomorrow & this week – frontend-only filter */}
             {(activeFilter === "All" || activeFilter === "Guides") && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Top Rated guides</Text>
-                {placeholderGuides.map(renderGuideCard)}
+                <Text style={styles.sectionTitle}>Available tomorrow & this week</Text>
+                {availableGuidesLoading ? (
+                  <View style={styles.availableGuidesLoading}>
+                    <ActivityIndicator size="small" color="#007BFF" />
+                    <Text style={styles.availableGuidesLoadingText}>Checking guide availability...</Text>
+                  </View>
+                ) : availableGuides.length === 0 ? (
+                  <Text style={styles.emptyText}>No guides available for tomorrow or this week.</Text>
+                ) : (
+                  availableGuides.map(renderAvailableGuideCard)
+                )}
               </View>
             )}
           </>
@@ -678,10 +786,33 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     backgroundColor: "#fff",
   },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
   logo: {
     fontSize: 24,
     fontFamily: "Nunito_700Bold",
     color: "#000",
+  },
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -8,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#E53935",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontFamily: "Nunito_700Bold",
+    color: "#fff",
   },
   subTitle: {
     fontSize: 15,
@@ -752,6 +883,17 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_700Bold",
     color: "#000",
     marginBottom: 15,
+  },
+  availableGuidesLoading: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    gap: 10,
+  },
+  availableGuidesLoadingText: {
+    fontSize: 14,
+    fontFamily: "Nunito_400Regular",
+    color: "#666",
   },
   seeAllText: {
     fontSize: 14,

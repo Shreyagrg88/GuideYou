@@ -163,9 +163,15 @@ export default function BookingDetailScreen() {
   const formatDateRange = (startDate: string, endDate: string): string => {
     const start = new Date(startDate);
     const end = new Date(endDate);
+    const sameDay =
+      start.getFullYear() === end.getFullYear() &&
+      start.getMonth() === end.getMonth() &&
+      start.getDate() === end.getDate();
+    if (sameDay) {
+      return `${start.toLocaleString("default", { month: "short" })} ${start.getDate()}, ${start.getFullYear()}`;
+    }
     const startMonth = start.toLocaleString("default", { month: "short" });
     const endMonth = end.toLocaleString("default", { month: "short" });
-
     if (startMonth === endMonth) {
       return `${startMonth} ${start.getDate()} – ${end.getDate()}, ${start.getFullYear()}`;
     }

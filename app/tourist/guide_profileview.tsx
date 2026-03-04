@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -78,6 +79,39 @@ export default function GuideProfileView() {
   const [activitiesContentWidth, setActivitiesContentWidth] = useState(0);
   const [activitiesContainerWidth, setActivitiesContainerWidth] = useState(0);
   const activitiesScrollRef = useRef<ScrollView>(null);
+  const [canMessageGuide, setCanMessageGuide] = useState(false);
+
+  const fetchBookingsForMessageCheck = useCallback(async (gId: string) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        setCanMessageGuide(false);
+        return;
+      }
+      const response = await fetch(`${API_URL}/api/tourist/bookings`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const text = await response.text();
+      if (!response.ok || text.trim().startsWith("<")) {
+        setCanMessageGuide(false);
+        return;
+      }
+      const data = JSON.parse(text);
+      const bookings = data.bookings || [];
+      const hasAccepted = bookings.some(
+        (b: any) =>
+          (b.guide?.id ?? b.guideId) === gId &&
+          ["accepted", "paid", "completed"].includes(b.status)
+      );
+      setCanMessageGuide(hasAccepted);
+    } catch {
+      setCanMessageGuide(false);
+    }
+  }, []);
 
   const fetchProfile = useCallback(async () => {
     if (!guideId) {
@@ -131,6 +165,11 @@ export default function GuideProfileView() {
     };
     fetchActivities();
   }, [guideId, guide?.id]);
+
+  useEffect(() => {
+    const id = guideId ?? guide?.id;
+    if (id) fetchBookingsForMessageCheck(id);
+  }, [guideId, guide?.id, fetchBookingsForMessageCheck]);
 
   const scale = width / 375;
   const s = (size: number) => Math.round(size * scale);
@@ -303,11 +342,31 @@ export default function GuideProfileView() {
         </View>
 
         {/* Tourist action buttons */}
+        {canMessageGuide && (
+          <View style={styles.chatHint}>
+            <Ionicons name="chatbubble-ellipses-outline" size={18} color="#007BFF" />
+            <Text style={styles.chatHintText}>You can now chat with this guide.</Text>
+          </View>
+        )}
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.primaryBtnFilled} onPress={goToBooking}>
             <Text style={styles.primaryBtnFilledText}>Request a tour</Text>
           </TouchableOpacity>
+          {canMessageGuide ? (
+            <TouchableOpacity
+              style={[styles.primaryBtn, styles.primaryBtnRow]}
+              onPress={() => router.push("/tourist/chat_tourist" as any)}
+            >
+              <Ionicons name="chatbubble-outline" size={18} color="#007BFF" />
+              <Text style={styles.primaryBtnText}>Message</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
+        {!canMessageGuide && (
+          <Text style={styles.messageHint}>
+            You can message this guide after they accept your request.
+          </Text>
+        )}
 
         {/* Activities */}
         <Text style={styles.sectionTitle}>Activities</Text>
@@ -433,6 +492,28 @@ const styles = StyleSheet.create({
   bioLabel: { fontFamily: "Nunito_700Bold", fontSize: 14, color: "#333", marginBottom: 4 },
   bio: { fontFamily: "Nunito_400Regular", color: "#444", lineHeight: 20 },
 
+  chatHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#E8F4FF",
+    borderRadius: 10,
+  },
+  chatHintText: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 14,
+    color: "#007BFF",
+  },
+  messageHint: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 12,
+    color: "#666",
+    marginTop: -8,
+    marginBottom: 16,
+  },
   actionRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
   primaryBtnFilled: {
     flex: 1,
@@ -453,6 +534,7 @@ const styles = StyleSheet.create({
     borderColor: "#007BFF",
     backgroundColor: "#FFF",
   },
+  primaryBtnRow: { flexDirection: "row", gap: 6 },
   primaryBtnText: { fontFamily: "Nunito_700Bold", fontSize: 14, color: "#007BFF" },
 
   sectionTitle: { fontFamily: "Nunito_700Bold", fontSize: 18, marginBottom: 12 },

@@ -34,6 +34,13 @@ const formatDate = (dateStr: string): { date: string; month: string } => {
 const formatDateRange = (startDate: string, endDate: string): string => {
   const start = new Date(startDate);
   const end = new Date(endDate);
+  const sameDay =
+    start.getFullYear() === end.getFullYear() &&
+    start.getMonth() === end.getMonth() &&
+    start.getDate() === end.getDate();
+  if (sameDay) {
+    return `${start.toLocaleString("default", { month: "short" })} ${start.getDate()}`;
+  }
   const startMonth = start.toLocaleString("default", { month: "short" });
   const endMonth = end.toLocaleString("default", { month: "short" });
   return startMonth === endMonth

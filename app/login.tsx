@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import { registerPushToken } from "../api/notifications";
 import { API_URL } from "../constants/api";
 import {
   Alert,
@@ -66,6 +67,9 @@ export default function Login() {
       await AsyncStorage.setItem("userRole", user.role);
       await AsyncStorage.setItem("userId", user.id);
 
+      if (user.role === "tourist" || user.role === "guide") {
+        registerPushToken(token);
+      }
 
       if (user.role === "tourist") {
         router.push("/tourist/home_tourist");

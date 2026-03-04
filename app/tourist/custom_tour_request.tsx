@@ -39,6 +39,13 @@ const formatDateForAPI = (date: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
+const getTomorrowStart = (): Date => {
+  const t = new Date();
+  t.setDate(t.getDate() + 1);
+  t.setHours(0, 0, 0, 0);
+  return t;
+};
+
 export default function CustomTourRequest() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -178,12 +185,11 @@ export default function CustomTourRequest() {
     const clickedDate = new Date(currentYear, currentMonth, day);
     const dateKey = formatDateKey(currentYear, currentMonth, day);
     const status = dateStatuses.get(dateKey);
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const tomorrowStart = getTomorrowStart();
 
-    // Validation: can't select past, booked, reserved dates
-    if (clickedDate < todayStart) {
-      Alert.alert("Date Unavailable", "Please select a future date.");
+    // Validation: min start date = tomorrow; can't select today, past, booked, reserved dates
+    if (clickedDate < tomorrowStart) {
+      Alert.alert("Date Unavailable", "Bookings must start from tomorrow. Same-day booking is not allowed.");
       return;
     }
     if (status === "booked" || status === "reserved") {
@@ -194,30 +200,39 @@ export default function CustomTourRequest() {
       Alert.alert("Date Unavailable", "This date is not available.");
       return;
     }
+    // Only allow dates the guide has marked as available in their calendar
+    if (status !== "available") {
+      Alert.alert(
+        "Date Unavailable",
+        "This date is not available. The guide has not marked it as available in their calendar."
+      );
+      return;
+    }
 
-    // If no start date selected, set it as start
+    // If no start date selected, set it as start (1-day tour if only this date selected)
     if (!startDate) {
       setStartDate(clickedDate);
-      setEndDate(null);
+      setEndDate(clickedDate);
       setSelectedDateRange([clickedDate]);
       return;
     }
 
-    // If clicking same date as start (single day selection)
+    // If clicking same date as start again → undo (clear selection)
     if (
       clickedDate.getDate() === startDate.getDate() &&
       clickedDate.getMonth() === startDate.getMonth() &&
       clickedDate.getFullYear() === startDate.getFullYear()
     ) {
+      setStartDate(null);
       setEndDate(null);
-      setSelectedDateRange([clickedDate]);
+      setSelectedDateRange([]);
       return;
     }
 
     // If clicking before start date, reset to new start
     if (clickedDate < startDate) {
       setStartDate(clickedDate);
-      setEndDate(null);
+      setEndDate(clickedDate);
       setSelectedDateRange([clickedDate]);
       return;
     }
@@ -229,12 +244,7 @@ export default function CustomTourRequest() {
     for (const date of range) {
       const key = formatDateKey(date.getFullYear(), date.getMonth(), date.getDate());
       const dateStatus = dateStatuses.get(key);
-      if (
-        date < todayStart ||
-        dateStatus === "booked" ||
-        dateStatus === "reserved" ||
-        dateStatus === "unavailable"
-      ) {
+      if (date < tomorrowStart || dateStatus !== "available") {
         unavailableDates.push(key);
       }
     }
@@ -258,9 +268,8 @@ export default function CustomTourRequest() {
 
   const isDateInPast = (day: number): boolean => {
     const dateObj = new Date(currentYear, currentMonth, day);
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    return dateObj < todayStart;
+    const tomorrowStart = getTomorrowStart();
+    return dateObj < tomorrowStart;
   };
 
   const isDateSelected = (day: number): boolean => {
@@ -338,6 +347,12 @@ export default function CustomTourRequest() {
       return;
     }
 
+    const tomorrowStart = getTomorrowStart();
+    if (selectedDateRange[0] < tomorrowStart) {
+      Alert.alert("Invalid dates", "Bookings must start from tomorrow.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const token = await AsyncStorage.getItem("token");
@@ -347,10 +362,13 @@ export default function CustomTourRequest() {
         return;
       }
 
+      const rangeStart = selectedDateRange[0];
+      const rangeEnd = selectedDateRange[selectedDateRange.length - 1];
+
       const requestBody = {
         guideId: params.guideId,
-        startDate: formatDateForAPI(selectedDateRange[0]),
-        endDate: formatDateForAPI(selectedDateRange[selectedDateRange.length - 1]),
+        startDate: formatDateForAPI(rangeStart),
+        endDate: formatDateForAPI(rangeEnd),
         participantCount: participantCount,
         tourName: tourName.trim(),
         location: location.trim(),
@@ -408,8 +426,27 @@ export default function CustomTourRequest() {
           <Text style={styles.title}>Custom Tour Request</Text>
         </View>
 
-        {/* Guide Info Card */}
-        <View style={styles.profileCard}>
+        {/* Guide Info Card - tappable to view guide profile */}
+        <TouchableOpacity
+          style={styles.profileCard}
+          onPress={() => {
+            if (params.guideId) {
+              router.push({
+                pathname: "/tourist/guide_profileview",
+                params: {
+                  guideId: params.guideId,
+                  guideName: params.guideName ?? "",
+                  guideImage: params.guideImage ?? "",
+                  guideRole: params.guideRole ?? "",
+                  guideLocation: params.guideLocation ?? "",
+                  guideRating: params.guideRating ?? "",
+                  guideCharge: params.guideCharge ?? "",
+                },
+              });
+            }
+          }}
+          activeOpacity={0.7}
+        >
           <Image
             source={{
               uri:
@@ -432,13 +469,14 @@ export default function CustomTourRequest() {
             </View>
           </View>
           <Ionicons name="checkmark-circle" size={26} color="#2ecc71" />
-        </View>
+        </TouchableOpacity>
 
         {step === 1 ? (
           <>
             {/* Step 1: Date Selection */}
             <View style={styles.calendarHeaderSection}>
               <Text style={styles.sectionTitle}>Select Date</Text>
+              <Text style={styles.dateHint}>Earliest start date: tomorrow</Text>
             </View>
 
             {availabilityLoading ? (
@@ -482,8 +520,8 @@ export default function CustomTourRequest() {
                   const isSelected = isDateSelected(day);
                   const isBooked = dateStatus === "booked";
                   const isReserved = dateStatus === "reserved";
-                  const isUnavailable = dateStatus === "unavailable" || isPast;
                   const isAvailable = dateStatus === "available" && !isPast;
+                  const isUnavailable = !isAvailable || isPast;
                   const isStart = isStartDate(day);
                   const isEnd = isEndDate(day);
 
@@ -491,8 +529,8 @@ export default function CustomTourRequest() {
                     <TouchableOpacity
                       key={`day-${currentYear}-${currentMonth}-${day}`}
                       style={styles.dayCell}
-                      onPress={() => !isBooked && !isReserved && !isPast && handleDateSelect(day)}
-                      disabled={isBooked || isReserved || isPast}
+                      onPress={() => isAvailable && handleDateSelect(day)}
+                      disabled={!isAvailable}
                     >
                       <View
                         style={[
@@ -734,6 +772,7 @@ const styles = StyleSheet.create({
   ratingText: { marginLeft: 4, fontFamily: "Nunito_400Regular", fontSize: 13 },
   calendarHeaderSection: { marginBottom: 10 },
   sectionTitle: { fontSize: 18, fontFamily: "Nunito_700Bold", marginBottom: 5 },
+  dateHint: { fontSize: 12, fontFamily: "Nunito_400Regular", color: "#666", marginBottom: 4 },
   calendarBox: {
     backgroundColor: "#fff",
     borderRadius: 12,
