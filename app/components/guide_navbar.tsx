@@ -1,11 +1,31 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router, usePathname } from "expo-router";
-import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { router, useFocusEffect, usePathname } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { fetchConversations } from "../../api/chat";
 
 export default function GuideNavBar() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const [totalUnread, setTotalUnread] = useState(0);
+
+  const loadUnread = useCallback(() => {
+    fetchConversations()
+      .then((data) => {
+        const list = data.conversations || [];
+        const total = list.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+        const hasAny = list.some((c) => c.hasUnread || (c.unreadCount ?? 0) > 0);
+        setTotalUnread(total > 0 ? total : hasAny ? 1 : 0);
+      })
+      .catch(() => setTotalUnread(0));
+  }, []);
+
+  useEffect(() => {
+    loadUnread();
+  }, [pathname, loadUnread]);
+
+  useFocusEffect(loadUnread);
 
   const isActive = (route: string) => pathname.includes(route);
 
@@ -21,13 +41,22 @@ export default function GuideNavBar() {
           />
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.push("/guide/chat_guide")}>
-          <Ionicons
-            name="chatbubble-outline"
-            size={27}
-            color={isActive("chat_guide") ? "#007BFF" : "#7A7A7A"}
-          />
-        </TouchableOpacity>
+        <View style={styles.chatIconWrap}>
+          <TouchableOpacity onPress={() => router.push("/guide/chat_list_guide")}>
+            <Ionicons
+              name="chatbubble-outline"
+              size={27}
+              color={isActive("chat_list_guide") ? "#007BFF" : "#7A7A7A"}
+            />
+          </TouchableOpacity>
+          {totalUnread > 0 && (
+            <View style={styles.chatBadge}>
+              <Text style={styles.chatBadgeText}>
+                {totalUnread > 9 ? "9+" : totalUnread}
+              </Text>
+            </View>
+          )}
+        </View>
 
         <TouchableOpacity
           style={styles.plusBtn}
@@ -76,6 +105,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
+    overflow: "visible",
 
     shadowColor: "#000",
     shadowOpacity: 0.12,
@@ -84,6 +114,27 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
 
+  chatIconWrap: {
+    position: "relative",
+    overflow: "visible",
+  },
+  chatBadge: {
+    position: "absolute",
+    top: -4,
+    right: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#EF4444",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  chatBadgeText: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 10,
+    color: "#FFF",
+  },
   plusBtn: {
     width: 55,
     height: 55,

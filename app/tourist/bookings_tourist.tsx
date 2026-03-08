@@ -405,92 +405,12 @@ export default function BookingsTouristScreen() {
     );
   };
 
-  // Confirm payment for accepted booking
-  const handleConfirmPayment = async (bookingId: string) => {
-    Alert.alert(
-      "Confirm Payment",
-      "Have you completed the payment for this booking?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Yes, Payment Done",
-          onPress: async () => {
-            try {
-              setProcessingId(bookingId);
-              const token = await AsyncStorage.getItem("token");
-
-              if (!token) {
-                Alert.alert("Error", "Please login again.");
-                router.push("/login");
-                return;
-              }
-
-              // Call payment gateway here first, then confirm payment
-              // For now, we'll call the confirm-payment endpoint directly
-              // In production, integrate with your payment gateway (Stripe, PayPal, etc.)
-              const url = `${API_URL}/api/tourist/bookings/${bookingId}/confirm-payment`;
-              const response = await fetch(url, {
-                method: "PATCH",
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  paymentId: `payment_${Date.now()}`, // Replace with actual payment ID from gateway
-                  paymentStatus: "completed",
-                }),
-              });
-
-              const responseText = await response.text();
-              const isHTML = responseText.trim().startsWith('<');
-
-              if (!response.ok || isHTML) {
-                let errorMessage = `Failed to confirm payment (${response.status})`;
-                if (response.status === 400) {
-                  errorMessage = "Payment window has expired or booking cannot be paid.";
-                } else if (response.status === 401) {
-                  errorMessage = "Authentication failed. Please login again.";
-                  router.push("/login");
-                  return;
-                } else if (response.status === 403) {
-                  errorMessage = "You don't have permission to confirm payment for this booking.";
-                } else if (response.status === 404) {
-                  errorMessage = "Booking not found.";
-                } else if (response.status === 500) {
-                  errorMessage = "Server error. Please try again.";
-                }
-                Alert.alert("Error", errorMessage);
-                return;
-              }
-
-              let data;
-              try {
-                data = JSON.parse(responseText);
-              } catch (parseError: any) {
-                Alert.alert("Error", "Invalid server response. Please try again.");
-                return;
-              }
-
-              Alert.alert("Success", "Payment confirmed! Booking is now confirmed.");
-              
-              // Refresh all tabs
-              await fetchBookings();
-              
-              // Switch to upcoming tab to show the confirmed booking
-              setTab("upcoming");
-            } catch (error: any) {
-              console.error("Confirm payment error:", error);
-              Alert.alert("Error", "Failed to confirm payment. Please try again.");
-            } finally {
-              setProcessingId(null);
-            }
-          },
-        },
-      ]
-    );
+  // Open booking detail so tourist can pay via eSewa from there
+  const handlePayNow = (bookingId: string) => {
+    router.push({
+      pathname: "/tourist/booking_detail",
+      params: { bookingId },
+    });
   };
 
   // Fetch bookings on mount and tab change
@@ -827,23 +747,17 @@ export default function BookingsTouristScreen() {
           <View style={styles.buttonColumn}>
             <TouchableOpacity
               style={[
-                styles.payBtn, 
-                (isExpired || processingId === req.id) && styles.disabledBtn
+                styles.payBtn,
+                isExpired && styles.disabledBtn
               ]}
               onPress={(e) => {
                 e?.stopPropagation?.();
-                handleConfirmPayment(req.id);
+                handlePayNow(req.id);
               }}
-              disabled={isExpired || processingId === req.id}
+              disabled={isExpired}
             >
-              {processingId === req.id ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="card" size={16} color="#fff" />
-                  <Text style={styles.payText}>Pay Now</Text>
-                </>
-              )}
+              <Ionicons name="card" size={16} color="#fff" />
+              <Text style={styles.payText}>Pay Now</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

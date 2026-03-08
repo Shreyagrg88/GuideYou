@@ -3,16 +3,23 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+    canReviewGuide,
+    getMyGuideReview,
+    submitGuideReview,
+} from "../../api/guideReviews";
 import { API_URL } from "../../constants/api";
 import TouristNavbar from "../components/tourist_navbar";
 
@@ -42,13 +49,6 @@ type GuideActivityItem = {
   duration: number;
   difficulty: string;
 };
-
-type DummyReview = { id: string; name: string; rating: number; comment: string };
-
-const DUMMY_REVIEWS: DummyReview[] = [
-  { id: "1", name: "Sarah Miller", rating: 5, comment: "Lukas was incredible! His knowledge of the Dolomites made our trek safe and unforgettable." },
-  { id: "2", name: "James Dupont", rating: 5, comment: "Very professional and patient. He taught us so much about the flora of the region." },
-];
 
 const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1544005313-94ddf0286df2";
 
@@ -80,6 +80,31 @@ export default function GuideProfileView() {
   const [activitiesContainerWidth, setActivitiesContainerWidth] = useState(0);
   const activitiesScrollRef = useRef<ScrollView>(null);
   const [canMessageGuide, setCanMessageGuide] = useState(false);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const [guideReviews, setGuideReviewsState] = useState<
+    {
+      id: string;
+      rating: number;
+      comment?: string;
+      tourist?: { username?: string; fullName?: string };
+      createdAt: string;
+    }[]
+  >([]);
+  const [averageRating, setAverageRating] = useState<number | null>(null);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [canReview, setCanReview] = useState(false);
+  const [canReviewLoading, setCanReviewLoading] = useState(false);
+  const [myReview, setMyReview] = useState<{
+    id: string;
+    rating: number;
+    comment?: string;
+    createdAt: string;
+  } | null>(null);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   const fetchBookingsForMessageCheck = useCallback(async (gId: string) => {
     try {
@@ -168,8 +193,136 @@ export default function GuideProfileView() {
 
   useEffect(() => {
     const id = guideId ?? guide?.id;
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setReviewsLoading(true);
+        setReviewsError(null);
+        const response = await fetch(
+          `${API_URL}/api/reviews/guide/${id}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.msg || "Failed to fetch guide reviews");
+        }
+        if (cancelled) return;
+        setGuideReviewsState(
+          (data.reviews || []).map(
+            (r: {
+              id: string;
+              rating: number;
+              comment?: string;
+              tourist?: { username?: string; fullName?: string };
+              createdAt: string;
+            }) => ({
+              id: r.id,
+              rating: r.rating,
+              comment: r.comment,
+              tourist: r.tourist,
+              createdAt: r.createdAt,
+            })
+          )
+        );
+        setAverageRating(data.averageRating ?? null);
+        setReviewCount(data.reviewCount ?? 0);
+      } catch (err: any) {
+        if (!cancelled) {
+          console.error("Guide reviews fetch error:", err);
+          setReviewsError(err.message || "Failed to load reviews");
+          setGuideReviewsState([]);
+          setAverageRating(null);
+          setReviewCount(0);
+        }
+      } finally {
+        if (!cancelled) {
+          setReviewsLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [guideId, guide?.id]);
+
+  useEffect(() => {
+    const id = guideId ?? guide?.id;
     if (id) fetchBookingsForMessageCheck(id);
   }, [guideId, guide?.id, fetchBookingsForMessageCheck]);
+
+  const fetchCanReviewAndMyReview = useCallback(async (gId: string) => {
+    setCanReviewLoading(true);
+    try {
+      const [canReviewRes, myReviewRes] = await Promise.all([
+        canReviewGuide(gId).catch(() => ({ canReview: false })),
+        getMyGuideReview(gId).catch(() => null),
+      ]);
+      setCanReview(canReviewRes.canReview === true);
+      setMyReview(myReviewRes ?? null);
+    } catch {
+      setCanReview(false);
+      setMyReview(null);
+    } finally {
+      setCanReviewLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const id = guideId ?? guide?.id;
+    if (id) fetchCanReviewAndMyReview(id);
+  }, [guideId, guide?.id, fetchCanReviewAndMyReview]);
+
+  const refetchReviews = useCallback(async () => {
+    const id = guideId ?? guide?.id;
+    if (!id) return;
+    try {
+      const response = await fetch(`${API_URL}/api/reviews/guide/${id}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await response.json();
+      if (response.ok && data.reviews) {
+        setGuideReviewsState(
+          (data.reviews || []).map(
+            (r: { id: string; rating: number; comment?: string; tourist?: { username?: string; fullName?: string }; createdAt: string }) => ({
+              id: r.id,
+              rating: r.rating,
+              comment: r.comment,
+              tourist: r.tourist,
+              createdAt: r.createdAt,
+            })
+          )
+        );
+        setAverageRating(data.averageRating ?? null);
+        setReviewCount(data.reviewCount ?? 0);
+      }
+      const my = await getMyGuideReview(id).catch(() => null);
+      setMyReview(my);
+    } catch {}
+  }, [guideId, guide?.id]);
+
+  const handleSubmitReview = async () => {
+    const id = guideId ?? guide?.id;
+    if (!id) return;
+    setSubmittingReview(true);
+    try {
+      await submitGuideReview(id, reviewRating, reviewComment.trim());
+      setShowReviewForm(false);
+      setReviewComment("");
+      setReviewRating(5);
+      await refetchReviews();
+    } catch (err: any) {
+      Alert.alert("Error", err.message ?? "Failed to submit review");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   const scale = width / 375;
   const s = (size: number) => Math.round(size * scale);
@@ -192,7 +345,11 @@ export default function GuideProfileView() {
         })()
       : (params.guideCharge ?? "$10/day");
   const ratingDisplay =
-    guide?.rating != null ? guide.rating.toFixed(1) : params.guideRating ?? "4.9";
+    averageRating != null
+      ? averageRating.toFixed(1)
+      : guide?.rating != null
+      ? guide.rating.toFixed(1)
+      : params.guideRating ?? "4.9";
   const languagesDisplay =
     guide?.languages?.length
       ? (Array.isArray(guide.languages) ? guide.languages : [guide.languages]).join(", ")
@@ -355,7 +512,19 @@ export default function GuideProfileView() {
           {canMessageGuide ? (
             <TouchableOpacity
               style={[styles.primaryBtn, styles.primaryBtnRow]}
-              onPress={() => router.push("/tourist/chat_tourist" as any)}
+              onPress={() => {
+                const id = guideId ?? guide?.id;
+                if (!id) return;
+                const avatar = guide?.avatar ?? params.guideImage;
+                router.push({
+                  pathname: "/tourist/chat_tourist",
+                  params: {
+                    counterpartId: id,
+                    guideName: name,
+                    guideAvatar: avatar ?? undefined,
+                  },
+                });
+              }}
             >
               <Ionicons name="chatbubble-outline" size={18} color="#007BFF" />
               <Text style={styles.primaryBtnText}>Message</Text>
@@ -416,26 +585,136 @@ export default function GuideProfileView() {
         {/* Reviews */}
         <View style={styles.reviewsHeader}>
           <Text style={styles.sectionTitle}>Reviews</Text>
-          <TouchableOpacity onPress={() => {}}>
-            <Text style={styles.viewAllText}>View all</Text>
-          </TouchableOpacity>
+          {reviewCount > 0 && averageRating != null && (
+            <Text style={styles.viewAllText}>
+              {averageRating.toFixed(1)} ({reviewCount} reviews)
+            </Text>
+          )}
         </View>
-        {DUMMY_REVIEWS.map((r) => (
-          <View key={r.id} style={styles.reviewCard}>
-            <View style={styles.reviewHeader}>
-              <View style={styles.reviewAvatar}>
-                <Ionicons name="person" size={16} color="#666" />
-              </View>
-              <Text style={styles.reviewName}>{r.name}</Text>
-            </View>
+
+        {/* Rate / Your review */}
+        {canReviewLoading ? null : myReview ? (
+          <View style={styles.myReviewCard}>
+            <Text style={styles.myReviewTitle}>Your review</Text>
             <View style={styles.starsRow}>
               {[1, 2, 3, 4, 5].map((i) => (
-                <Ionicons key={i} name={i <= r.rating ? "star" : "star-outline"} size={14} color="#FFD700" />
+                <Ionicons
+                  key={i}
+                  name={i <= myReview.rating ? "star" : "star-outline"}
+                  size={18}
+                  color="#FFD700"
+                />
               ))}
             </View>
-            <Text style={styles.reviewComment}>{r.comment}</Text>
+            {myReview.comment ? (
+              <Text style={styles.reviewComment}>{myReview.comment}</Text>
+            ) : null}
           </View>
-        ))}
+        ) : canReview && !showReviewForm ? (
+          <TouchableOpacity
+            style={styles.rateGuideBtn}
+            onPress={() => setShowReviewForm(true)}
+          >
+            <Ionicons name="star-outline" size={18} color="#007BFF" />
+            <Text style={styles.rateGuideBtnText}>Rate this guide</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {showReviewForm && (
+          <View style={styles.reviewFormCard}>
+            <Text style={styles.reviewFormTitle}>Write a review</Text>
+            <View style={styles.starsRow}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => setReviewRating(i)}
+                  style={{ padding: 4 }}
+                >
+                  <Ionicons
+                    name={i <= reviewRating ? "star" : "star-outline"}
+                    size={28}
+                    color="#FFD700"
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput
+              style={styles.reviewCommentInput}
+              placeholder="Add a comment (optional)"
+              placeholderTextColor="#999"
+              value={reviewComment}
+              onChangeText={setReviewComment}
+              multiline
+              numberOfLines={3}
+            />
+            <View style={styles.reviewFormActions}>
+              <TouchableOpacity
+                style={styles.reviewFormCancelBtn}
+                onPress={() => {
+                  setShowReviewForm(false);
+                  setReviewComment("");
+                  setReviewRating(5);
+                }}
+                disabled={submittingReview}
+              >
+                <Text style={styles.reviewFormCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.reviewFormSubmitBtn, submittingReview && { opacity: 0.6 }]}
+                onPress={handleSubmitReview}
+                disabled={submittingReview}
+              >
+                {submittingReview ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.reviewFormSubmitText}>Submit</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {reviewsLoading ? (
+          <View style={{ paddingVertical: 16, alignItems: "center" }}>
+            <ActivityIndicator size="small" color="#007BFF" />
+          </View>
+        ) : reviewsError ? (
+          <Text style={styles.activityEmptyText}>{reviewsError}</Text>
+        ) : guideReviews.length === 0 ? (
+          <Text style={styles.activityEmptyText}>No reviews yet.</Text>
+        ) : (
+          guideReviews.map((r: {
+            id: string;
+            rating: number;
+            comment?: string;
+            tourist?: { username?: string; fullName?: string };
+            createdAt: string;
+          }) => (
+            <View key={r.id} style={styles.reviewCard}>
+              <View style={styles.reviewHeader}>
+                <View style={styles.reviewAvatar}>
+                  <Ionicons name="person" size={16} color="#666" />
+                </View>
+                <Text style={styles.reviewName}>
+                  {r.tourist?.fullName || r.tourist?.username || "Traveler"}
+                </Text>
+              </View>
+              <View style={styles.starsRow}>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <Ionicons
+                    key={i}
+                    name={i <= r.rating ? "star" : "star-outline"}
+                    size={14}
+                    color="#FFD700"
+                  />
+                ))}
+              </View>
+              {r.comment ? (
+                <Text style={styles.reviewComment}>{r.comment}</Text>
+              ) : null}
+            </View>
+          ))
+        )}
       </ScrollView>
 
       <View style={[styles.navbarWrapper, { paddingBottom: insets.bottom }]}>
@@ -572,6 +851,67 @@ const styles = StyleSheet.create({
   activityEmptyText: { fontFamily: "Nunito_400Regular", fontSize: 14, color: "#666", marginBottom: 12 },
   reviewsHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 20, marginBottom: 10 },
   viewAllText: { fontFamily: "Nunito_700Bold", fontSize: 14, color: "#007BFF" },
+  myReviewCard: {
+    backgroundColor: "#E8F4FF",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#007BFF40",
+  },
+  myReviewTitle: { fontFamily: "Nunito_700Bold", fontSize: 14, color: "#333", marginBottom: 6 },
+  rateGuideBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#007BFF",
+    backgroundColor: "#FFF",
+  },
+  rateGuideBtnText: { fontFamily: "Nunito_700Bold", fontSize: 14, color: "#007BFF" },
+  reviewFormCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  reviewFormTitle: { fontFamily: "Nunito_700Bold", fontSize: 14, color: "#333", marginBottom: 10 },
+  reviewCommentInput: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 10,
+    marginBottom: 12,
+    fontFamily: "Nunito_400Regular",
+    fontSize: 14,
+    color: "#333",
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  reviewFormActions: { flexDirection: "row", gap: 12, justifyContent: "flex-end" },
+  reviewFormCancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+  },
+  reviewFormCancelText: { fontFamily: "Nunito_700Bold", fontSize: 14, color: "#666" },
+  reviewFormSubmitBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    backgroundColor: "#007BFF",
+  },
+  reviewFormSubmitText: { fontFamily: "Nunito_700Bold", fontSize: 14, color: "#FFF" },
   reviewCard: {
     backgroundColor: "#FFF",
     borderRadius: 12,

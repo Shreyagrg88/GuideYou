@@ -211,9 +211,16 @@ export default function ProfileTourist() {
     );
   };
 
-  const getAvatarUri = () => {
-    if (!profile?.avatar) return "https://images.unsplash.com/photo-1544005313-94ddf0286df2";
-    return profile.avatar.startsWith("http") ? profile.avatar : `${API_URL}${profile.avatar}`;
+  const getAvatarUri = (): string | null => {
+    if (!profile?.avatar) return null;
+    const normalized = profile.avatar.startsWith("http")
+      ? profile.avatar
+      : `${API_URL}${profile.avatar}`;
+    // Treat the shared stock image as "no custom dp"
+    if (normalized.includes("photo-1544005313-94ddf0286df2")) {
+      return null;
+    }
+    return normalized;
   };
 
   const showPastLeftArrow = pastActivities.length > 1 && pastScrollX > 10;
@@ -270,7 +277,24 @@ export default function ProfileTourist() {
         </View>
 
         <View style={styles.profileBlock}>
-          <Image source={{ uri: getAvatarUri() }} style={[styles.avatar, { width: s(100), height: s(100) }]} />
+          {getAvatarUri() ? (
+            <Image
+              source={{ uri: getAvatarUri()! }}
+              style={[styles.avatar, { width: s(100), height: s(100) }]}
+            />
+          ) : (
+            <View
+              style={[
+                styles.avatar,
+                styles.avatarPlaceholder,
+                { width: s(100), height: s(100) },
+              ]}
+            >
+              <Text style={styles.avatarInitials}>
+                {(profile.fullName || profile.username || "T").charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
           <Text style={[styles.displayName, { fontSize: s(20) }]}>{profile.fullName || profile.username}</Text>
           <View style={styles.locationRow}>
             <Ionicons name="person-outline" size={s(14)} color="#666" />
@@ -439,7 +463,13 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
-  avatar: { borderRadius: 100, marginBottom: 10 },
+  avatar: { borderRadius: 100, marginBottom: 10, justifyContent: "center", alignItems: "center" },
+  avatarPlaceholder: { backgroundColor: "#E5E7EB" },
+  avatarInitials: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 32,
+    color: "#111827",
+  },
   displayName: { fontFamily: "Nunito_700Bold", color: "#1a1a1a", marginBottom: 6 },
   locationRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 12 },
   locationText: { fontFamily: "Nunito_400Regular", color: "#666" },

@@ -1,18 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { initiateEsewaPayment } from "../../api/payment";
 import { API_URL } from "../../constants/api";
 
 type BookingDetail = {
@@ -127,6 +128,27 @@ export default function BookingDetailScreen() {
 
     fetchBookingDetail();
   }, [params.bookingId, router]);
+
+  // Refetch when returning from eSewa WebView so status updates
+  useFocusEffect(
+    useCallback(() => {
+      if (!params.bookingId) return;
+      const refetch = async () => {
+        try {
+          const token = await AsyncStorage.getItem("token");
+          if (!token) return;
+          const res = await fetch(`${API_URL}/api/tourist/bookings/${params.bookingId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setBooking(data.booking);
+          }
+        } catch (_) {}
+      };
+      refetch();
+    }, [params.bookingId])
+  );
 
   // Payment countdown timer
   useEffect(() => {
@@ -272,56 +294,23 @@ export default function BookingDetailScreen() {
     );
   };
 
-  const handleConfirmPayment = async () => {
+  const handlePayNow = async () => {
     if (!booking) return;
-
-    Alert.alert(
-      "Confirm Payment",
-      "Have you completed the payment for this booking?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Yes, Payment Done",
-          onPress: async () => {
-            try {
-              setProcessing(true);
-              const token = await AsyncStorage.getItem("token");
-              if (!token) {
-                Alert.alert("Error", "Please login again.");
-                router.push("/login");
-                return;
-              }
-
-              const response = await fetch(
-                `${API_URL}/api/tourist/bookings/${booking.id}/confirm-payment`,
-                {
-                  method: "PATCH",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                  },
-                }
-              );
-
-              const data = await response.json();
-
-              if (!response.ok) {
-                throw new Error(data.msg || "Failed to confirm payment");
-              }
-
-              Alert.alert("Success", "Payment confirmed! Booking is now confirmed.", [
-                { text: "OK", onPress: () => router.back() },
-              ]);
-            } catch (err: any) {
-              console.error("Error confirming payment:", err);
-              Alert.alert("Error", err.message || "Failed to confirm payment");
-            } finally {
-              setProcessing(false);
-            }
-          },
+    try {
+      setProcessing(true);
+      const { gatewayUrl, formUrl, params } = await initiateEsewaPayment(booking.id);
+      setProcessing(false);
+      router.push({
+        pathname: "/tourist/esewa_webview",
+        params: {
+          bookingId: booking.id,
+          ...(formUrl ? { formUrl } : { gatewayUrl, paramsJson: JSON.stringify(params) }),
         },
-      ]
-    );
+      });
+    } catch (err: any) {
+      setProcessing(false);
+      Alert.alert("Payment", err.message || "Could not start eSewa payment. Try again.");
+    }
   };
 
   const handleViewGuideProfile = () => {
@@ -336,6 +325,11 @@ export default function BookingDetailScreen() {
       },
     });
   };
+
+  const canChat =
+    booking?.status === "accepted" ||
+    booking?.status === "paid" ||
+    booking?.status === "completed";
 
   if (loading) {
     return (
@@ -428,6 +422,25 @@ export default function BookingDetailScreen() {
           </View>
           <Ionicons name="chevron-forward" size={20} color="#1B8BFF" />
         </TouchableOpacity>
+
+        {canChat && (
+          <TouchableOpacity
+            style={styles.chatButton}
+            onPress={() =>
+              router.push({
+                pathname: "/tourist/chat_tourist",
+                params: {
+                  counterpartId: booking.guide.id,
+                  guideName: booking.guide.name || booking.guide.username,
+                  guideAvatar: booking.guide.avatar ?? undefined,
+                },
+              })
+            }
+          >
+            <Ionicons name="chatbubble-outline" size={18} color="#FFF" />
+            <Text style={styles.chatButtonText}>Chat with guide</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Booking Details Section */}
         <View style={styles.section}>
@@ -577,11 +590,13 @@ export default function BookingDetailScreen() {
         </View>
       )}
 
-      {booking.status === "accepted" && (
+      {booking.status === "accepted" &&
+        booking.paymentStatus !== "completed" &&
+        !booking.paymentId && (
         <View style={[styles.actionBar, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           <TouchableOpacity
             style={[styles.actionButton, styles.payButton, isExpired && styles.disabledButton]}
-            onPress={handleConfirmPayment}
+            onPress={handlePayNow}
             disabled={isExpired || processing}
           >
             <Ionicons name="card" size={18} color="#fff" />
@@ -786,6 +801,22 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_400Regular",
     color: "#333",
     lineHeight: 20,
+  },
+  chatButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    marginHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#007BFF",
+  },
+  chatButtonText: {
+    marginLeft: 6,
+    fontFamily: "Nunito_700Bold",
+    fontSize: 14,
+    color: "#FFF",
   },
   countdownBox: {
     flexDirection: "row",

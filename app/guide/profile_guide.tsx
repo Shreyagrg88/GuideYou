@@ -51,13 +51,6 @@ type GuideActivity = {
   rejectionReason: string | null;
 };
 
-type DummyReview = { id: string; name: string; rating: number; comment: string };
-
-const DUMMY_REVIEWS: DummyReview[] = [
-  { id: "1", name: "Sarah Miller", rating: 5, comment: "Lukas was incredible! His knowledge of the Dolomites made our trek safe and unforgettable." },
-  { id: "2", name: "James Dupont", rating: 5, comment: "Very professional and patient. He taught us so much about the flora of the region." },
-];
-
 export default function Profile() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -73,6 +66,19 @@ export default function Profile() {
   const [activitiesContentWidth, setActivitiesContentWidth] = useState(0);
   const [activitiesContainerWidth, setActivitiesContainerWidth] = useState(0);
   const activitiesScrollRef = useRef<ScrollView>(null);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const [guideReviews, setGuideReviews] = useState<
+    {
+      id: string;
+      rating: number;
+      comment?: string;
+      tourist?: { username?: string; fullName?: string };
+      createdAt: string;
+    }[]
+  >([]);
+  const [averageRating, setAverageRating] = useState<number | null>(null);
+  const [reviewCount, setReviewCount] = useState(0);
 
   const scale = width / 375;
   const s = (size: number) => Math.round(size * scale);
@@ -120,6 +126,66 @@ export default function Profile() {
       }
     };
     if (profile?.id) fetchMyActivities();
+  }, [profile?.id]);
+
+  useEffect(() => {
+    const fetchGuideReviews = async () => {
+      if (!profile?.id) return;
+      let cancelled = false;
+      try {
+        setReviewsLoading(true);
+        setReviewsError(null);
+        const response = await fetch(
+          `${API_URL}/api/reviews/guide/${profile.id}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.msg || "Failed to fetch guide reviews");
+        }
+        if (cancelled) return;
+        setGuideReviews(
+          (data.reviews || []).map(
+            (r: {
+              id: string;
+              rating: number;
+              comment?: string;
+              tourist?: { username?: string; fullName?: string };
+              createdAt: string;
+            }) => ({
+              id: r.id,
+              rating: r.rating,
+              comment: r.comment,
+              tourist: r.tourist,
+              createdAt: r.createdAt,
+            })
+          )
+        );
+        setAverageRating(data.averageRating ?? null);
+        setReviewCount(data.reviewCount ?? 0);
+      } catch (err: any) {
+        if (!cancelled) {
+          console.error("Guide reviews fetch error:", err);
+          setReviewsError(err.message || "Failed to load reviews");
+          setGuideReviews([]);
+          setAverageRating(null);
+          setReviewCount(0);
+        }
+      } finally {
+        if (!cancelled) {
+          setReviewsLoading(false);
+        }
+      }
+      return () => {
+        cancelled = true;
+      };
+    };
+    fetchGuideReviews();
   }, [profile?.id]);
 
   useFocusEffect(
@@ -276,7 +342,13 @@ export default function Profile() {
             </View>
             <View style={styles.statCell}>
               <Text style={styles.statLabel}>Rating</Text>
-              <Text style={styles.statValue}>{profile.rating != null ? profile.rating.toFixed(1) : "4.9"}</Text>
+              <Text style={styles.statValue}>
+                {averageRating != null
+                  ? averageRating.toFixed(1)
+                  : profile.rating != null
+                  ? profile.rating.toFixed(1)
+                  : "4.9"}
+              </Text>
             </View>
           </View>
           <View style={styles.bioBlock}>
@@ -356,26 +428,57 @@ export default function Profile() {
         {/* Reviews */}
         <View style={styles.reviewsHeader}>
           <Text style={styles.sectionTitle}>Reviews</Text>
-          <TouchableOpacity onPress={() => {}}>
-            <Text style={styles.viewAllText}>View all</Text>
-          </TouchableOpacity>
+          {reviewCount > 0 && averageRating != null && (
+            <Text style={styles.viewAllText}>
+              {averageRating.toFixed(1)} ({reviewCount} reviews)
+            </Text>
+          )}
         </View>
-        {DUMMY_REVIEWS.map((r) => (
-          <View key={r.id} style={styles.reviewCard}>
-            <View style={styles.reviewHeader}>
-              <View style={styles.reviewAvatar}>
-                <Ionicons name="person" size={16} color="#666" />
-              </View>
-              <Text style={styles.reviewName}>{r.name}</Text>
-            </View>
-            <View style={styles.starsRow}>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <Ionicons key={i} name={i <= r.rating ? "star" : "star-outline"} size={14} color="#FFD700" />
-              ))}
-            </View>
-            <Text style={styles.reviewComment}>{r.comment}</Text>
+        {reviewsLoading ? (
+          <View style={{ paddingVertical: 16, alignItems: "center" }}>
+            <ActivityIndicator size="small" color="#007BFF" />
           </View>
-        ))}
+        ) : reviewsError ? (
+          <Text style={styles.activityEmptyText}>{reviewsError}</Text>
+        ) : guideReviews.length === 0 ? (
+          <Text style={styles.activityEmptyText}>
+            No reviews yet. When tourists complete tours with you, their reviews will appear here.
+          </Text>
+        ) : (
+          guideReviews.map(
+            (r: {
+              id: string;
+              rating: number;
+              comment?: string;
+              tourist?: { username?: string; fullName?: string };
+              createdAt: string;
+            }) => (
+              <View key={r.id} style={styles.reviewCard}>
+                <View style={styles.reviewHeader}>
+                  <View style={styles.reviewAvatar}>
+                    <Ionicons name="person" size={16} color="#666" />
+                  </View>
+                  <Text style={styles.reviewName}>
+                    {r.tourist?.fullName || r.tourist?.username || "Traveler"}
+                  </Text>
+                </View>
+                <View style={styles.starsRow}>
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Ionicons
+                      key={i}
+                      name={i <= r.rating ? "star" : "star-outline"}
+                      size={14}
+                      color="#FFD700"
+                    />
+                  ))}
+                </View>
+                {r.comment ? (
+                  <Text style={styles.reviewComment}>{r.comment}</Text>
+                ) : null}
+              </View>
+            )
+          )
+        )}
       </ScrollView>
 
       {/* Ellipsis menu modal */}

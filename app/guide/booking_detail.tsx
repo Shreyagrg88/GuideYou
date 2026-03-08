@@ -3,14 +3,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
@@ -181,14 +181,17 @@ export default function BookingDetailScreen() {
     }
   };
 
-  const getImageUrl = (path: string | null | undefined): string => {
-    if (!path) {
-      return "https://i.pravatar.cc/300?img=1";
+  const getImageUrl = (path: string | null | undefined): string | null => {
+    if (!path) return null;
+    const normalized = path.startsWith("http") ? path : `${API_URL}${path}`;
+    // Treat common stock avatar as "no custom dp"
+    if (
+      normalized.includes("photo-1544005313-94ddf0286df2") ||
+      normalized.includes("i.pravatar.cc")
+    ) {
+      return null;
     }
-    if (path.startsWith("http")) {
-      return path;
-    }
-    return `${API_URL}${path}`;
+    return normalized;
   };
 
   const handleAccept = async () => {
@@ -196,7 +199,7 @@ export default function BookingDetailScreen() {
 
     Alert.alert(
       "Accept Booking Request",
-      "Are you sure you want to accept this booking request? The tourist will have 30 minutes to complete payment.",
+      "Are you sure you want to accept this booking request? The tourist will have 2 hours to complete payment.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -225,7 +228,7 @@ export default function BookingDetailScreen() {
                 throw new Error(data.msg || "Failed to accept booking");
               }
 
-              Alert.alert("Success", "Booking request accepted. Tourist has 30 minutes to complete payment.", [
+              Alert.alert("Success", "Booking request accepted. Tourist has 2 hours to complete payment.", [
                 { text: "OK", onPress: () => router.back() },
               ]);
             } catch (err: any) {
@@ -290,6 +293,11 @@ export default function BookingDetailScreen() {
     );
   };
 
+  const canChat =
+    booking?.status === "accepted" ||
+    booking?.status === "paid" ||
+    booking?.status === "completed";
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -315,7 +323,8 @@ export default function BookingDetailScreen() {
   const tourTitle = booking.activity?.name || booking.tourName || "Custom Tour";
   const tourLocation = booking.activity?.location || booking.location;
   const tourPhoto = booking.activity?.photo
-    ? getImageUrl(booking.activity.photo)
+    ? getImageUrl(booking.activity.photo) ??
+      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4"
     : "https://images.unsplash.com/photo-1506905925346-21bda4d32df4";
   const touristAvatarUri = getImageUrl(booking.tourist.avatar);
 
@@ -369,8 +378,33 @@ export default function BookingDetailScreen() {
         </View>
 
         {/* Tourist Info Card */}
-        <View style={styles.touristCard}>
-          <Image source={{ uri: touristAvatarUri }} style={styles.touristAvatar} />
+        <TouchableOpacity
+          style={styles.touristCard}
+          onPress={() =>
+            router.push({
+              pathname: "/guide/tourist_profileview",
+              params: {
+                touristId: booking.tourist.id,
+                touristName: booking.tourist.name || booking.tourist.username,
+                touristUsername: booking.tourist.username,
+                touristAvatar: booking.tourist.avatar ?? undefined,
+                touristEmail: booking.tourist.email ?? undefined,
+              },
+            })
+          }
+          activeOpacity={0.8}
+        >
+          {touristAvatarUri ? (
+            <Image source={{ uri: touristAvatarUri }} style={styles.touristAvatar} />
+          ) : (
+            <View style={[styles.touristAvatar, styles.touristAvatarPlaceholder]}>
+              <Text style={styles.touristAvatarInitials}>
+                {(booking.tourist.name || booking.tourist.username || "T")
+                  .charAt(0)
+                  .toUpperCase()}
+              </Text>
+            </View>
+          )}
           <View style={styles.touristInfo}>
             <Text style={styles.touristName}>{booking.tourist.name || booking.tourist.username}</Text>
             <Text style={styles.touristUsername}>@{booking.tourist.username}</Text>
@@ -381,7 +415,28 @@ export default function BookingDetailScreen() {
               </View>
             )}
           </View>
-        </View>
+          <Ionicons name="chevron-forward" size={20} color="#1B8BFF" />
+        </TouchableOpacity>
+
+        {canChat && (
+          <TouchableOpacity
+            style={styles.chatButton}
+            onPress={() =>
+              router.push({
+                pathname: "/guide/chat_guide",
+                params: {
+                  counterpartId: booking.tourist.id,
+                  touristName: booking.tourist.name || booking.tourist.username,
+                  touristAvatar: booking.tourist.avatar ?? undefined,
+                  bookingId: booking.id,
+                },
+              })
+            }
+          >
+            <Ionicons name="chatbubble-outline" size={18} color="#FFF" />
+            <Text style={styles.chatButtonText}>Chat with tourist</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Booking Details Section */}
         <View style={styles.section}>
@@ -686,6 +741,16 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     marginRight: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  touristAvatarPlaceholder: {
+    backgroundColor: "#E5E7EB",
+  },
+  touristAvatarInitials: {
+    fontSize: 18,
+    fontFamily: "Nunito_700Bold",
+    color: "#111827",
   },
   touristInfo: {
     flex: 1,
@@ -755,6 +820,22 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_400Regular",
     color: "#333",
     lineHeight: 20,
+  },
+  chatButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    marginHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#007BFF",
+  },
+  chatButtonText: {
+    marginLeft: 6,
+    fontFamily: "Nunito_700Bold",
+    fontSize: 14,
+    color: "#FFF",
   },
   paymentStatusBox: {
     flexDirection: "row",

@@ -221,7 +221,7 @@ export default function BookingRequestScreen() {
       if (error) { Alert.alert("Error", error); return; }
 
       const data = JSON.parse(responseText);
-      Alert.alert("Success", action === "accept" ? "Booking request accepted. Tourist has 30 minutes to complete payment." : "Booking request rejected");
+      Alert.alert("Success", action === "accept" ? "Booking request accepted. Tourist has 2 hours to complete payment." : "Booking request rejected");
       await fetchBookings();
     } catch (error: any) {
       console.error(`${action} booking error:`, error);
@@ -314,9 +314,17 @@ export default function BookingRequestScreen() {
               <Text style={styles.sectionSubtitle}>Awaiting Payment</Text>
             )}
             {acceptedBookings.map((req) => {
-              const avatarUri = req.tourist.avatar
-                ? req.tourist.avatar.startsWith("http") ? req.tourist.avatar : `${API_URL}${req.tourist.avatar}`
-                : `https://i.pravatar.cc/300?img=${req.tourist.id.slice(-2)}`;
+              const rawAvatar = req.tourist.avatar
+                ? req.tourist.avatar.startsWith("http")
+                  ? req.tourist.avatar
+                  : `${API_URL}${req.tourist.avatar}`
+                : null;
+              const avatarUri =
+                rawAvatar &&
+                !rawAvatar.includes("photo-1544005313-94ddf0286df2") &&
+                !rawAvatar.includes("i.pravatar.cc")
+                  ? rawAvatar
+                  : null;
 
               return (
                 <TouchableOpacity 
@@ -324,7 +332,17 @@ export default function BookingRequestScreen() {
                   style={styles.requestCard}
                   onPress={() => navigateToBookingDetail(req)}
                 >
-                  <Image source={{ uri: avatarUri }} style={styles.profilePic} />
+                  {avatarUri ? (
+                    <Image source={{ uri: avatarUri }} style={styles.profilePic} />
+                  ) : (
+                    <View style={[styles.profilePic, styles.profilePlaceholder]}>
+                      <Text style={styles.profileInitials}>
+                        {(req.tourist.name || req.tourist.username || "T")
+                          .charAt(0)
+                          .toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.reqName}>{req.tourist.name || req.tourist.username}</Text>
                     <Text style={styles.reqTrek}>{req.activity?.name || "Custom Tour"}</Text>
@@ -351,9 +369,17 @@ export default function BookingRequestScreen() {
               <Text style={styles.sectionSubtitle}>Pending Requests</Text>
             )}
             {pendingBookings.map((req) => {
-              const avatarUri = req.tourist.avatar
-                ? req.tourist.avatar.startsWith("http") ? req.tourist.avatar : `${API_URL}${req.tourist.avatar}`
-                : `https://i.pravatar.cc/300?img=${req.tourist.id.slice(-2)}`;
+              const rawAvatar = req.tourist.avatar
+                ? req.tourist.avatar.startsWith("http")
+                  ? req.tourist.avatar
+                  : `${API_URL}${req.tourist.avatar}`
+                : null;
+              const avatarUri =
+                rawAvatar &&
+                !rawAvatar.includes("photo-1544005313-94ddf0286df2") &&
+                !rawAvatar.includes("i.pravatar.cc")
+                  ? rawAvatar
+                  : null;
 
               return (
                 <TouchableOpacity 
@@ -361,7 +387,17 @@ export default function BookingRequestScreen() {
                   style={styles.requestCard}
                   onPress={() => navigateToBookingDetail(req)}
                 >
-                  <Image source={{ uri: avatarUri }} style={styles.profilePic} />
+                  {avatarUri ? (
+                    <Image source={{ uri: avatarUri }} style={styles.profilePic} />
+                  ) : (
+                    <View style={[styles.profilePic, styles.profilePlaceholder]}>
+                      <Text style={styles.profileInitials}>
+                        {(req.tourist.name || req.tourist.username || "T")
+                          .charAt(0)
+                          .toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
         <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.reqName}>{req.tourist.name || req.tourist.username}</Text>
                     <Text style={styles.reqTrek}>{req.activity?.name || "Custom Tour"}</Text>
@@ -449,7 +485,21 @@ const styles = StyleSheet.create({
   statusText: { fontFamily: "Nunito_700Bold" },
   statusBox: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, alignSelf: "flex-start", marginBottom: 8, marginRight: 8 },
   requestCard: { backgroundColor: "#F5F8FF", borderRadius: 12, padding: 15, flexDirection: "row", alignItems: "center", marginBottom: 15 },
-  profilePic: { width: 55, height: 55, borderRadius: 30 },
+  profilePic: {
+    width: 55,
+    height: 55,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  profilePlaceholder: {
+    backgroundColor: "#E5E7EB",
+  },
+  profileInitials: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 18,
+    color: "#111827",
+  },
   reqName: { fontFamily: "Nunito_700Bold", fontSize: 16 },
   reqTrek: { fontFamily: "Nunito_700Bold", color: "#777", marginTop: -2 },
   reqDate: { fontFamily: "Nunito_400Regular", color: "#999", fontSize: 12 },

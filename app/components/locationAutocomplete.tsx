@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  View,
-  TextInput,
-  FlatList,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Keyboard,
+    ActivityIndicator,
+    Keyboard,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 interface LocationData {
@@ -126,20 +126,19 @@ export default function LocationAutocomplete({ value, onSelect }: Props) {
 
       {showDropdown && results.length > 0 && (
         <View style={styles.dropdown}>
-          <FlatList
-            nestedScrollEnabled={true}
+          <ScrollView
             keyboardShouldPersistTaps="handled"
-            data={results}
-            keyExtractor={(item) => item.place_id.toString()}
-            renderItem={({ item }) => (
+          >
+            {results.map((item) => (
               <TouchableOpacity
+                key={item.place_id?.toString?.() ?? String(item.place_id)}
                 style={styles.item}
                 onPress={() => handleSelect(item)}
               >
                 <Text style={styles.itemText}>{item.display_name}</Text>
               </TouchableOpacity>
-            )}
-          />
+            ))}
+          </ScrollView>
         </View>
       )}
     </View>
