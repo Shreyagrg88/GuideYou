@@ -180,30 +180,36 @@ export default function HomePage() {
       let current = null as Awaited<
         ReturnType<typeof Location.getCurrentPositionAsync>
       > | null;
-      try {
-        current = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-      } catch {
-        // Emulator/device can fail to resolve a fresh fix; try last known location as fallback.
-        current = await Location.getLastKnownPositionAsync({
-          maxAge: 120000,
-          requiredAccuracy: 1000,
-        });
-      }
+
+      // On emulators, last known is often available before a fresh GPS fix is resolved.
+      current = await Location.getLastKnownPositionAsync({
+        maxAge: 24 * 60 * 60 * 1000,
+        requiredAccuracy: 5000,
+      });
 
       if (!current) {
-        setAiRecommendations([]);
-        setAiRecommendationsError(
-          "Current location is unavailable. Make sure emulator/device location is ON and set a mock GPS point."
-        );
-        return;
+        try {
+          current = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+            mayShowUserSettingsDialog: true,
+          });
+        } catch {
+          try {
+            current = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Low,
+              mayShowUserSettingsDialog: true,
+            });
+          } catch {
+            current = null;
+          }
+        }
       }
 
-      const data = await recommendActivitiesByGps(
-        current.coords.latitude,
-        current.coords.longitude
-      );
+      // Final fallback for emulator sessions where GPS provider reports null.
+      const lat = current?.coords.latitude ?? 27.7172;
+      const lon = current?.coords.longitude ?? 85.324;
+
+      const data = await recommendActivitiesByGps(lat, lon);
       setAiWeatherCondition(data.weather?.condition || "");
       setAiRecommendations(data.activityRecommendations || []);
     } catch (error: any) {
