@@ -650,6 +650,7 @@ export default function TourDetails() {
               location: activity.location,
               activityName: activity.name,
               activityId: activity.id,
+              numberOfDays: String(activity.duration || 1),
             },
           })
         }
