@@ -28,11 +28,33 @@ export type ItineraryDay = {
 export type GenerateItineraryResponse = {
   weather?: {
     condition?: WeatherCondition;
+    description?: string;
+    tempC?: number;
+    feelsLikeC?: number;
+    humidity?: number;
+    windSpeed?: number;
+    icon?: string;
+    hourly?: Array<{
+      time: string;
+      condition?: string;
+      description?: string;
+      tempC?: number;
+      feelsLikeC?: number;
+      icon?: string;
+    }>;
     strategy?: string;
     weatherQueryUsed?: string;
+    basedOnActivityLocation?: string;
+    source?: string;
+    triedQueries?: string[];
   };
   numberOfDays?: number;
   chosenActivity?: AiRecommendedActivity;
+  recommendation?: {
+    title?: string;
+    subtitle?: string;
+    bullets?: string[];
+  };
   itinerary: ItineraryDay[];
 };
 
@@ -77,6 +99,7 @@ export async function generateItineraryForActivity(
     weather: data.weather,
     numberOfDays: data.numberOfDays,
     chosenActivity: data.chosenActivity,
+    recommendation: data.recommendation,
     itinerary: Array.isArray(data.itinerary) ? data.itinerary : [],
   };
 }
