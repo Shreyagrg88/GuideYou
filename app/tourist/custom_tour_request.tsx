@@ -15,6 +15,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL } from "../../constants/api";
+import {
+  estimateNprFromUsd,
+  formatNprAmount,
+  parseUsdFromGuideChargeString,
+} from "../../utils/bookingPrice";
 
 type DateStatus = "available" | "unavailable" | "booked" | "reserved";
 
@@ -68,6 +73,7 @@ export default function CustomTourRequest() {
   const [selectedDateRange, setSelectedDateRange] = useState<Date[]>([]);
   const [dateStatuses, setDateStatuses] = useState<Map<string, DateStatus>>(new Map());
   const [pricePerPerson, setPricePerPerson] = useState<number>(50);
+  const [usdToNprRate, setUsdToNprRate] = useState(135);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [participantCount, setParticipantCount] = useState(1);
   const [tourName, setTourName] = useState("");
@@ -109,10 +115,12 @@ export default function CustomTourRequest() {
         } else if (Array.isArray(data.pricing) && data.pricing[0]?.price != null) {
           setPricePerPerson(Number(data.pricing[0].price));
         } else if (params.guideCharge) {
-          const parsed = parseFloat(
-            params.guideCharge.replace("$", "").replace("/day", "").replace(",", "")
-          );
-          if (!isNaN(parsed)) setPricePerPerson(parsed);
+          const parsed = parseUsdFromGuideChargeString(params.guideCharge);
+          if (parsed > 0) setPricePerPerson(parsed);
+        }
+
+        if (typeof data.usdToNprRate === "number" && data.usdToNprRate > 0) {
+          setUsdToNprRate(data.usdToNprRate);
         }
 
         // Build date status map from API arrays (same format as booking.tsx)
@@ -295,11 +303,9 @@ export default function CustomTourRequest() {
     selectedDateRange[selectedDateRange.length - 1].getMonth() === currentMonth &&
     selectedDateRange[selectedDateRange.length - 1].getFullYear() === currentYear;
 
-  const calculateTotal = (): string => {
-    const days = selectedDateRange.length || 1;
-    const total = pricePerPerson * days * participantCount;
-    return `$${total.toFixed(0)}`;
-  };
+  const usdTotalEstimate =
+    pricePerPerson * (selectedDateRange.length || 1) * participantCount;
+  const nprTotalEstimate = estimateNprFromUsd(usdTotalEstimate, usdToNprRate);
 
   const handleNext = () => {
     if (!startDate) {
@@ -635,7 +641,9 @@ export default function CustomTourRequest() {
                 Duration: {selectedDateRange.length}{" "}
                 {selectedDateRange.length === 1 ? "day" : "days"}
               </Text>
-              <Text style={styles.summaryText}>Total: {calculateTotal()}</Text>
+              <Text style={styles.summaryText}>
+                Total: {formatNprAmount(nprTotalEstimate)} (${usdTotalEstimate.toFixed(0)} USD est.)
+              </Text>
               <Text style={styles.summaryText}>Participants: {participantCount}</Text>
             </View>
 
@@ -701,9 +709,12 @@ export default function CustomTourRequest() {
       <View style={[styles.bottomRow, { paddingBottom: Math.max(insets.bottom, 20) }]}>
         {step === 1 ? (
           <>
-            <View>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalAmount}>{calculateTotal()}</Text>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={styles.totalLabel}>Estimated total</Text>
+              <Text style={styles.totalAmount}>{formatNprAmount(nprTotalEstimate)}</Text>
+              <Text style={styles.totalSub}>
+                ${usdTotalEstimate.toFixed(0)} USD · Final NPR when guide accepts
+              </Text>
             </View>
             <TouchableOpacity
               style={[
@@ -897,6 +908,7 @@ const styles = StyleSheet.create({
   },
   totalLabel: { fontFamily: "Nunito_400Regular", color: "#9aa0a6", fontSize: 12 },
   totalAmount: { fontFamily: "Nunito_700Bold", fontSize: 18, color: "#000" },
+  totalSub: { fontFamily: "Nunito_400Regular", fontSize: 11, color: "#666", marginTop: 2, maxWidth: 220 },
   nextBtn: {
     backgroundColor: "#007BFF",
     paddingVertical: 12,

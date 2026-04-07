@@ -20,7 +20,7 @@ export default function Layout() {
       const Notifications = await import("expo-notifications");
       const token = await AsyncStorage.getItem("token");
       const role = await AsyncStorage.getItem("userRole");
-      if (token && (role === "tourist" || role === "guide")) {
+      if (token && (role === "tourist" || role === "guide" || role === "admin")) {
         registerPushToken(token);
       }
       sub = Notifications.addNotificationResponseReceivedListener((response) => {
@@ -28,8 +28,9 @@ export default function Layout() {
         const type = data?.type ?? "";
         const relatedId = data?.relatedId ?? null;
         AsyncStorage.getItem("userRole").then((r) => {
-          const role = r === "guide" ? "guide" : "tourist";
-          navigateFromNotification(router, role, type, relatedId);
+          const appRole =
+            r === "guide" ? "guide" : r === "admin" ? "admin" : "tourist";
+          navigateFromNotification(router, appRole, type, relatedId);
         });
       });
     })();

@@ -13,6 +13,8 @@ import {
   View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
+import { markTouristBookingComplete } from "../../api/touristBookings";
+import { formatNprAmount, resolveEsewaBookingDisplay } from "../../utils/bookingPrice";
 import TouristNavbar from "../components/tourist_navbar";
 
 type Booking = {
@@ -43,7 +45,12 @@ type Booking = {
   duration: number;
   participantCount: number;
   price: number;
+  priceNpr?: number;
+  priceUsd?: number;
+  priceUsdApproximated?: boolean;
+  usdToNprRate?: number;
   status: "pending" | "accepted" | "paid" | "cancelled" | "completed";
+  canMarkComplete?: boolean;
   notes?: string;
   requestedAt: string;
   acceptedAt?: string;
@@ -322,6 +329,36 @@ export default function BookingsTouristScreen() {
     }
   }, [router]);
 
+  const handleMarkComplete = (item: Booking) => {
+    Alert.alert(
+      "Mark as completed",
+      "Mark this tour as completed? This confirms you finished the activity.",
+      [
+        { text: "Not now", style: "cancel" },
+        {
+          text: "Yes, mark complete",
+          onPress: async () => {
+            try {
+              setProcessingId(item.id);
+              const { msg } = await markTouristBookingComplete(item.id);
+              Alert.alert("Done", msg);
+              await fetchBookings();
+            } catch (e: unknown) {
+              const err = e as Error & { status?: number };
+              if (err.status === 401 || err.message === "Not logged in") {
+                router.push("/login");
+                return;
+              }
+              Alert.alert("Could not complete", err.message || "Try again.");
+            } finally {
+              setProcessingId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Cancel booking
   const handleCancel = async (bookingId: string) => {
     Alert.alert(
@@ -483,22 +520,47 @@ export default function BookingsTouristScreen() {
                 <Text style={styles.subUser}>{item.guide.name || item.guide.username}</Text>
               </View>
               {item.status === "paid" && (
-                <TouchableOpacity
-                  style={[styles.cancelBtn, processingId === item.id && styles.disabledBtn]}
-                  onPress={(e) => {
-                    e?.stopPropagation?.();
-                    handleCancel(item.id);
-                  }}
-                  disabled={processingId === item.id}
-                >
-                  {processingId === item.id ? (
-                    <ActivityIndicator size="small" color="#E63946" />
-                  ) : (
-                    <Text style={styles.cancelText}>Cancel</Text>
+                <View style={styles.paidCardActions}>
+                  {item.canMarkComplete && (
+                    <TouchableOpacity
+                      style={[styles.completeBtnSmall, processingId === item.id && styles.disabledBtn]}
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        handleMarkComplete(item);
+                      }}
+                      disabled={processingId === item.id}
+                    >
+                      {processingId === item.id ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.completeBtnSmallText}>Complete</Text>
+                      )}
+                    </TouchableOpacity>
                   )}
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.cancelBtn,
+                      styles.cancelBtnInPaidRow,
+                      processingId === item.id && styles.disabledBtn,
+                    ]}
+                    onPress={(e) => {
+                      e?.stopPropagation?.();
+                      handleCancel(item.id);
+                    }}
+                    disabled={processingId === item.id}
+                  >
+                    {processingId === item.id ? (
+                      <ActivityIndicator size="small" color="#E63946" />
+                    ) : (
+                      <Text style={styles.cancelText}>Cancel</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
+            <Text style={styles.bookingPriceLine}>
+              {formatNprAmount(resolveEsewaBookingDisplay(item).nprDisplay)}
+            </Text>
           </View>
 
           <Ionicons name="chevron-forward" size={22} color="#1B8BFF" style={{ marginLeft: 8 }} />
@@ -583,12 +645,31 @@ export default function BookingsTouristScreen() {
                     <Image source={{ uri: guideAvatarUri }} style={styles.guideAvatar} />
                     <Text style={styles.subUser}>{item.guide.name || item.guide.username}</Text>
                   </View>
+                  {item.status === "paid" && item.canMarkComplete && (
+                    <TouchableOpacity
+                      style={[styles.completeBtnSmall, processingId === item.id && styles.disabledBtn]}
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        handleMarkComplete(item);
+                      }}
+                      disabled={processingId === item.id}
+                    >
+                      {processingId === item.id ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.completeBtnSmallText}>Complete</Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </View>
                 {isCancelled && item.cancelledAt && (
                   <Text style={styles.cancelledDate}>
                     Cancelled on {new Date(item.cancelledAt).toLocaleDateString()}
                   </Text>
                 )}
+                <Text style={styles.bookingPriceLine}>
+                  {formatNprAmount(resolveEsewaBookingDisplay(item).nprDisplay)}
+                </Text>
               </View>
             </TouchableOpacity>
           );
@@ -648,6 +729,9 @@ export default function BookingsTouristScreen() {
                 Party of {req.participantCount}
               </Text>
             </View>
+            <Text style={styles.bookingPriceLine}>
+              {formatNprAmount(resolveEsewaBookingDisplay(req).nprDisplay)}
+            </Text>
           </View>
 
           <TouchableOpacity
@@ -722,6 +806,9 @@ export default function BookingsTouristScreen() {
                 Party of {req.participantCount}
               </Text>
             </View>
+            <Text style={styles.bookingPriceLine}>
+              {formatNprAmount(resolveEsewaBookingDisplay(req).nprDisplay)}
+            </Text>
 
             {/* Payment countdown timer */}
             {req.paymentExpiresAt && (
@@ -951,6 +1038,13 @@ const styles = StyleSheet.create({
     color: "#777",
   },
 
+  bookingPriceLine: {
+    fontSize: 13,
+    fontFamily: "Nunito_700Bold",
+    color: "#1B8BFF",
+    marginTop: 6,
+  },
+
   statusText: {
     fontFamily: "Nunito_700Bold",
     fontSize: 14,
@@ -1014,6 +1108,26 @@ const styles = StyleSheet.create({
     color: "#1B8BFF",
   },
 
+  paidCardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginLeft: 8,
+  },
+  completeBtnSmall: {
+    backgroundColor: "#16a34a",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 76,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  completeBtnSmallText: {
+    fontFamily: "Nunito_700Bold",
+    color: "#fff",
+    fontSize: 12,
+  },
   cancelBtn: {
     backgroundColor: "#FFEBEE",
     paddingHorizontal: 14,
@@ -1023,6 +1137,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 12,
+  },
+  cancelBtnInPaidRow: {
+    marginLeft: 0,
   },
 
   cancelText: {

@@ -67,7 +67,7 @@ export default function Login() {
       await AsyncStorage.setItem("userRole", user.role);
       await AsyncStorage.setItem("userId", user.id);
 
-      if (user.role === "tourist" || user.role === "guide") {
+      if (user.role === "tourist" || user.role === "guide" || user.role === "admin") {
         registerPushToken(token);
       }
 

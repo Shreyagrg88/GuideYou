@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as Location from "expo-location";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
@@ -14,8 +15,13 @@ import {
     View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  recommendActivitiesByGps,
+  type AiRecommendedActivity,
+} from "../../api/aiPlanner";
 import { getNotifications } from "../../api/notifications";
 import { API_URL } from "../../constants/api";
+import { formatGuideListCharge } from "../../utils/bookingPrice";
 import TouristNavBar from "../components/tourist_navbar";
 
 const filters = ["All", "Guides", "Activities"];
@@ -65,6 +71,10 @@ export default function HomePage() {
   const [notificationUnread, setNotificationUnread] = useState(0);
   const [availableGuides, setAvailableGuides] = useState<any[]>([]);
   const [availableGuidesLoading, setAvailableGuidesLoading] = useState(false);
+  const [aiWeatherCondition, setAiWeatherCondition] = useState<string>("");
+  const [aiRecommendations, setAiRecommendations] = useState<AiRecommendedActivity[]>([]);
+  const [aiRecommendationsLoading, setAiRecommendationsLoading] = useState(false);
+  const [aiRecommendationsError, setAiRecommendationsError] = useState<string | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
@@ -155,6 +165,61 @@ export default function HomePage() {
   useEffect(() => {
     fetchAvailableGuides();
   }, [fetchAvailableGuides]);
+
+  const fetchAiRecommendations = useCallback(async () => {
+    setAiRecommendationsLoading(true);
+    setAiRecommendationsError(null);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setAiRecommendationsError("Enable location permission to get AI activity suggestions.");
+        setAiRecommendations([]);
+        return;
+      }
+
+      let current = null as Awaited<
+        ReturnType<typeof Location.getCurrentPositionAsync>
+      > | null;
+      try {
+        current = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+      } catch {
+        // Emulator/device can fail to resolve a fresh fix; try last known location as fallback.
+        current = await Location.getLastKnownPositionAsync({
+          maxAge: 120000,
+          requiredAccuracy: 1000,
+        });
+      }
+
+      if (!current) {
+        setAiRecommendations([]);
+        setAiRecommendationsError(
+          "Current location is unavailable. Make sure emulator/device location is ON and set a mock GPS point."
+        );
+        return;
+      }
+
+      const data = await recommendActivitiesByGps(
+        current.coords.latitude,
+        current.coords.longitude
+      );
+      setAiWeatherCondition(data.weather?.condition || "");
+      setAiRecommendations(data.activityRecommendations || []);
+    } catch (error: any) {
+      setAiRecommendations([]);
+      setAiRecommendationsError(
+        error?.message ||
+          "Failed to load AI suggestions. Check network and location provider."
+      );
+    } finally {
+      setAiRecommendationsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAiRecommendations();
+  }, [fetchAiRecommendations]);
 
   const fetchHomepageActivities = async () => {
     if (activeFilter === "Guides") {
@@ -420,7 +485,7 @@ export default function HomePage() {
     const role = guide.mainExpertise || guide.expertise?.[0] || guide.role || "Guide";
     const location = guide.location || "";
     const rating = guide.rating != null ? String(guide.rating) : "N/A";
-    const charge = guide.rate != null ? `$${guide.rate}/day` : guide.charge || "$10/day";
+    const charge = formatGuideListCharge(guide);
     return (
       <TouchableOpacity
         key={guide.id}
@@ -581,7 +646,7 @@ export default function HomePage() {
                             guideRole: guide.mainExpertise || guide.expertise?.[0] || "Guide",
                             guideLocation: guide.location || "",
                             guideRating: guide.rating != null ? String(guide.rating) : "N/A",
-                            guideCharge: guide.rate != null ? `$${guide.rate}/day` : "$10/day",
+                            guideCharge: formatGuideListCharge(guide),
                             description: guide.bio || "",
                           },
                         })}
@@ -752,6 +817,80 @@ export default function HomePage() {
             )}
           </View>
         )}
+
+            {(activeFilter === "All" || activeFilter === "Activities") && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>AI Activity Recommendations</Text>
+                  <TouchableOpacity onPress={fetchAiRecommendations}>
+                    <Text style={styles.seeAllText}>Refresh</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {aiWeatherCondition ? (
+                  <Text style={styles.aiMetaText}>
+                    Based on current weather: {aiWeatherCondition}
+                  </Text>
+                ) : null}
+
+                {aiRecommendationsLoading ? (
+                  <ActivityIndicator size="small" color="#007BFF" style={{ marginVertical: 12 }} />
+                ) : aiRecommendationsError ? (
+                  <Text style={styles.aiErrorText}>{aiRecommendationsError}</Text>
+                ) : aiRecommendations.length === 0 ? (
+                  <Text style={styles.emptyText}>No AI recommendations available right now.</Text>
+                ) : (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {aiRecommendations.slice(0, 10).map((item, index) => {
+                      const imagePath = item.photos?.[0];
+                      const image =
+                        imagePath && !imagePath.startsWith("http")
+                          ? `${API_URL}${imagePath}`
+                          : imagePath || null;
+                      const stableKey =
+                        item.id ||
+                        `${item.name || "activity"}-${item.location || "unknown"}-${index}`;
+                      return (
+                        <TouchableOpacity
+                          key={stableKey}
+                          style={styles.aiActivityCard}
+                          activeOpacity={0.85}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/tourist/weatheranditinary",
+                              params: {
+                                location: item.location || "",
+                                activityName: item.name,
+                                activityId: item.id,
+                              },
+                            })
+                          }
+                        >
+                          {image ? (
+                            <Image source={{ uri: image }} style={styles.aiActivityImage} />
+                          ) : (
+                            <View style={[styles.aiActivityImage, styles.placeholderImage]}>
+                              <Ionicons name="image-outline" size={24} color="#ccc" />
+                            </View>
+                          )}
+                          <View style={styles.aiActivityContent}>
+                            <Text style={styles.aiActivityTitle} numberOfLines={1}>
+                              {item.name}
+                            </Text>
+                            <Text style={styles.aiActivitySub} numberOfLines={1}>
+                              {item.location || "Location not provided"}
+                            </Text>
+                            <Text style={styles.aiActivitySub} numberOfLines={1}>
+                              {item.category || "Activity"} • {item.difficulty || "Moderate"}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+              </View>
+            )}
 
             {/* Available tomorrow & this week – frontend-only filter */}
             {(activeFilter === "All" || activeFilter === "Guides") && (
@@ -1143,5 +1282,44 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_400Regular",
     textAlign: "center",
     paddingVertical: 20,
+  },
+  aiMetaText: {
+    fontSize: 13,
+    fontFamily: "Nunito_400Regular",
+    color: "#5B6470",
+    marginTop: -8,
+    marginBottom: 10,
+  },
+  aiErrorText: {
+    fontSize: 13,
+    fontFamily: "Nunito_400Regular",
+    color: "#D32F2F",
+    paddingVertical: 10,
+  },
+  aiActivityCard: {
+    width: 230,
+    backgroundColor: "#F3F7FF",
+    borderRadius: 12,
+    marginRight: 12,
+    overflow: "hidden",
+  },
+  aiActivityImage: {
+    width: "100%",
+    height: 120,
+  },
+  aiActivityContent: {
+    padding: 10,
+  },
+  aiActivityTitle: {
+    fontSize: 15,
+    fontFamily: "Nunito_700Bold",
+    color: "#1A1A1A",
+    marginBottom: 4,
+  },
+  aiActivitySub: {
+    fontSize: 12,
+    fontFamily: "Nunito_400Regular",
+    color: "#667085",
+    marginBottom: 2,
   },
 });

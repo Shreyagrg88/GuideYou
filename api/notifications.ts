@@ -101,13 +101,27 @@ export async function registerDevice(
   }
 }
 
+export type NotificationAppRole = "tourist" | "guide" | "admin";
+
 /** Navigate from notification type + relatedId. Use for list tap and push tap. */
 export function navigateFromNotification(
   router: Router,
-  role: "tourist" | "guide",
+  role: NotificationAppRole,
   type: string,
   relatedId: string | null
 ) {
+  if (role === "admin") {
+    if (type === "booking_completed" && relatedId) {
+      router.push({
+        pathname: "/admin/booking_payment_detail",
+        params: { bookingId: relatedId },
+      } as any);
+      return;
+    }
+    router.push("/admin/notifications_admin" as any);
+    return;
+  }
+
   if (role === "tourist") {
     const touristTypes = ["booking_accepted", "booking_rejected", "booking_payment_reminder"];
     if (touristTypes.includes(type) && relatedId) {

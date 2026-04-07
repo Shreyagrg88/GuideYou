@@ -14,7 +14,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { initiateEsewaPayment } from "../../api/payment";
+import { markTouristBookingComplete } from "../../api/touristBookings";
 import { API_URL } from "../../constants/api";
+import { formatNprAmount, resolveEsewaBookingDisplay } from "../../utils/bookingPrice";
 
 type BookingDetail = {
   id: string;
@@ -50,7 +52,13 @@ type BookingDetail = {
   duration: number;
   participantCount: number;
   price: number;
+  priceNpr?: number;
+  priceUsd?: number;
+  priceUsdApproximated?: boolean;
+  usdToNprRate?: number;
   status: "pending" | "accepted" | "paid" | "cancelled" | "completed";
+  /** From API: true when paid and today ≥ endDate (UTC); show “Mark complete”. */
+  canMarkComplete?: boolean;
   notes?: string;
   requestedAt: string;
   acceptedAt?: string | null;
@@ -313,6 +321,64 @@ export default function BookingDetailScreen() {
     }
   };
 
+  const handleMarkComplete = () => {
+    if (!booking) return;
+    Alert.alert(
+      "Mark as completed",
+      "Mark this tour as completed? This confirms you finished the activity.",
+      [
+        { text: "Not now", style: "cancel" },
+        {
+          text: "Yes, mark complete",
+          onPress: async () => {
+            try {
+              setProcessing(true);
+              const { msg, booking: patch } = await markTouristBookingComplete(booking.id);
+              setBooking((prev) => {
+                if (!prev) return prev;
+                if (!patch) {
+                  return { ...prev, status: "completed", canMarkComplete: false };
+                }
+                const nextStatus = patch.status as BookingDetail["status"];
+                return {
+                  ...prev,
+                  status: nextStatus || prev.status,
+                  completedAt: patch.completedAt ?? prev.completedAt,
+                  canMarkComplete:
+                    patch.status === "completed"
+                      ? false
+                      : typeof patch.canMarkComplete === "boolean"
+                        ? patch.canMarkComplete
+                        : prev.canMarkComplete,
+                  guide: patch.guide
+                    ? {
+                        ...prev.guide,
+                        id: patch.guide.id ?? prev.guide.id,
+                        name: patch.guide.name ?? prev.guide.name,
+                        username: patch.guide.username ?? prev.guide.username,
+                      }
+                    : prev.guide,
+                };
+              });
+              Alert.alert("Done", msg);
+            } catch (err: unknown) {
+              const e = err as Error & { status?: number };
+              if (e.status === 401 || e.message === "Not logged in") {
+                Alert.alert("Session expired", "Please sign in again.", [
+                  { text: "OK", onPress: () => router.push("/login") },
+                ]);
+                return;
+              }
+              Alert.alert("Could not complete", e.message || "Try again.");
+            } finally {
+              setProcessing(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleViewGuideProfile = () => {
     if (!booking?.guide.id) return;
     router.push({
@@ -360,6 +426,7 @@ export default function BookingDetailScreen() {
     : "https://images.unsplash.com/photo-1506905925346-21bda4d32df4";
   const guideAvatarUri = getImageUrl(booking.guide.avatar);
   const isExpired = booking.status === "accepted" && timeRemaining === "Expired";
+  const payDisplay = resolveEsewaBookingDisplay(booking);
 
   return (
     <View style={styles.container}>
@@ -386,6 +453,15 @@ export default function BookingDetailScreen() {
             </Text>
           </View>
         </View>
+
+        {booking.status === "completed" && booking.completedAt ? (
+          <View style={styles.completedBanner}>
+            <Ionicons name="checkmark-circle" size={22} color="#fff" />
+            <Text style={styles.completedBannerText}>
+              Completed on {formatDate(booking.completedAt)}
+            </Text>
+          </View>
+        ) : null}
 
         {/* Activity/Tour Image */}
         <Image source={{ uri: tourPhoto }} style={styles.heroImage} />
@@ -484,8 +560,20 @@ export default function BookingDetailScreen() {
             <View style={styles.detailItem}>
               <Ionicons name="cash-outline" size={20} color="#1B8BFF" />
               <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Total Price</Text>
-                <Text style={styles.detailValue}>${booking.price.toFixed(2)}</Text>
+                <Text style={styles.detailLabel}>Total (eSewa · NPR)</Text>
+                <Text style={styles.detailValue}>
+                  {formatNprAmount(payDisplay.nprDisplay)}
+                </Text>
+                {payDisplay.usdSecondaryLine ? (
+                  <Text style={styles.detailSubValue}>{payDisplay.usdSecondaryLine}</Text>
+                ) : null}
+                {payDisplay.legacyUsdInPriceField ? (
+                  <Text style={styles.detailPriceNote}>
+                    If the eSewa page shows {formatNprAmount(payDisplay.storedRawPrice)} instead, the
+                    server is still charging that old stored value. The amount above matches your
+                    guide’s dollar rate converted to NPR.
+                  </Text>
+                ) : null}
               </View>
             </View>
           </View>
@@ -579,9 +667,29 @@ export default function BookingDetailScreen() {
 
       {/* Action Buttons */}
       {booking.status === "paid" && (
-        <View style={[styles.actionBar, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+        <View
+          style={[
+            styles.actionBar,
+            styles.actionBarColumn,
+            { paddingBottom: Math.max(insets.bottom, 20) },
+          ]}
+        >
+          {booking.canMarkComplete ? (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.completePrimaryButton]}
+              onPress={handleMarkComplete}
+              disabled={processing}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#fff" />
+              <Text style={styles.completePrimaryButtonText}>Mark activity as completed</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.completeWaitHint}>
+              You can mark this complete on or after your last tour day ({formatDate(booking.endDate)}).
+            </Text>
+          )}
           <TouchableOpacity
-            style={[styles.actionButton, styles.cancelButton]}
+            style={[styles.actionButton, styles.cancelButton, styles.actionButtonFullWidth]}
             onPress={handleCancel}
             disabled={processing}
           >
@@ -593,22 +701,35 @@ export default function BookingDetailScreen() {
       {booking.status === "accepted" &&
         booking.paymentStatus !== "completed" &&
         !booking.paymentId && (
-        <View style={[styles.actionBar, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.payButton, isExpired && styles.disabledButton]}
-            onPress={handlePayNow}
-            disabled={isExpired || processing}
-          >
-            <Ionicons name="card" size={18} color="#fff" />
-            <Text style={styles.payButtonText}>Pay Now</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.cancelButton]}
-            onPress={handleCancel}
-            disabled={processing}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
+        <View
+          style={[
+            styles.actionBar,
+            styles.actionBarColumn,
+            { paddingBottom: Math.max(insets.bottom, 20) },
+          ]}
+        >
+          <Text style={styles.payHint}>
+            {payDisplay.legacyUsdInPriceField
+              ? `Pay in NPR on eSewa. If the gateway shows ${formatNprAmount(payDisplay.storedRawPrice)}, that is what the server signed until the booking row is updated.`
+              : "You pay in Nepalese rupees (NPR) via eSewa — same amount as above."}
+          </Text>
+          <View style={styles.actionBarRow}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.payButton, isExpired && styles.disabledButton]}
+              onPress={handlePayNow}
+              disabled={isExpired || processing}
+            >
+              <Ionicons name="card" size={18} color="#fff" />
+              <Text style={styles.payButtonText}>Pay Now</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.cancelButton]}
+              onPress={handleCancel}
+              disabled={processing}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -791,6 +912,19 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_700Bold",
     color: "#000",
   },
+  detailSubValue: {
+    fontSize: 13,
+    fontFamily: "Nunito_400Regular",
+    color: "#666",
+    marginTop: 4,
+  },
+  detailPriceNote: {
+    fontSize: 12,
+    fontFamily: "Nunito_400Regular",
+    color: "#8a6d3b",
+    marginTop: 8,
+    lineHeight: 17,
+  },
   notesBox: {
     backgroundColor: "#F5F8FF",
     padding: 15,
@@ -889,6 +1023,63 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#E5E5E5",
     gap: 12,
+  },
+  actionBarColumn: {
+    flexDirection: "column",
+    gap: 10,
+    alignItems: "stretch",
+  },
+  actionButtonFullWidth: {
+    flex: 0,
+    width: "100%",
+    alignSelf: "stretch",
+  },
+  completePrimaryButton: {
+    backgroundColor: "#16a34a",
+    flex: 0,
+    width: "100%",
+  },
+  completePrimaryButtonText: {
+    fontSize: 16,
+    fontFamily: "Nunito_700Bold",
+    color: "#fff",
+  },
+  completeWaitHint: {
+    fontSize: 13,
+    fontFamily: "Nunito_400Regular",
+    color: "#555",
+    textAlign: "center",
+    lineHeight: 19,
+    paddingHorizontal: 8,
+  },
+  completedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginHorizontal: 20,
+    marginBottom: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: "#16a34a",
+    borderRadius: 12,
+  },
+  completedBannerText: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: "Nunito_700Bold",
+    color: "#fff",
+  },
+  actionBarRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  payHint: {
+    fontSize: 12,
+    fontFamily: "Nunito_400Regular",
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 17,
+    paddingHorizontal: 4,
   },
   actionButton: {
     flex: 1,

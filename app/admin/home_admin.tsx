@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -10,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { getNotifications } from "../../api/notifications";
 import { API_URL } from "../../constants/api";
 import AdminNavBar from "../components/admin_navbar";
 
@@ -55,6 +57,7 @@ export default function HomeAdmin() {
   const [pendingLicenses, setPendingLicenses] = useState<LicenseItem[]>([]);
   const [pendingActivities, setPendingActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [notifUnread, setNotifUnread] = useState(0);
 
   useEffect(() => {
     fetchAdminData();
@@ -63,6 +66,16 @@ export default function HomeAdmin() {
   useFocusEffect(
     useCallback(() => {
       fetchAdminData();
+    }, [])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        const token = await AsyncStorage.getItem("token");
+        const data = await getNotifications(token, 1, 1);
+        setNotifUnread(data?.unreadCount ?? 0);
+      })();
     }, [])
   );
 
@@ -140,9 +153,38 @@ export default function HomeAdmin() {
           </Text>
 
           <View style={styles.headerRow}>
-            <Text style={styles.headerTitle}>Hello, Admin</Text>
+            <Text style={[styles.headerTitle, styles.headerTitleFlex]}>Hello, Admin</Text>
+            <TouchableOpacity
+              style={styles.bellWrap}
+              onPress={() => router.push("/admin/notifications_admin")}
+              hitSlop={12}
+            >
+              <Ionicons name="notifications-outline" size={28} color="#142032" />
+              {notifUnread > 0 ? (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>{notifUnread > 9 ? "9+" : notifUnread}</Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
           </View>
         </View>
+
+        <TouchableOpacity
+          style={styles.payoutCard}
+          activeOpacity={0.9}
+          onPress={() => router.push("/admin/booking_payments")}
+        >
+          <View style={styles.payoutIconWrap}>
+            <Ionicons name="wallet-outline" size={26} color="#15803d" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.payoutCardTitle}>Guide payouts</Text>
+            <Text style={styles.payoutCardSub}>
+              Review paid bookings, see commission split, release guide earnings after you transfer NPR.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color="#15803d" />
+        </TouchableOpacity>
 
         <View style={styles.segment}>
           <TouchableOpacity
@@ -256,7 +298,32 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: 10,
+  },
+  headerTitleFlex: {
+    flex: 1,
+  },
+  bellWrap: {
+    position: "relative",
+    padding: 4,
+  },
+  bellBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#E63946",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  bellBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontFamily: "Nunito_700Bold",
   },
 
   logo: {
@@ -273,6 +340,38 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontFamily: "Nunito_700Bold",
+  },
+
+  payoutCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#c8e6c9",
+  },
+  payoutIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#E8F5E9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  payoutCardTitle: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 16,
+    color: "#142032",
+    marginBottom: 4,
+  },
+  payoutCardSub: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 12,
+    color: "#5a6570",
+    lineHeight: 17,
   },
 
   segment: {

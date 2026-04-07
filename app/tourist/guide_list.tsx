@@ -12,6 +12,7 @@ import {
     View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
+import { formatGuideListCharge } from "../../utils/bookingPrice";
 
 type Guide = {
   id: string;
@@ -20,6 +21,9 @@ type Guide = {
   location: string;
   experience: string;
   charge: string;
+  chargeUsd?: number;
+  chargeNpr?: number;
+  rate?: number;
   rating: string;
   image: string;
   description: string;
@@ -104,6 +108,7 @@ export default function GuideList() {
       ) : (
         guides.map((g) => {
           const guideImage = g.image.startsWith("http") ? g.image : `${API_URL}${g.image}`;
+          const chargeLine = formatGuideListCharge(g);
           const profileParams = {
             guideId: g.id,
             guideName: g.name,
@@ -111,7 +116,7 @@ export default function GuideList() {
             guideLocation: g.location,
             guideRating: g.rating,
             guideImage,
-            guideCharge: g.charge,
+            guideCharge: chargeLine,
             description: g.description,
             activityId: activityId || undefined,
             duration: duration || undefined,
@@ -150,8 +155,8 @@ export default function GuideList() {
                 </View>
 
                 <View style={styles.infoBox}>
-                  <Text style={[styles.infoValue, { color: "#E63946" }]}>
-                    {g.charge}
+                  <Text style={[styles.infoValue, { color: "#E63946" }]} numberOfLines={2}>
+                    {chargeLine}
                   </Text>
                   <Text style={styles.infoLabel}>Charge</Text>
                 </View>

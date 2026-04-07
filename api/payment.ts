@@ -1,6 +1,22 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL } from "../constants/api";
 
+/** If backend builds formUrl with localhost but the app uses e.g. 10.0.2.2 (Android emulator), WebView must use the same host as API_URL. */
+function alignFormUrlWithApiBase(formUrl: string | undefined): string | undefined {
+  if (!formUrl) return undefined;
+  try {
+    const api = new URL(API_URL);
+    const u = new URL(formUrl);
+    if (u.hostname === "localhost" || u.hostname === "127.0.0.1") {
+      u.hostname = api.hostname;
+      u.port = api.port;
+    }
+    return u.toString();
+  } catch {
+    return formUrl;
+  }
+}
+
 export type EsewaPaymentInit = {
   gatewayUrl: string;
   formUrl?: string;
@@ -52,7 +68,9 @@ export async function initiateEsewaPayment(bookingId: string): Promise<EsewaPaym
   const p = payment.params;
   return {
     gatewayUrl: payment.gatewayUrl,
-    formUrl: typeof payment.formUrl === "string" ? payment.formUrl : undefined,
+    formUrl: alignFormUrlWithApiBase(
+      typeof payment.formUrl === "string" ? payment.formUrl : undefined
+    ),
     params: {
       amount: String(p.amount ?? ""),
       tax_amount: String(p.tax_amount ?? 0),

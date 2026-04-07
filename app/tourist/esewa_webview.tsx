@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -10,6 +11,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
+import { API_URL } from "../../constants/api";
+
+const POLL_INTERVAL_MS = 1500;
+const POLL_MAX_MS = 60000;
+const FAILURE_BACK_DELAY_MS = 2000;
 
 /** eSewa v2 form params (all string for form fields) */
 type EsewaParams = {
@@ -65,7 +71,16 @@ export default function EsewaWebViewScreen() {
     paramsJson?: string;
   }>();
   const [loading, setLoading] = useState(true);
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
   const webViewRef = useRef<WebView>(null);
+  const redirectHandledRef = useRef(false);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const failureTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollDeadlineRef = useRef<number>(0);
+
+  const bookingId = Array.isArray(params.bookingId)
+    ? params.bookingId[0]
+    : params.bookingId;
 
   const formUrl = params.formUrl ?? "";
   const gatewayUrl = params.gatewayUrl ?? "";
@@ -81,12 +96,96 @@ export default function EsewaWebViewScreen() {
       ? buildPostFormHtml(gatewayUrl, esewaParams)
       : "<html><body><p>Missing payment data.</p></body></html>";
 
-  const handleNavigationStateChange = (navState: { url?: string }) => {
-    const url = navState.url ?? "";
-    if (url.includes("payment-success") || url.includes("payment-failed")) {
-      router.back();
+  const clearPoll = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
     }
-  };
+  }, []);
+
+  const goBackSafe = useCallback(() => {
+    clearPoll();
+    if (failureTimeoutRef.current) {
+      clearTimeout(failureTimeoutRef.current);
+      failureTimeoutRef.current = null;
+    }
+    setConfirmingPayment(false);
+    router.back();
+  }, [clearPoll, router]);
+
+  const pollUntilPaid = useCallback(() => {
+    if (!bookingId) {
+      goBackSafe();
+      return;
+    }
+    setConfirmingPayment(true);
+    pollDeadlineRef.current = Date.now() + POLL_MAX_MS;
+
+    const tick = async () => {
+      if (Date.now() > pollDeadlineRef.current) {
+        clearPoll();
+        setConfirmingPayment(false);
+        router.back();
+        return;
+      }
+      try {
+        const token = await AsyncStorage.getItem("token");
+        if (!token) {
+          goBackSafe();
+          return;
+        }
+        const res = await fetch(`${API_URL}/api/tourist/bookings/${bookingId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.booking?.status === "paid") {
+          clearPoll();
+          setConfirmingPayment(false);
+          router.back();
+        }
+      } catch {
+        // keep polling until timeout
+      }
+    };
+
+    void tick();
+    pollTimerRef.current = setInterval(() => {
+      void tick();
+    }, POLL_INTERVAL_MS);
+  }, [bookingId, clearPoll, goBackSafe, router]);
+
+  useEffect(() => {
+    return () => {
+      clearPoll();
+      if (failureTimeoutRef.current) {
+        clearTimeout(failureTimeoutRef.current);
+        failureTimeoutRef.current = null;
+      }
+    };
+  }, [clearPoll]);
+
+  const handleNavigationStateChange = useCallback(
+    (navState: { url?: string }) => {
+      const url = navState.url ?? "";
+      if (redirectHandledRef.current) return;
+
+      if (url.includes("payment-success")) {
+        redirectHandledRef.current = true;
+        pollUntilPaid();
+        return;
+      }
+
+      if (url.includes("payment-failed")) {
+        redirectHandledRef.current = true;
+        failureTimeoutRef.current = setTimeout(() => {
+          failureTimeoutRef.current = null;
+          goBackSafe();
+        }, FAILURE_BACK_DELAY_MS);
+      }
+    },
+    [goBackSafe, pollUntilPaid]
+  );
 
   // Prefer server-rendered formUrl (avoids signature issues through client routing)
   if (!formUrl && (!gatewayUrl || !esewaParams)) {
@@ -119,6 +218,15 @@ export default function EsewaWebViewScreen() {
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color="#1B8BFF" />
           <Text style={styles.loadingText}>Loading eSewa…</Text>
+        </View>
+      )}
+      {confirmingPayment && (
+        <View style={styles.confirmingWrap} pointerEvents="box-none">
+          <ActivityIndicator size="large" color="#1B8BFF" />
+          <Text style={styles.confirmingTitle}>Confirming payment</Text>
+          <Text style={styles.confirmingSub}>
+            Waiting for your booking to update. This may take a few seconds.
+          </Text>
         </View>
       )}
       <WebView
@@ -172,6 +280,28 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
     color: "#666",
+  },
+  confirmingWrap: {
+    ...StyleSheet.absoluteFillObject,
+    top: 56,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.96)",
+    paddingHorizontal: 28,
+  },
+  confirmingTitle: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111",
+    textAlign: "center",
+  },
+  confirmingSub: {
+    marginTop: 8,
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 20,
   },
   centered: {
     flex: 1,

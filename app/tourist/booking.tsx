@@ -5,6 +5,11 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
+import {
+  estimateNprFromUsd,
+  formatNprAmount,
+  parseUsdFromGuideChargeString,
+} from "../../utils/bookingPrice";
 
 type DateStatus = "available" | "unavailable" | "booked" | "reserved";
 
@@ -41,7 +46,10 @@ export default function BookingPage() {
   const [selectedDateRange, setSelectedDateRange] = useState<Date[]>([]);
   const [dateStatuses, setDateStatuses] = useState<Map<string, DateStatus>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [pricing, setPricing] = useState<Array<{ title: string; subtitle: string; price: number; unit: string }>>([]);
+  const [pricing, setPricing] = useState<
+    Array<{ title: string; subtitle: string; price: number; unit: string }>
+  >([]);
+  const [usdToNprRate, setUsdToNprRate] = useState(135);
   const [submitting, setSubmitting] = useState(false);
   const [count, setCount] = useState(1);
 
@@ -97,6 +105,9 @@ export default function BookingPage() {
 
       setDateStatuses(newStatuses);
       if (data.pricing?.length > 0) setPricing(data.pricing);
+      if (typeof data.usdToNprRate === "number" && data.usdToNprRate > 0) {
+        setUsdToNprRate(data.usdToNprRate);
+      }
     } catch (error: any) {
       console.error("Fetch availability error:", error);
       Alert.alert("Error", "Failed to load availability. Please try again.");
@@ -248,17 +259,18 @@ export default function BookingPage() {
     }
   };
 
-  const calculateTotal = (): string => {
-    let pricePerPerson = 0;
-    if (pricing.length > 0 && pricing[0].price) {
-      pricePerPerson = pricing[0].price;
-    } else if (params.guideCharge) {
-      const priceStr = params.guideCharge.replace("$", "").replace(",", "");
-      pricePerPerson = parseFloat(priceStr) || 0;
+  const getUsdPerPerson = (): number => {
+    if (pricing.length > 0 && pricing[0].price != null) {
+      return Number(pricing[0].price) || 0;
     }
-    const total = pricePerPerson * count * activityDuration;
-    return `$${total.toFixed(0)}`;
+    if (params.guideCharge) {
+      return parseUsdFromGuideChargeString(params.guideCharge);
+    }
+    return 0;
   };
+
+  const usdTotalEstimate = getUsdPerPerson() * count * activityDuration;
+  const nprTotalEstimate = estimateNprFromUsd(usdTotalEstimate, usdToNprRate);
 
   if (loading) {
     return (
@@ -410,9 +422,12 @@ export default function BookingPage() {
       </ScrollView>
 
       <View style={[styles.bottomRow, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-        <View>
-          <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalAmount}>{calculateTotal()}</Text>
+        <View style={{ flex: 1, marginRight: 12 }}>
+          <Text style={styles.totalLabel}>Estimated total</Text>
+          <Text style={styles.totalAmount}>{formatNprAmount(nprTotalEstimate)}</Text>
+          <Text style={styles.totalSub}>
+            ${usdTotalEstimate.toFixed(0)} USD · Final NPR set when guide accepts
+          </Text>
         </View>
         <TouchableOpacity style={[styles.bookBtn, submitting && styles.bookBtnDisabled]} onPress={handleBookRequest} disabled={submitting}>
           {submitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.bookBtnText}>Book Request</Text>}
@@ -475,6 +490,7 @@ const styles = StyleSheet.create({
   bottomRow: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", padding: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: 1, borderColor: "#eee", elevation: 5 },
   totalLabel: { fontFamily: "Nunito_400Regular", color: "#9aa0a6", fontSize: 12 },
   totalAmount: { fontFamily: "Nunito_700Bold", fontSize: 18, color: "#000" },
+  totalSub: { fontFamily: "Nunito_400Regular", fontSize: 11, color: "#666", marginTop: 2, maxWidth: 200 },
   bookBtn: { backgroundColor: "#007BFF", paddingVertical: 12, paddingHorizontal: 25, borderRadius: 10 },
   bookBtnDisabled: { backgroundColor: "#95a5a6", opacity: 0.7 },
   bookBtnText: { color: "#fff", fontFamily: "Nunito_700Bold", fontSize: 15 },

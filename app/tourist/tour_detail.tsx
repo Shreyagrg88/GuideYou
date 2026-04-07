@@ -17,6 +17,28 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
+import { formatGuideTierCharge } from "../../utils/bookingPrice";
+
+type GuidePublicProfile = {
+  id: string;
+  username: string;
+  fullName?: string;
+  avatar?: string;
+  bio?: string;
+  mainExpertise?: string;
+  location?: string;
+  expertise?: string[];
+  pricing?: Array<{
+    title: string;
+    subtitle?: string;
+    price: number;
+    priceUsd?: number;
+    priceNpr?: number;
+    unit: string;
+  }>;
+  rating?: number;
+  reviewCount?: number;
+};
 
 type ActivityData = {
   id: string;
@@ -53,6 +75,14 @@ type ReviewsData = {
   reviews: Review[];
 };
 
+const PLACEHOLDER_GUIDE_AVATAR = "https://i.pravatar.cc/150?img=12";
+
+function resolveGuideAvatarUri(raw: string | undefined): string {
+  if (raw == null || !String(raw).trim()) return PLACEHOLDER_GUIDE_AVATAR;
+  const s = String(raw).trim();
+  return s.startsWith("http") ? s : `${API_URL}${s}`;
+}
+
 export default function TourDetails() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -76,6 +106,7 @@ export default function TourDetails() {
   const [canReviewReason, setCanReviewReason] = useState("");
   const [canReviewLoading, setCanReviewLoading] = useState(false);
   const [bookingEndDate, setBookingEndDate] = useState<string | null>(null);
+  const [guideProfile, setGuideProfile] = useState<GuidePublicProfile | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -85,6 +116,35 @@ export default function TourDetails() {
       fetchMyReview(id);
     }
   }, [id]);
+
+  useEffect(() => {
+    const guideId = activity?.guide?.id;
+    if (!guideId) {
+      setGuideProfile(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(
+          `${API_URL}/api/tourist/guides/${guideId}/profile`,
+          { method: "GET", headers: { "Content-Type": "application/json" } }
+        );
+        const data = await response.json();
+        if (cancelled) return;
+        if (response.ok && data.guide) {
+          setGuideProfile(data.guide);
+        } else {
+          setGuideProfile(null);
+        }
+      } catch {
+        if (!cancelled) setGuideProfile(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activity?.guide?.id]);
 
   const checkCanReview = async (activityId: string) => {
     setCanReviewLoading(true);
@@ -287,6 +347,70 @@ export default function TourDetails() {
     ? activity.photos.map(photo => `${API_URL}${photo}`)
     : [];
 
+  const embeddedGuide = activity.guide;
+  const guideDisplayName =
+    guideProfile?.fullName || guideProfile?.username || embeddedGuide?.username || "Guide";
+  const expertiseFirst =
+    guideProfile?.mainExpertise ||
+    guideProfile?.expertise?.find(Boolean) ||
+    embeddedGuide?.expertise?.find(Boolean);
+  const guideRoleLine = expertiseFirst
+    ? expertiseFirst.toLowerCase().includes("guide")
+      ? expertiseFirst
+      : `${expertiseFirst} Guide`
+    : "Guide";
+  const guideLocationLine = guideProfile?.location || activity.location;
+  const guideRatingLine =
+    guideProfile?.rating != null && Number.isFinite(guideProfile.rating)
+      ? guideProfile.rating.toFixed(1)
+      : "0.0";
+  const guideChargeLine =
+    guideProfile?.pricing?.length && guideProfile.pricing[0]?.price != null
+      ? formatGuideTierCharge(guideProfile.pricing[0])
+      : "$50/day";
+  const guideAvatarUri = resolveGuideAvatarUri(guideProfile?.avatar);
+
+  const openGuideProfile = () => {
+    if (!embeddedGuide?.id) return;
+    router.push({
+      pathname: "/tourist/guide_profileview",
+      params: {
+        guideId: embeddedGuide.id,
+        guideName: guideDisplayName,
+        guideImage: guideAvatarUri,
+        guideRole: guideRoleLine,
+        guideLocation: guideLocationLine,
+        guideRating: guideRatingLine,
+        guideCharge: guideChargeLine,
+        description: guideProfile?.bio ?? "",
+      },
+    });
+  };
+
+  const handleBookActivity = () => {
+    if (!embeddedGuide?.id) {
+      Alert.alert(
+        "Unavailable",
+        "This activity has no assigned guide. You cannot book it yet."
+      );
+      return;
+    }
+    router.push({
+      pathname: "/tourist/booking",
+      params: {
+        guideId: embeddedGuide.id,
+        guideName: guideDisplayName,
+        guideRole: guideRoleLine,
+        guideLocation: guideLocationLine,
+        guideRating: guideRatingLine,
+        guideImage: guideAvatarUri,
+        guideCharge: guideChargeLine,
+        activityId: activity.id,
+        duration: activity.duration.toString(),
+      },
+    });
+  };
+
   return (
     <ScrollView
       style={styles.container}
@@ -335,6 +459,27 @@ export default function TourDetails() {
         <View style={[styles.mainImage, styles.placeholderImage]}>
           <Ionicons name="image-outline" size={50} color="#ccc" />
         </View>
+      )}
+
+      {embeddedGuide && (
+        <TouchableOpacity
+          style={styles.guideProfileCard}
+          onPress={openGuideProfile}
+          activeOpacity={0.7}
+        >
+          <Image source={{ uri: guideAvatarUri }} style={styles.guideProfileImg} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.guideProfileName}>{guideDisplayName}</Text>
+            <Text style={styles.guideProfileInfo}>
+              {guideRoleLine} • {guideLocationLine}
+            </Text>
+            <View style={styles.guideProfileRatingRow}>
+              <Ionicons name="star" size={14} color="#f4b400" />
+              <Text style={styles.guideProfileRatingText}>{guideRatingLine}</Text>
+            </View>
+          </View>
+          <Ionicons name="checkmark-circle" size={26} color="#2ecc71" />
+        </TouchableOpacity>
       )}
 
       <View style={styles.infoRow}>
@@ -388,20 +533,6 @@ export default function TourDetails() {
                   </Text>
                 </View>
               ))}
-          </View>
-        </>
-      )}
-
-      {activity.guide && (
-        <>
-          <Text style={styles.sectionTitle}>Uploaded by</Text>
-          <View style={styles.guideCard}>
-            <Text style={styles.guideName}>{activity.guide.username}</Text>
-            {activity.guide.expertise && activity.guide.expertise.length > 0 && (
-              <Text style={styles.guideExpertise}>
-                {activity.guide.expertise.join(", ")}
-              </Text>
-            )}
           </View>
         </>
       )}
@@ -509,10 +640,23 @@ export default function TourDetails() {
         <Text style={styles.noReviewsText}>No reviews yet. Be the first to review!</Text>
       )}
 
-      <TouchableOpacity style={styles.weatherBox}>
+      <TouchableOpacity
+        style={styles.weatherBox}
+        activeOpacity={0.7}
+        onPress={() =>
+          router.push({
+            pathname: "/tourist/weatheranditinary",
+            params: {
+              location: activity.location,
+              activityName: activity.name,
+              activityId: activity.id,
+            },
+          })
+        }
+      >
         <Ionicons name="cloud-outline" size={22} color="#007BFF" />
         <View style={{ marginLeft: 10 }}>
-          <Text style={styles.weatherTitle}>Weather & AI suggestions</Text>
+          <Text style={styles.weatherTitle}>Weather & AI itinerary</Text>
           <Text style={styles.weatherSubtitle}>
             Check forecast and smart tips
           </Text>
@@ -525,18 +669,8 @@ export default function TourDetails() {
         />
       </TouchableOpacity>
 
-      <TouchableOpacity
-        onPress={() => router.push({
-          pathname: "/tourist/guide_list",
-          params: { 
-            category: activity.category,
-            activityId: activity.id,
-            duration: activity.duration.toString()
-          }
-        })}
-        style={styles.primaryButton}
-      >
-        <Text style={styles.primaryButtonText}>Find guides</Text>
+      <TouchableOpacity onPress={handleBookActivity} style={styles.primaryButton}>
+        <Text style={styles.primaryButtonText}>Book this activity</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -706,22 +840,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Nunito_700Bold",
   },
-  guideCard: {
-    backgroundColor: "#E7F0FF",
-    padding: 15,
+  guideProfileCard: {
+    backgroundColor: "#fff",
     borderRadius: 12,
+    padding: 15,
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 20,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
   },
-  guideName: {
-    fontSize: 16,
-    fontFamily: "Nunito_700Bold",
-    marginBottom: 5,
-  },
-  guideExpertise: {
-    fontSize: 13,
-    color: "#666",
-    fontFamily: "Nunito_400Regular",
-  },
+  guideProfileImg: { width: 55, height: 55, borderRadius: 50, marginRight: 12 },
+  guideProfileName: { fontFamily: "Nunito_700Bold", fontSize: 16 },
+  guideProfileInfo: { fontFamily: "Nunito_400Regular", color: "#777", fontSize: 13 },
+  guideProfileRatingRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+  guideProfileRatingText: { marginLeft: 4, fontFamily: "Nunito_400Regular", fontSize: 13 },
   photoGalleryContainer: {
     marginBottom: 10,
     position: "relative",

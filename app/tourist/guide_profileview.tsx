@@ -21,6 +21,7 @@ import {
     submitGuideReview,
 } from "../../api/guideReviews";
 import { API_URL } from "../../constants/api";
+import { formatGuideTierCharge } from "../../utils/bookingPrice";
 import TouristNavbar from "../components/tourist_navbar";
 
 const NAVBAR_HEIGHT = 70;
@@ -36,7 +37,15 @@ type GuidePublicProfile = {
   yearsOfExperience: number;
   expertise: string[];
   languages: string[];
-  pricing: Array<{ title: string; subtitle?: string; price: number; unit: string }>;
+  pricing: Array<{
+    title: string;
+    subtitle?: string;
+    price: number;
+    priceUsd?: number;
+    priceNpr?: number;
+    unit: string;
+  }>;
+  usdToNprRate?: number;
   rating: number;
   reviewCount: number;
 };
@@ -338,12 +347,8 @@ export default function GuideProfileView() {
   const pricing = guide?.pricing;
   const rateDisplay =
     (pricing?.length ?? 0) > 0 && pricing?.[0].price != null
-      ? (() => {
-          const p = pricing[0];
-          const unit = (p.unit || "day").toLowerCase().includes("day") ? "/day" : `/${p.unit || "day"}`;
-          return `$${p.price}${unit}`;
-        })()
-      : (params.guideCharge ?? "$10/day");
+      ? formatGuideTierCharge(pricing[0])
+      : params.guideCharge ?? "$50/day";
   const ratingDisplay =
     averageRating != null
       ? averageRating.toFixed(1)
