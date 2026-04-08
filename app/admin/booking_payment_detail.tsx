@@ -23,6 +23,7 @@ import {
 import { API_URL } from "../../constants/api";
 import { formatNprAmount } from "../../utils/bookingPrice";
 import AdminNavBar from "../components/admin_navbar";
+import { SkeletonBlock, SkeletonBookingDetailScreen } from "../components/Skeleton";
 
 function formatDt(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -183,8 +184,8 @@ export default function AdminBookingPaymentDetailScreen() {
   if (loading) {
     return (
       <View style={styles.root}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#007BFF" />
+        <View style={{ flex: 1 }}>
+          <SkeletonBookingDetailScreen />
         </View>
         <AdminNavBar />
       </View>
@@ -323,7 +324,10 @@ export default function AdminBookingPaymentDetailScreen() {
 
         <Section title="Pay guide (destination)">
           {payoutLoading ? (
-            <ActivityIndicator color="#007BFF" style={{ marginVertical: 12 }} />
+            <View style={{ marginVertical: 12 }}>
+              <SkeletonBlock width="100%" height={16} borderRadius={4} style={{ marginBottom: 8 }} />
+              <SkeletonBlock width="85%" height={16} borderRadius={4} />
+            </View>
           ) : payoutError ? (
             <Text style={styles.errText}>{payoutError}</Text>
           ) : payoutDetails ? (

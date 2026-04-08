@@ -3,7 +3,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Dimensions,
   FlatList,
@@ -17,6 +16,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
+import {
+  SkeletonEligibilityRow,
+  SkeletonReviewCards,
+  SkeletonTourDetailScreen,
+} from "../components/Skeleton";
 import { formatGuideTierCharge } from "../../utils/bookingPrice";
 
 type GuidePublicProfile = {
@@ -321,12 +325,7 @@ export default function TourDetails() {
   };
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007BFF" />
-        <Text style={styles.loadingText}>Loading activity details...</Text>
-      </View>
-    );
+    return <SkeletonTourDetailScreen />;
   }
 
   if (!activity) {
@@ -545,7 +544,7 @@ export default function TourDetails() {
       {/* Review Form - Conditional based on eligibility */}
       {canReviewLoading ? (
         <View style={styles.reviewEligibilityContainer}>
-          <ActivityIndicator size="small" color="#007BFF" />
+          <SkeletonEligibilityRow />
           <Text style={styles.reviewEligibilityText}>Checking review eligibility...</Text>
         </View>
       ) : canReview ? (
@@ -609,7 +608,9 @@ export default function TourDetails() {
 
       {/* Reviews List */}
       {reviewLoading ? (
-        <ActivityIndicator size="small" color="#007BFF" style={{ marginVertical: 20 }} />
+        <View style={{ marginVertical: 16 }}>
+          <SkeletonReviewCards count={3} />
+        </View>
       ) : reviews && reviews.reviews.length > 0 ? (
         <View style={styles.reviewsList}>
           {reviews.reviews.map((review) => (

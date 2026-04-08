@@ -3,7 +3,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Modal,
@@ -18,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
 import TouristNavbar from "../components/tourist_navbar";
+import { SkeletonBlock, SkeletonProfileScreen } from "../components/Skeleton";
 
 const NAVBAR_HEIGHT = 70;
 
@@ -249,9 +249,11 @@ export default function ProfileTourist() {
 
   if (loading) {
     return (
-      <View style={[styles.root, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color="#007BFF" />
-        <Text style={styles.loadingText}>Loading profile...</Text>
+      <View style={styles.root}>
+        <SkeletonProfileScreen showFormFields={false} />
+        <View style={[styles.navbarWrapper, { paddingBottom: insets.bottom }]}>
+          <TouristNavbar />
+        </View>
       </View>
     );
   }
@@ -352,8 +354,16 @@ export default function ProfileTourist() {
 
         <Text style={styles.sectionTitle}>Past Activities</Text>
         {pastActivitiesLoading ? (
-          <View style={{ paddingVertical: 20, alignItems: "center" }}>
-            <ActivityIndicator size="small" color="#007BFF" />
+          <View style={{ flexDirection: "row", paddingVertical: 16, paddingRight: 8 }}>
+            {[0, 1, 2].map((i) => (
+              <SkeletonBlock
+                key={i}
+                width={200}
+                height={160}
+                borderRadius={12}
+                style={{ marginRight: 12 }}
+              />
+            ))}
           </View>
         ) : pastActivities.length === 0 ? (
           <Text style={styles.activityEmptyText}>No past activities yet. Your completed tours will appear here.</Text>

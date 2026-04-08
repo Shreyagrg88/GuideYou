@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
     Alert,
     Image,
     ScrollView,
@@ -12,6 +11,7 @@ import {
     View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
+import { SkeletonListScreen } from "../components/Skeleton";
 import { formatGuideListCharge } from "../../utils/bookingPrice";
 
 type Guide = {
@@ -81,12 +81,7 @@ export default function GuideList() {
   }, [category]);
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007BFF" />
-        <Text style={styles.loadingText}>Loading guides...</Text>
-      </View>
-    );
+    return <SkeletonListScreen rows={10} />;
   }
 
   return (

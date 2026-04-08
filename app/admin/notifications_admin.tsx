@@ -10,7 +10,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -20,6 +19,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AdminNavBar from "../components/admin_navbar";
+import { SkeletonBookingTab } from "../components/Skeleton";
 
 export default function NotificationsAdmin() {
   const router = useRouter();
@@ -82,7 +82,7 @@ export default function NotificationsAdmin() {
 
       {loading && !refreshing ? (
         <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color="#007BFF" />
+          <SkeletonBookingTab rows={8} />
         </View>
       ) : (
         <ScrollView

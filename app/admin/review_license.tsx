@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Modal,
@@ -17,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
+import { SkeletonReviewDocumentScreen } from "../components/Skeleton";
 
 type LicenseData = {
   user: {
@@ -128,11 +128,7 @@ export default function ReviewLicense() {
   };
 
   if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+    return <SkeletonReviewDocumentScreen />;
   }
 
   if (!data) return null;

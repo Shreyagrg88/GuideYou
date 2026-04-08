@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { API_URL } from "../../constants/api";
 import GuideNavbar from "../components/guide_navbar";
+import { SkeletonBookingTab } from "../components/Skeleton";
 
 type Booking = {
   id: string;
@@ -286,19 +287,19 @@ export default function BookingRequestScreen() {
   };
 
   const renderUpcoming = () => {
-    if (loading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#1B8BFF" /></View>;
+    if (loading) return <SkeletonBookingTab />;
     if (upcoming.length === 0) return <View style={styles.emptyContainer}><Text style={styles.emptyText}>No upcoming bookings</Text></View>;
     return upcoming.map((item) => renderBookingCard(item, true));
   };
 
   const renderPast = () => {
-    if (loading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#1B8BFF" /></View>;
+    if (loading) return <SkeletonBookingTab />;
     if (past.length === 0) return <View style={styles.emptyContainer}><Text style={styles.emptyText}>No past bookings</Text></View>;
     return past.map((item) => renderBookingCard(item, false));
   };
 
   const renderRequests = () => {
-    if (loading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#1B8BFF" /></View>;
+    if (loading) return <SkeletonBookingTab />;
     if (requests.length === 0) return <View style={styles.emptyContainer}><Text style={styles.emptyText}>No pending booking requests</Text></View>;
 
     // Separate pending and accepted bookings

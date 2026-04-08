@@ -21,6 +21,7 @@ import {
   type GuidePayoutDetailsDto,
   type PayoutMethod,
 } from "../../api/guidePayout";
+import { SkeletonProfileScreen } from "../components/Skeleton";
 
 function isPayoutConfigured(d: GuidePayoutDetailsDto | null): boolean {
   return d != null && (d.payoutMethod === "esewa" || d.payoutMethod === "bank");
@@ -160,12 +161,7 @@ export default function GuidePaymentScreen() {
   const showSummary = isPayoutConfigured(baseline) && !editing;
 
   if (loading) {
-    return (
-      <View style={[styles.container, styles.loadingWrap]}>
-        <ActivityIndicator size="large" color="#007BFF" />
-        <Text style={styles.loadingText}>Loading payout details...</Text>
-      </View>
-    );
+    return <SkeletonProfileScreen />;
   }
 
   return (

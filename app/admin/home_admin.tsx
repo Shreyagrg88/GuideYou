@@ -3,7 +3,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -14,6 +13,7 @@ import {
 import { getNotifications } from "../../api/notifications";
 import { API_URL } from "../../constants/api";
 import AdminNavBar from "../components/admin_navbar";
+import { SkeletonAdminHomeScreen } from "../components/Skeleton";
 
 type Stats = {
   guides: { total: number; active: number };
@@ -134,8 +134,9 @@ export default function HomeAdmin() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
+      <View style={styles.root}>
+        <SkeletonAdminHomeScreen />
+        <AdminNavBar />
       </View>
     );
   }

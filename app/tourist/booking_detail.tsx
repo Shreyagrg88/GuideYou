@@ -3,7 +3,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
     Alert,
     Image,
     ScrollView,
@@ -16,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { initiateEsewaPayment } from "../../api/payment";
 import { markTouristBookingComplete } from "../../api/touristBookings";
 import { API_URL } from "../../constants/api";
+import { SkeletonBookingDetailScreen } from "../components/Skeleton";
 import { formatNprAmount, resolveEsewaBookingDisplay } from "../../utils/bookingPrice";
 
 type BookingDetail = {
@@ -398,12 +398,7 @@ export default function BookingDetailScreen() {
     booking?.status === "completed";
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#1B8BFF" />
-        <Text style={styles.loadingText}>Loading booking details...</Text>
-      </View>
-    );
+    return <SkeletonBookingDetailScreen />;
   }
 
   if (error || !booking) {

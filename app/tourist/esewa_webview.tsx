@@ -2,16 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { API_URL } from "../../constants/api";
+import { SkeletonBlock } from "../components/Skeleton";
 
 const POLL_INTERVAL_MS = 1500;
 const POLL_MAX_MS = 60000;
@@ -216,13 +211,15 @@ export default function EsewaWebViewScreen() {
       </View>
       {loading && (
         <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color="#1B8BFF" />
+          <SkeletonBlock width="85%" height={36} borderRadius={8} style={{ marginBottom: 16 }} />
+          <SkeletonBlock width="100%" height={420} borderRadius={12} />
           <Text style={styles.loadingText}>Loading eSewa…</Text>
         </View>
       )}
       {confirmingPayment && (
         <View style={styles.confirmingWrap} pointerEvents="box-none">
-          <ActivityIndicator size="large" color="#1B8BFF" />
+          <SkeletonBlock width="85%" height={36} borderRadius={8} style={{ marginBottom: 16 }} />
+          <SkeletonBlock width="100%" height={200} borderRadius={12} style={{ marginBottom: 16 }} />
           <Text style={styles.confirmingTitle}>Confirming payment</Text>
           <Text style={styles.confirmingSub}>
             Waiting for your booking to update. This may take a few seconds.

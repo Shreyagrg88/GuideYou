@@ -22,7 +22,9 @@ import {
 } from "../../api/guideReviews";
 import { API_URL } from "../../constants/api";
 import { formatGuideTierCharge } from "../../utils/bookingPrice";
+import { SkeletonBlock } from "../components/Skeleton";
 import TouristNavbar from "../components/tourist_navbar";
+import { SkeletonProfileScreen } from "../components/Skeleton";
 
 const NAVBAR_HEIGHT = 70;
 
@@ -422,9 +424,11 @@ export default function GuideProfileView() {
 
   if (loading) {
     return (
-      <View style={[styles.root, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color="#007BFF" />
-        <Text style={styles.loadingText}>Loading guide profile...</Text>
+      <View style={styles.root}>
+        <SkeletonProfileScreen showFormFields={false} />
+        <View style={[styles.navbarWrapper, { paddingBottom: insets.bottom }]}>
+          <TouristNavbar />
+        </View>
       </View>
     );
   }
@@ -545,8 +549,16 @@ export default function GuideProfileView() {
         {/* Activities */}
         <Text style={styles.sectionTitle}>Activities</Text>
         {activitiesLoading ? (
-          <View style={{ paddingVertical: 20, alignItems: "center" }}>
-            <ActivityIndicator size="small" color="#007BFF" />
+          <View style={{ flexDirection: "row", paddingVertical: 16, paddingRight: 8 }}>
+            {[0, 1, 2].map((i) => (
+              <SkeletonBlock
+                key={i}
+                width={200}
+                height={160}
+                borderRadius={12}
+                style={{ marginRight: 12 }}
+              />
+            ))}
           </View>
         ) : activities.length === 0 ? (
           <Text style={styles.activityEmptyText}>No published activities yet.</Text>

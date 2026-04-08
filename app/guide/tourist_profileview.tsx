@@ -3,7 +3,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
     Image,
     ScrollView,
     StyleSheet,
@@ -14,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
+import { SkeletonBlock, SkeletonProfileBlock } from "../components/Skeleton";
 import GuideNavbar from "../components/guide_navbar";
 
 const NAVBAR_HEIGHT = 70;
@@ -348,8 +348,7 @@ export default function TouristProfileView() {
 
         {(loading || profileLoading) && !profile ? (
           <View style={styles.loadingWrap}>
-            <ActivityIndicator size="large" color="#007BFF" />
-            <Text style={styles.loadingText}>Loading profile...</Text>
+            <SkeletonProfileBlock showFormFields={false} />
           </View>
         ) : profile ? (
           <>
@@ -413,7 +412,17 @@ export default function TouristProfileView() {
             <Text style={styles.sectionTitle}>Past activities with you</Text>
             {activitiesLoading ? (
               <View style={styles.loadingSmall}>
-                <ActivityIndicator size="small" color="#007BFF" />
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {[0, 1, 2].map((i) => (
+                    <SkeletonBlock
+                      key={i}
+                      width={160}
+                      height={120}
+                      borderRadius={12}
+                      style={{ marginRight: 12 }}
+                    />
+                  ))}
+                </ScrollView>
               </View>
             ) : pastActivities.length === 0 ? (
               <Text style={styles.activityEmptyText}>

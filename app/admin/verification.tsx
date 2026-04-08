@@ -3,7 +3,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
+import { SkeletonBlock, SkeletonListScreen } from "../components/Skeleton";
 import AdminNavBar from "../components/admin_navbar";
 
 type LicenseItem = {
@@ -115,11 +115,7 @@ export default function VerificationRequest() {
   };
 
   if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+    return <SkeletonListScreen rows={10} />;
   }
 
   const isLicenses = activeSection === "licenses";
@@ -153,7 +149,15 @@ export default function VerificationRequest() {
         {isLicenses ? (
           <>
             {loading ? (
-              <ActivityIndicator size="small" style={{ marginTop: 20 }} />
+              <View style={{ marginTop: 20 }}>
+                <View style={{ marginBottom: 10 }}>
+                  <SkeletonBlock width="100%" height={56} borderRadius={10} />
+                </View>
+                <View style={{ marginBottom: 10 }}>
+                  <SkeletonBlock width="100%" height={56} borderRadius={10} />
+                </View>
+                <SkeletonBlock width="100%" height={56} borderRadius={10} />
+              </View>
             ) : licenses.length === 0 ? (
               <Text style={styles.emptyText}>No pending license requests</Text>
             ) : (
@@ -181,7 +185,15 @@ export default function VerificationRequest() {
         ) : (
           <>
             {activitiesLoading ? (
-              <ActivityIndicator size="small" style={{ marginTop: 20 }} />
+              <View style={{ marginTop: 20 }}>
+                <View style={{ marginBottom: 10 }}>
+                  <SkeletonBlock width="100%" height={56} borderRadius={10} />
+                </View>
+                <View style={{ marginBottom: 10 }}>
+                  <SkeletonBlock width="100%" height={56} borderRadius={10} />
+                </View>
+                <SkeletonBlock width="100%" height={56} borderRadius={10} />
+              </View>
             ) : pendingActivities.length === 0 ? (
               <Text style={styles.emptyText}>No pending activities to review</Text>
             ) : (

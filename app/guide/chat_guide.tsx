@@ -21,6 +21,7 @@ import {
     sendMessageToCounterpart,
 } from "../../api/chat";
 import { API_URL } from "../../constants/api";
+import { SkeletonChatMessagesBody } from "../components/Skeleton";
 
 type ChatMessage = {
   id: string;
@@ -236,46 +237,47 @@ export default function ChatGuide() {
       </View>
 
       {/* Messages */}
-      {loading && (
-        <View style={{ paddingTop: 16, alignItems: "center" }}>
-          <ActivityIndicator size="small" color="#007BFF" />
-        </View>
+      {loading ? (
+        <SkeletonChatMessagesBody />
+      ) : (
+        <>
+          {error && (
+            <Text
+              style={{
+                textAlign: "center",
+                color: "#DC2626",
+                marginTop: 8,
+                paddingHorizontal: 16,
+              }}
+            >
+              {error}
+            </Text>
+          )}
+          {!error && messages.length === 0 && (
+            <Text
+              style={{
+                textAlign: "center",
+                color: "#6B7280",
+                marginTop: 8,
+                paddingHorizontal: 16,
+              }}
+            >
+              No messages yet. You can start chatting with the tourist.
+            </Text>
+          )}
+          <FlatList
+            ref={listRef}
+            data={messages}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={[
+              styles.messagesContainer,
+              { paddingBottom: 16 + insets.bottom },
+            ]}
+            showsVerticalScrollIndicator={false}
+          />
+        </>
       )}
-      {!loading && error && (
-        <Text
-          style={{
-            textAlign: "center",
-            color: "#DC2626",
-            marginTop: 8,
-            paddingHorizontal: 16,
-          }}
-        >
-          {error}
-        </Text>
-      )}
-      {!loading && !error && messages.length === 0 && (
-        <Text
-          style={{
-            textAlign: "center",
-            color: "#6B7280",
-            marginTop: 8,
-            paddingHorizontal: 16,
-          }}
-        >
-          No messages yet. You can start chatting with the tourist.
-        </Text>
-      )}
-      <FlatList
-        ref={listRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={[
-          styles.messagesContainer,
-          { paddingBottom: 16 + insets.bottom },
-        ]}
-        showsVerticalScrollIndicator={false}
-      />
 
       {/* Input bar */}
       <View style={[styles.inputRow, { paddingBottom: insets.bottom }]}>

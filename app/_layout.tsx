@@ -3,7 +3,7 @@ import { isExpoGo, navigateFromNotification, registerPushToken } from "../api/no
 import { useFonts, Nunito_400Regular, Nunito_700Bold } from "@expo-google-fonts/nunito";
 import { useRouter } from "expo-router";
 import React, { useEffect } from "react";
-import { View, ActivityIndicator } from "react-native";
+import { SkeletonAppBoot } from "./components/Skeleton";
 import { Stack } from "expo-router";
 
 export default function Layout() {
@@ -40,11 +40,7 @@ export default function Layout() {
   }, [router]);
 
   if (!fontsLoaded) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#007BFF" />
-      </View>
-    );
+    return <SkeletonAppBoot />;
   }
 
   return (

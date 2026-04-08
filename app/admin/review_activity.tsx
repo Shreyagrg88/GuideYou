@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { API_URL } from "../../constants/api";
 import AdminNavBar from "../components/admin_navbar";
+import { SkeletonTourDetailScreen } from "../components/Skeleton";
 
 type ActivityData = {
   id: string;
@@ -160,8 +161,8 @@ export default function ReviewActivity() {
           <Text style={styles.headerTitle}>Review Activity</Text>
           <View style={{ width: 24 }} />
         </View>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" />
+        <View style={{ flex: 1 }}>
+          <SkeletonTourDetailScreen />
         </View>
         <AdminNavBar />
       </View>

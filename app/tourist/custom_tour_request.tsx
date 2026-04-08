@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL } from "../../constants/api";
+import { SkeletonCalendarPlaceholder } from "../components/Skeleton";
 import {
   estimateNprFromUsd,
   formatNprAmount,
@@ -487,7 +488,7 @@ export default function CustomTourRequest() {
 
             {availabilityLoading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#007BFF" />
+                <SkeletonCalendarPlaceholder />
                 <Text style={styles.loadingText}>Loading availability...</Text>
               </View>
             ) : (

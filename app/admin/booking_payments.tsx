@@ -3,7 +3,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   RefreshControl,
   ScrollView,
@@ -20,6 +19,7 @@ import {
 } from "../../api/adminBookingsPayments";
 import { formatNprAmount } from "../../utils/bookingPrice";
 import AdminNavBar from "../components/admin_navbar";
+import { SkeletonBookingTab } from "../components/Skeleton";
 
 function formatShortDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -117,9 +117,8 @@ export default function AdminBookingPaymentsScreen() {
       </View>
 
       {loading && !refreshing ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#007BFF" />
-          <Text style={styles.hint}>Loading payment bookings…</Text>
+        <View style={[styles.center, { flex: 1, alignSelf: "stretch" }]}>
+          <SkeletonBookingTab rows={10} />
         </View>
       ) : (
         <ScrollView

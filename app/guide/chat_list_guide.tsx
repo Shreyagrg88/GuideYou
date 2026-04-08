@@ -1,19 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from "react-native";
+import { FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChatConversation, fetchConversations } from "../../api/chat";
 import { API_URL } from "../../constants/api";
+import { SkeletonConversationRows } from "../components/Skeleton";
 import GuideNavbar from "../components/guide_navbar";
 
 export default function ChatListGuide() {
@@ -147,8 +139,8 @@ export default function ChatListGuide() {
 
         {/* List / states */}
         {loading ? (
-          <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-            <ActivityIndicator size="small" color="#2563EB" />
+          <View style={{ flex: 1 }}>
+            <SkeletonConversationRows rows={9} />
           </View>
         ) : error ? (
           <View style={{ paddingVertical: 16 }}>

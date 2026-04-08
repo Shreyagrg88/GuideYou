@@ -10,7 +10,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -20,6 +19,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import GuideNavbar from "../components/guide_navbar";
+import { SkeletonBookingTab } from "../components/Skeleton";
 
 const NAVBAR_HEIGHT = 70;
 
@@ -76,7 +76,7 @@ export default function NotificationsGuide() {
 
       {loading && !refreshing ? (
         <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color="#007BFF" />
+          <SkeletonBookingTab rows={8} />
         </View>
       ) : (
         <ScrollView

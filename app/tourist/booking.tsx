@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
+import { SkeletonBookingDetailScreen } from "../components/Skeleton";
 import {
   estimateNprFromUsd,
   formatNprAmount,
@@ -273,12 +274,7 @@ export default function BookingPage() {
   const nprTotalEstimate = estimateNprFromUsd(usdTotalEstimate, usdToNprRate);
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007BFF" />
-        <Text style={styles.loadingText}>Loading availability...</Text>
-      </View>
-    );
+    return <SkeletonBookingDetailScreen />;
   }
 
   return (

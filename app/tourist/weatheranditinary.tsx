@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Image,
   ScrollView,
   StyleSheet,
@@ -15,6 +14,7 @@ import {
   generateItineraryForActivity,
   type ItineraryDay,
 } from "../../api/aiPlanner";
+import { SkeletonBlock, SkeletonWeatherItineraryScreen } from "../components/Skeleton";
 
 const PAGE_BG = "#E6F2FF";
 const ACCENT = "#007BFF";
@@ -150,6 +150,14 @@ export default function WeatherAndItineraryScreen() {
     }
   }, [activityId, numberOfDays]);
 
+  if (loading) {
+    return (
+      <View style={[styles.page, { paddingTop: insets.top, flex: 1 }]}>
+        <SkeletonWeatherItineraryScreen />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
       <ScrollView
@@ -166,12 +174,7 @@ export default function WeatherAndItineraryScreen() {
           <View style={styles.backPlaceholder} />
         </View>
 
-        {loading ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color={ACCENT} />
-            <Text style={styles.loadingText}>Loading weather and itinerary...</Text>
-          </View>
-        ) : error || !weather ? (
+        {error || !weather ? (
           <View style={styles.errorBox}>
             <Ionicons name="cloud-offline-outline" size={48} color="#999" />
             <Text style={styles.errorTitle}>Couldn’t load details</Text>
@@ -250,7 +253,10 @@ export default function WeatherAndItineraryScreen() {
 
             <Text style={styles.sectionTitle}>Itinerary</Text>
             {loadingItinerary ? (
-              <ActivityIndicator size="small" color={ACCENT} style={{ marginVertical: 12 }} />
+              <View style={{ marginVertical: 12 }}>
+                <SkeletonBlock width="100%" height={56} borderRadius={12} style={{ marginBottom: 10 }} />
+                <SkeletonBlock width="100%" height={56} borderRadius={12} />
+              </View>
             ) : itineraryError ? (
               <Text style={styles.errorInline}>{itineraryError}</Text>
             ) : itinerary.length > 0 ? (

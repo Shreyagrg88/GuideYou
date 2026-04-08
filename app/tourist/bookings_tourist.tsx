@@ -16,6 +16,7 @@ import { API_URL } from "../../constants/api";
 import { markTouristBookingComplete } from "../../api/touristBookings";
 import { formatNprAmount, resolveEsewaBookingDisplay } from "../../utils/bookingPrice";
 import TouristNavbar from "../components/tourist_navbar";
+import { SkeletonBookingTab } from "../components/Skeleton";
 
 type Booking = {
   id: string;
@@ -472,11 +473,7 @@ export default function BookingsTouristScreen() {
 
   const renderUpcoming = () => {
     if (loading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#1B8BFF" />
-        </View>
-      );
+      return <SkeletonBookingTab />;
     }
 
     if (upcoming.length === 0) {
@@ -571,11 +568,7 @@ export default function BookingsTouristScreen() {
 
   const renderPast = () => {
     if (loading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#1B8BFF" />
-        </View>
-      );
+      return <SkeletonBookingTab />;
     }
 
     // Filter cancelled bookings to only show those cancelled within 2 hours
@@ -680,11 +673,7 @@ export default function BookingsTouristScreen() {
 
   const renderPending = () => {
     if (loading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#1B8BFF" />
-        </View>
-      );
+      return <SkeletonBookingTab />;
     }
 
     // Only show pending status bookings (not accepted)
@@ -755,11 +744,7 @@ export default function BookingsTouristScreen() {
 
   const renderAccepted = () => {
     if (loading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#1B8BFF" />
-        </View>
-      );
+      return <SkeletonBookingTab />;
     }
 
     if (accepted.length === 0) {

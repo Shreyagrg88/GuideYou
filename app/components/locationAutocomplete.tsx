@@ -1,14 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Keyboard,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Keyboard,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { SkeletonBlock } from "./Skeleton";
 
 interface LocationData {
   name: string;
@@ -120,9 +120,7 @@ export default function LocationAutocomplete({ value, onSelect }: Props) {
         }}
       />
 
-      {loading && (
-        <ActivityIndicator size="small" style={styles.loading} />
-      )}
+      {loading && <SkeletonBlock width={22} height={22} borderRadius={11} style={styles.loading} />}
 
       {showDropdown && results.length > 0 && (
         <View style={styles.dropdown}>

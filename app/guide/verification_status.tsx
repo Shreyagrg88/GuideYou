@@ -1,8 +1,8 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { API_URL } from "../../constants/api";
+import { SkeletonCentered } from "../components/Skeleton";
 import {
-  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -69,14 +69,7 @@ export default function VerificationStatus() {
   };
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007BFF" />
-        <Text style={styles.loadingText}>
-          Checking verification status...
-        </Text>
-      </View>
-    );
+    return <SkeletonCentered />;
   }
 
   return (

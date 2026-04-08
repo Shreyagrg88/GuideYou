@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
+import { SkeletonProfileScreen } from "../components/Skeleton";
 
 type GuideProfile = {
   id: string;
@@ -232,12 +233,7 @@ export default function EditProfile() {
   };
 
   if (loading) {
-    return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color="#007BFF" />
-        <Text style={styles.loadingText}>Loading profile...</Text>
-      </View>
-    );
+    return <SkeletonProfileScreen />;
   }
 
   return (

@@ -2,9 +2,19 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
+import { SkeletonCalendarPlaceholder } from "../components/Skeleton";
 
 const PRIMARY = "#007BFF";
 type DateStatus = "available" | "unavailable" | "booked" | "reserved";
@@ -254,7 +264,7 @@ export default function ScheduleRatesScreen() {
 
         {fetching && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={PRIMARY} />
+            <SkeletonCalendarPlaceholder />
             <Text style={styles.loadingText}>Loading availability...</Text>
           </View>
         )}

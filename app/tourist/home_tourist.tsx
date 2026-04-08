@@ -4,15 +4,14 @@ import { useFocusEffect, useRouter } from "expo-router";
 import * as Location from "expo-location";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  FlatList,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -22,6 +21,11 @@ import {
 import { getNotifications } from "../../api/notifications";
 import { API_URL } from "../../constants/api";
 import { formatGuideListCharge } from "../../utils/bookingPrice";
+import {
+  SkeletonActivityCarousel,
+  SkeletonAiRecommendationRow,
+  SkeletonBlock,
+} from "../components/Skeleton";
 import TouristNavBar from "../components/tourist_navbar";
 
 const filters = ["All", "Guides", "Activities"];
@@ -572,7 +576,7 @@ export default function HomePage() {
             onSubmitEditing={() => performSearch(searchQuery)}
           />
           {isSearching && (
-            <ActivityIndicator size="small" color="#007BFF" style={{ marginLeft: 10 }} />
+            <SkeletonBlock width={20} height={20} borderRadius={10} style={{ marginLeft: 10 }} />
           )}
         </View>
 
@@ -768,7 +772,9 @@ export default function HomePage() {
               )}
             </View>
             {loading ? (
-              <ActivityIndicator size="small" color="#007BFF" style={{ marginVertical: 20 }} />
+              <View style={{ marginVertical: 16 }}>
+                <SkeletonActivityCarousel />
+              </View>
             ) : activities.length > 0 ? (
               showListView ? (
                 <FlatList
@@ -840,7 +846,9 @@ export default function HomePage() {
                 ) : null}
 
                 {aiRecommendationsLoading ? (
-                  <ActivityIndicator size="small" color="#007BFF" style={{ marginVertical: 12 }} />
+                  <View style={{ marginVertical: 12 }}>
+                    <SkeletonAiRecommendationRow />
+                  </View>
                 ) : aiRecommendationsError ? (
                   <Text style={styles.aiErrorText}>{aiRecommendationsError}</Text>
                 ) : aiRecommendations.length === 0 ? (
@@ -903,8 +911,18 @@ export default function HomePage() {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Available tomorrow & this week</Text>
                 {availableGuidesLoading ? (
-                  <View style={styles.availableGuidesLoading}>
-                    <ActivityIndicator size="small" color="#007BFF" />
+                  <View style={{ paddingVertical: 12 }}>
+                    <View style={{ flexDirection: "row", marginBottom: 10 }}>
+                      {[0, 1, 2].map((i) => (
+                        <SkeletonBlock
+                          key={i}
+                          width={160}
+                          height={100}
+                          borderRadius={12}
+                          style={{ marginRight: 12 }}
+                        />
+                      ))}
+                    </View>
                     <Text style={styles.availableGuidesLoadingText}>Checking guide availability...</Text>
                   </View>
                 ) : availableGuides.length === 0 ? (

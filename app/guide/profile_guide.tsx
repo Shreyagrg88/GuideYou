@@ -3,7 +3,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Modal,
@@ -18,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
 import GuideNavbar from "../components/guide_navbar";
+import { SkeletonBlock, SkeletonProfileScreen, SkeletonReviewCards } from "../components/Skeleton";
 
 const NAVBAR_HEIGHT = 70;
 
@@ -281,9 +281,11 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <View style={[styles.root, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color="#007BFF" />
-        <Text style={styles.loadingText}>Loading profile...</Text>
+      <View style={styles.root}>
+        <SkeletonProfileScreen showFormFields={false} />
+        <View style={styles.navbarWrapper}>
+          <GuideNavbar />
+        </View>
       </View>
     );
   }
@@ -380,8 +382,16 @@ export default function Profile() {
         {/* Activities */}
         <Text style={styles.sectionTitle}>My Activities</Text>
         {activitiesLoading ? (
-          <View style={{ paddingVertical: 20, alignItems: "center" }}>
-            <ActivityIndicator size="small" color="#007BFF" />
+          <View style={{ flexDirection: "row", paddingVertical: 16, paddingRight: 8 }}>
+            {[0, 1, 2].map((i) => (
+              <SkeletonBlock
+                key={i}
+                width={200}
+                height={160}
+                borderRadius={12}
+                style={{ marginRight: 12 }}
+              />
+            ))}
           </View>
         ) : activities.length === 0 ? (
           <Text style={styles.activityEmptyText}>No activities yet. Create your first activity!</Text>
@@ -435,8 +445,8 @@ export default function Profile() {
           )}
         </View>
         {reviewsLoading ? (
-          <View style={{ paddingVertical: 16, alignItems: "center" }}>
-            <ActivityIndicator size="small" color="#007BFF" />
+          <View style={{ paddingVertical: 12 }}>
+            <SkeletonReviewCards count={2} />
           </View>
         ) : reviewsError ? (
           <Text style={styles.activityEmptyText}>{reviewsError}</Text>

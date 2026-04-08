@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getNotifications } from "../../api/notifications";
 import { API_URL } from "../../constants/api";
 import GuideNavbar from "../components/guide_navbar";
+import { SkeletonGuideHomeScreen } from "../components/Skeleton";
 
 export default function GuideHome() {
   const insets = useSafeAreaInsets();
@@ -115,8 +116,9 @@ export default function GuideHome() {
 
   if (loading) {
     return (
-      <View style={styles.loadingWrapper}>
-        <Text>Loading...</Text>
+      <View style={styles.wrapper}>
+        <SkeletonGuideHomeScreen />
+        <GuideNavbar />
       </View>
     );
   }
