@@ -10,9 +10,11 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { enrichGuidesWithReviewAverage } from "../../api/guideReviews";
 import { API_URL } from "../../constants/api";
 import { SkeletonListScreen } from "../components/Skeleton";
 import { formatGuideListCharge } from "../../utils/bookingPrice";
+import { formatGuideRatingDisplay, pickGuideListRatingSource } from "../../utils/guideRating";
 
 type Guide = {
   id: string;
@@ -25,6 +27,8 @@ type Guide = {
   chargeNpr?: number;
   rate?: number;
   rating: string;
+  /** From reviews API enrichment — matches guide profile stat when set. */
+  averageRating?: number | null;
   image: string;
   description: string;
 };
@@ -61,7 +65,9 @@ export default function GuideList() {
         return;
       }
 
-      setGuides(data.guides || []);
+      const raw = (data.guides || []) as Guide[];
+      const enriched = (await enrichGuidesWithReviewAverage(raw)) as Guide[];
+      setGuides(enriched);
     } catch (error) {
       console.error("Fetch guides error:", error);
       Alert.alert("Error", "Failed to load guides. Please try again.");
@@ -104,12 +110,13 @@ export default function GuideList() {
         guides.map((g) => {
           const guideImage = g.image.startsWith("http") ? g.image : `${API_URL}${g.image}`;
           const chargeLine = formatGuideListCharge(g);
+          const ratingLine = formatGuideRatingDisplay(pickGuideListRatingSource(g));
           const profileParams = {
             guideId: g.id,
             guideName: g.name,
             guideRole: g.role,
             guideLocation: g.location,
-            guideRating: g.rating,
+            guideRating: ratingLine,
             guideImage,
             guideCharge: chargeLine,
             description: g.description,
@@ -157,7 +164,7 @@ export default function GuideList() {
                 </View>
 
                 <View style={styles.infoBox}>
-                  <Text style={styles.infoValue}>⭐ {g.rating}</Text>
+                  <Text style={styles.infoValue}>⭐ {ratingLine}</Text>
                   <Text style={styles.infoLabel}>Rating</Text>
                 </View>
               </View>

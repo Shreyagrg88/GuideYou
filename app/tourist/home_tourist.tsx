@@ -2,8 +2,9 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Location from "expo-location";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   FlatList,
   Image,
   ScrollView,
@@ -18,9 +19,11 @@ import {
   recommendActivitiesByGps,
   type AiRecommendedActivity,
 } from "../../api/aiPlanner";
+import { enrichGuidesWithReviewAverage } from "../../api/guideReviews";
 import { getNotifications } from "../../api/notifications";
 import { API_URL } from "../../constants/api";
 import { formatGuideListCharge } from "../../utils/bookingPrice";
+import { formatGuideRatingDisplay, pickGuideListRatingSource } from "../../utils/guideRating";
 import {
   SkeletonActivityCarousel,
   SkeletonAiRecommendationRow,
@@ -57,6 +60,69 @@ const toDateKey = (d: Date): string => {
   return `${y}-${m}-${day}`;
 };
 
+const toTitleCase = (raw: string): string =>
+  raw
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+
+type HomepageActivityCard = {
+  id: string;
+  title: string;
+  days: string;
+  rating: number;
+  image: string | null;
+  location?: string;
+  category?: string;
+  difficulty?: string;
+};
+
+function mapHomepageActivity(activity: any): HomepageActivityCard {
+  return {
+    id: activity.id,
+    title: activity.title,
+    days: activity.days || `${activity.duration || 12} DAYS TRIP`,
+    rating: activity.rating || 4.5,
+    image: activity.image ? `${API_URL}${activity.image}` : null,
+    location: activity.location,
+    category: activity.category,
+    difficulty: activity.difficulty,
+  };
+}
+
+function interestsFromProfilePayload(profileData: any): string[] {
+  const raw = profileData?.tourist || profileData?.user || profileData;
+  if (!raw) return [];
+  const toArray = (v: unknown): string[] => {
+    if (v == null) return [];
+    if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
+    return String(v)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  };
+  return toArray(raw.interests);
+}
+
+function pickWeatherLabel(weather: {
+  currentDescription?: string;
+  description?: string;
+  condition?: string;
+  currentMain?: string;
+}): string {
+  const precise = String(weather.currentDescription || weather.description || "").trim();
+  if (precise) return toTitleCase(precise);
+
+  const condition = String(weather.condition || "").trim();
+  if (condition) return toTitleCase(condition);
+
+  const main = String(weather.currentMain || "").trim();
+  if (main) return toTitleCase(main);
+
+  return "";
+}
+
 export default function HomePage() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [activities, setActivities] = useState<any[]>([]);
@@ -79,10 +145,42 @@ export default function HomePage() {
   const [aiRecommendations, setAiRecommendations] = useState<AiRecommendedActivity[]>([]);
   const [aiRecommendationsLoading, setAiRecommendationsLoading] = useState(false);
   const [aiRecommendationsError, setAiRecommendationsError] = useState<string | null>(null);
+  const [interestSections, setInterestSections] = useState<
+    { category: string; activities: HomepageActivityCard[] }[]
+  >([]);
+  const [interestSectionsLoading, setInterestSectionsLoading] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  const activityTitleToIdMap = useMemo(() => {
+    const m = new Map<string, string>();
+    const add = (title: string | undefined, id: string | undefined) => {
+      const t = (title || "").trim().toLowerCase();
+      const i = (id || "").trim();
+      if (t && i && !m.has(t)) m.set(t, i);
+    };
+    for (const a of activities) add(a.title, a.id);
+    for (const sec of interestSections) {
+      for (const a of sec.activities) add(a.title, a.id);
+    }
+    return m;
+  }, [activities, interestSections]);
+
+  const resolveAiCardActivityId = useCallback(
+    (item: AiRecommendedActivity) => {
+      const direct = (item.id || "").trim();
+      if (direct) return direct;
+      const name = (item.name || "").trim().toLowerCase();
+      if (name) {
+        const hit = activityTitleToIdMap.get(name);
+        if (hit) return hit;
+      }
+      return "";
+    },
+    [activityTitleToIdMap]
+  );
 
   const fetchNotificationUnread = useCallback(async () => {
     const token = await AsyncStorage.getItem("token");
@@ -157,7 +255,8 @@ export default function HomePage() {
           // skip this guide on error
         }
       }
-      setAvailableGuides(withAvailability);
+      const enriched = await enrichGuidesWithReviewAverage(withAvailability);
+      setAvailableGuides(enriched);
     } catch (e) {
       console.error("Fetch available guides error:", e);
       setAvailableGuides([]);
@@ -214,7 +313,16 @@ export default function HomePage() {
       const lon = current?.coords.longitude ?? 85.324;
 
       const data = await recommendActivitiesByGps(lat, lon);
-      setAiWeatherCondition(data.weather?.condition || "");
+      setAiWeatherCondition(
+        data.weather
+          ? pickWeatherLabel({
+              currentDescription: data.weather.currentDescription,
+              description: data.weather.description,
+              condition: data.weather.condition,
+              currentMain: data.weather.currentMain,
+            })
+          : ""
+      );
       setAiRecommendations(data.activityRecommendations || []);
     } catch (error: any) {
       setAiRecommendations([]);
@@ -231,63 +339,92 @@ export default function HomePage() {
     fetchAiRecommendations();
   }, [fetchAiRecommendations]);
 
-  const fetchHomepageActivities = async () => {
+  const loadHomepageActivities = useCallback(async () => {
     if (activeFilter === "Guides") {
       setLoading(false);
+      setInterestSectionsLoading(false);
+      setInterestSections([]);
       return;
     }
 
     setLoading(true);
+    setInterestSectionsLoading(true);
     try {
       const token = await AsyncStorage.getItem("token");
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
 
-      // Keep existing API call for "For you" category
-      const url = `${API_URL}/api/tourist/homepage?category=${encodeURIComponent(
-        "For you"
-      )}`;
+      const forYouUrl = `${API_URL}/api/tourist/homepage?category=${encodeURIComponent("For you")}`;
+      const forYouRes = await fetch(forYouUrl, { method: "GET", headers });
+      const forYouData = await forYouRes.json().catch(() => ({}));
 
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error(data.msg || "Failed to fetch activities");
+      if (!forYouRes.ok) {
+        console.error(forYouData?.msg || "Failed to fetch activities");
         setActivities([]);
+      } else {
+        const mappedForYou = (forYouData.activities || []).map(mapHomepageActivity);
+        setActivities(mappedForYou);
+      }
+
+      if (!token) {
+        setInterestSections([]);
         return;
       }
 
-      // Map API response to component format
-      const mappedActivities = (data.activities || []).map((activity: any) => ({
-        id: activity.id,
-        title: activity.title,
-        days: activity.days || `${activity.duration || 12} DAYS TRIP`,
-        rating: activity.rating || 4.5,
-        image: activity.image ? `${API_URL}${activity.image}` : null,
-        location: activity.location,
-        category: activity.category,
-        difficulty: activity.difficulty,
-      }));
+      const profileRes = await fetch(`${API_URL}/api/tourist/profile`, {
+        method: "GET",
+        headers,
+      });
+      const profileText = await profileRes.text();
+      let interestLabels: string[] = [];
+      if (profileRes.ok && profileText.trim() && !profileText.trim().startsWith("<")) {
+        try {
+          const profileData = JSON.parse(profileText);
+          interestLabels = interestsFromProfilePayload(profileData);
+        } catch {
+          interestLabels = [];
+        }
+      }
 
-      setActivities(mappedActivities);
+      const uniqueCategories = [...new Set(interestLabels)].slice(0, 10);
+      if (uniqueCategories.length === 0) {
+        setInterestSections([]);
+        return;
+      }
+
+      const sectionResults = await Promise.all(
+        uniqueCategories.map(async (category) => {
+          const url = `${API_URL}/api/tourist/homepage?category=${encodeURIComponent(category)}`;
+          const res = await fetch(url, { method: "GET", headers });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) return { category, activities: [] as HomepageActivityCard[] };
+          const mapped = (data.activities || []).map(mapHomepageActivity);
+          return { category, activities: mapped };
+        })
+      );
+
+      setInterestSections(
+        sectionResults.filter((row) =>
+          row.activities.some((a: HomepageActivityCard) => a.id)
+        )
+      );
     } catch (error: any) {
       console.error("Homepage fetch error:", error);
       setActivities([]);
+      setInterestSections([]);
     } finally {
       setLoading(false);
+      setInterestSectionsLoading(false);
     }
-  };
+  }, [activeFilter]);
 
   useEffect(() => {
-    fetchHomepageActivities();
+    loadHomepageActivities();
     // Show list view when "Activities" filter is selected
     setShowListView(activeFilter === "Activities");
-  }, [activeFilter]);
+  }, [activeFilter, loadHomepageActivities]);
 
   useEffect(() => {
     // Update arrow visibility when activities change
@@ -364,7 +501,12 @@ export default function HomePage() {
 
       const data = await response.json();
       if (response.ok) {
-        setSearchResults(data);
+        if (Array.isArray(data.guides) && data.guides.length > 0) {
+          const guides = await enrichGuidesWithReviewAverage(data.guides);
+          setSearchResults({ ...data, guides });
+        } else {
+          setSearchResults(data);
+        }
       } else {
         console.error("Search error:", data.msg);
         setSearchResults(null);
@@ -494,7 +636,7 @@ export default function HomePage() {
     const name = guide.fullName || guide.username || guide.name || "Guide";
     const role = guide.mainExpertise || guide.expertise?.[0] || guide.role || "Guide";
     const location = guide.location || "";
-    const rating = guide.rating != null ? String(guide.rating) : "N/A";
+    const rating = formatGuideRatingDisplay(pickGuideListRatingSource(guide));
     const charge = formatGuideListCharge(guide);
     return (
       <TouchableOpacity
@@ -655,7 +797,9 @@ export default function HomePage() {
                             guideImage,
                             guideRole: guide.mainExpertise || guide.expertise?.[0] || "Guide",
                             guideLocation: guide.location || "",
-                            guideRating: guide.rating != null ? String(guide.rating) : "N/A",
+                            guideRating: formatGuideRatingDisplay(
+                              pickGuideListRatingSource(guide)
+                            ),
                             guideCharge: formatGuideListCharge(guide),
                             description: guide.bio || "",
                           },
@@ -679,7 +823,9 @@ export default function HomePage() {
                           <View style={styles.guideInfoRow}>
                             <View style={styles.guideInfoItem}>
                               <Ionicons name="star" size={14} color="#FFD700" />
-                              <Text style={styles.guideInfoText}>{guide.rating || "N/A"}</Text>
+                              <Text style={styles.guideInfoText}>
+                                {formatGuideRatingDisplay(pickGuideListRatingSource(guide))}
+                              </Text>
                             </View>
                             {guide.reviewCount > 0 && (
                               <Text style={[styles.guideInfoText, { marginLeft: 8 }]}>
@@ -830,6 +976,42 @@ export default function HomePage() {
           </View>
         )}
 
+            {(activeFilter === "All" || activeFilter === "Activities") &&
+              !showListView &&
+              interestSectionsLoading &&
+              interestSections.length === 0 && (
+                <View style={styles.section}>
+                  <View style={{ marginVertical: 16 }}>
+                    <SkeletonActivityCarousel />
+                  </View>
+                </View>
+              )}
+
+            {(activeFilter === "All" || activeFilter === "Activities") &&
+              !showListView &&
+              interestSections.map((section) => (
+                <View key={section.category} style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>
+                      Activity for {section.category}
+                    </Text>
+                  </View>
+                  <View style={styles.horizontalContainer}>
+                    <FlatList
+                      data={section.activities}
+                      renderItem={renderActivityCard}
+                      keyExtractor={(item, index) =>
+                        item.id ? `${section.category}-${item.id}` : `${section.category}-${index}`
+                      }
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.horizontalList}
+                      style={styles.horizontalFlatList}
+                    />
+                  </View>
+                </View>
+              ))}
+
             {(activeFilter === "All" || activeFilter === "Activities") && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
@@ -869,16 +1051,24 @@ export default function HomePage() {
                           key={stableKey}
                           style={styles.aiActivityCard}
                           activeOpacity={0.85}
-                          onPress={() =>
+                          onPress={() => {
+                            const activityId = resolveAiCardActivityId(item);
+                            if (!activityId) {
+                              Alert.alert(
+                                "Can't open planner",
+                                "This suggestion isn't linked to an activity yet. Open the same tour from For you or your interest rows, then try again."
+                              );
+                              return;
+                            }
                             router.push({
                               pathname: "/tourist/weatheranditinary",
                               params: {
                                 location: item.location || "",
                                 activityName: item.name,
-                                activityId: item.id,
+                                activityId,
                               },
-                            })
-                          }
+                            });
+                          }}
                         >
                           {image ? (
                             <Image source={{ uri: image }} style={styles.aiActivityImage} />

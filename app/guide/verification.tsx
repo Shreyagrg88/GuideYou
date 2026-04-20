@@ -1,4 +1,5 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
@@ -13,7 +14,6 @@ import {
 
 export default function LicenseUpload() {
   const router = useRouter();
-  const { userId } = useLocalSearchParams<{ userId: string }>();
 
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<{
@@ -71,21 +71,27 @@ export default function LicenseUpload() {
     try {
       setLoading(true);
 
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Login required", "Please sign in to upload your license.");
+        setLoading(false);
+        return;
+      }
+
       const formData = new FormData();
-      formData.append("userId", userId);
       formData.append("license", {
         uri: selectedFile.uri,
         name: selectedFile.name,
         type: selectedFile.type,
       } as any);
 
-      const response = await fetch(
-        `${API_URL}/api/license/upload`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
+      const response = await fetch(`${API_URL}/api/license/upload`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
 
       const data = await response.json();
 
@@ -99,10 +105,7 @@ export default function LicenseUpload() {
         "License submitted for verification. Review within 48 hours."
       );
 
-      router.replace({
-        pathname: "/guide/verification_status",
-        params: { userId: userId },
-      });
+      router.replace({ pathname: "/guide/verification_status" });
 
     } catch (error) {
       console.error("Upload error:", error);

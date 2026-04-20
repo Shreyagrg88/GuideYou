@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getGuideReviews } from "../../api/guideReviews";
 import { API_URL } from "../../constants/api";
 import { SkeletonCalendarPlaceholder } from "../components/Skeleton";
 import {
@@ -21,6 +22,7 @@ import {
   formatNprAmount,
   parseUsdFromGuideChargeString,
 } from "../../utils/bookingPrice";
+import { formatGuideRatingDisplay } from "../../utils/guideRating";
 
 type DateStatus = "available" | "unavailable" | "booked" | "reserved";
 
@@ -81,6 +83,31 @@ export default function CustomTourRequest() {
   const [location, setLocation] = useState("");
   const [noteToGuide, setNoteToGuide] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [profileAlignedRating, setProfileAlignedRating] = useState<string | null>(null);
+
+  useEffect(() => {
+    const gid = params.guideId?.trim();
+    if (!gid) {
+      setProfileAlignedRating(null);
+      return;
+    }
+    let cancelled = false;
+    setProfileAlignedRating(null);
+    (async () => {
+      try {
+        const data = await getGuideReviews(gid);
+        if (cancelled) return;
+        setProfileAlignedRating(
+          formatGuideRatingDisplay(data.averageRating ?? params.guideRating)
+        );
+      } catch {
+        if (!cancelled) setProfileAlignedRating(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [params.guideId, params.guideRating]);
 
   // Fetch guide availability and pricing (same API shape as booking.tsx)
   useEffect(() => {
@@ -155,10 +182,8 @@ export default function CustomTourRequest() {
         Alert.alert("Error", "Failed to load availability. Please try again.");
         setDateStatuses(new Map());
         if (params.guideCharge) {
-          const parsed = parseFloat(
-            params.guideCharge.replace("$", "").replace("/day", "").replace(",", "")
-          );
-          if (!isNaN(parsed)) setPricePerPerson(parsed);
+          const parsed = parseUsdFromGuideChargeString(params.guideCharge);
+          if (parsed > 0) setPricePerPerson(parsed);
         }
       } finally {
         setAvailabilityLoading(false);
@@ -304,8 +329,8 @@ export default function CustomTourRequest() {
     selectedDateRange[selectedDateRange.length - 1].getMonth() === currentMonth &&
     selectedDateRange[selectedDateRange.length - 1].getFullYear() === currentYear;
 
-  const usdTotalEstimate =
-    pricePerPerson * (selectedDateRange.length || 1) * participantCount;
+  const tripDays = selectedDateRange.length > 0 ? selectedDateRange.length : 1;
+  const usdTotalEstimate = pricePerPerson * tripDays * participantCount;
   const nprTotalEstimate = estimateNprFromUsd(usdTotalEstimate, usdToNprRate);
 
   const handleNext = () => {
@@ -472,7 +497,9 @@ export default function CustomTourRequest() {
             </Text>
             <View style={styles.ratingRow}>
               <Ionicons name="star" size={14} color="#f4b400" />
-              <Text style={styles.ratingText}>{params.guideRating || "0.0"}</Text>
+              <Text style={styles.ratingText}>
+                {profileAlignedRating ?? formatGuideRatingDisplay(params.guideRating)}
+              </Text>
             </View>
           </View>
           <Ionicons name="checkmark-circle" size={26} color="#2ecc71" />
@@ -604,7 +631,12 @@ export default function CustomTourRequest() {
 
             {/* Participants */}
             <View style={styles.participantRow}>
-              <Text style={styles.sectionTitle}>Participants</Text>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.sectionTitle}>Participants</Text>
+                <Text style={styles.participantHint}>
+                  Estimated total = rate × people × days. Each +1 adds one daily rate per person.
+                </Text>
+              </View>
               <View style={styles.participantBox}>
                 <TouchableOpacity
                   onPress={() => participantCount > 1 && setParticipantCount(participantCount - 1)}
@@ -643,7 +675,12 @@ export default function CustomTourRequest() {
                 {selectedDateRange.length === 1 ? "day" : "days"}
               </Text>
               <Text style={styles.summaryText}>
-                Total: {formatNprAmount(nprTotalEstimate)} (${usdTotalEstimate.toFixed(0)} USD est.)
+                Rate: ${pricePerPerson.toFixed(0)} USD per person, per day
+              </Text>
+              <Text style={styles.summaryText}>
+                Total: {formatNprAmount(nprTotalEstimate)} (${usdTotalEstimate.toFixed(0)} USD est.) —{" "}
+                {participantCount} people × {tripDays} day{tripDays === 1 ? "" : "s"} × $
+                {pricePerPerson.toFixed(0)}/person/day
               </Text>
               <Text style={styles.summaryText}>Participants: {participantCount}</Text>
             </View>
@@ -714,7 +751,9 @@ export default function CustomTourRequest() {
               <Text style={styles.totalLabel}>Estimated total</Text>
               <Text style={styles.totalAmount}>{formatNprAmount(nprTotalEstimate)}</Text>
               <Text style={styles.totalSub}>
-                ${usdTotalEstimate.toFixed(0)} USD · Final NPR when guide accepts
+                {participantCount} people × {tripDays} day{tripDays === 1 ? "" : "s"} × $
+                {pricePerPerson.toFixed(0)}/person/day = ${usdTotalEstimate.toFixed(0)} USD · Final NPR when
+                guide accepts
               </Text>
             </View>
             <TouchableOpacity
@@ -880,8 +919,15 @@ const styles = StyleSheet.create({
   participantRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginTop: 10,
+  },
+  participantHint: {
+    fontSize: 11,
+    fontFamily: "Nunito_400Regular",
+    color: "#666",
+    marginTop: 4,
+    lineHeight: 15,
   },
   participantBox: {
     flexDirection: "row",
@@ -909,7 +955,14 @@ const styles = StyleSheet.create({
   },
   totalLabel: { fontFamily: "Nunito_400Regular", color: "#9aa0a6", fontSize: 12 },
   totalAmount: { fontFamily: "Nunito_700Bold", fontSize: 18, color: "#000" },
-  totalSub: { fontFamily: "Nunito_400Regular", fontSize: 11, color: "#666", marginTop: 2, maxWidth: 220 },
+  totalSub: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 11,
+    color: "#666",
+    marginTop: 2,
+    flexShrink: 1,
+    lineHeight: 15,
+  },
   nextBtn: {
     backgroundColor: "#007BFF",
     paddingVertical: 12,

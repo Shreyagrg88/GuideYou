@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getGuideReviews } from "../../api/guideReviews";
 import { API_URL } from "../../constants/api";
 import {
   SkeletonEligibilityRow,
@@ -22,6 +23,7 @@ import {
   SkeletonTourDetailScreen,
 } from "../components/Skeleton";
 import { formatGuideTierCharge } from "../../utils/bookingPrice";
+import { formatGuideRatingDisplay } from "../../utils/guideRating";
 
 type GuidePublicProfile = {
   id: string;
@@ -111,6 +113,10 @@ export default function TourDetails() {
   const [canReviewLoading, setCanReviewLoading] = useState(false);
   const [bookingEndDate, setBookingEndDate] = useState<string | null>(null);
   const [guideProfile, setGuideProfile] = useState<GuidePublicProfile | null>(null);
+  /** Same source as guide profile: reviews API average, then profile `rating`. */
+  const [guideReviewAverage, setGuideReviewAverage] = useState<number | null | undefined>(
+    undefined
+  );
 
   useEffect(() => {
     if (id) {
@@ -143,6 +149,27 @@ export default function TourDetails() {
         }
       } catch {
         if (!cancelled) setGuideProfile(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activity?.guide?.id]);
+
+  useEffect(() => {
+    const guideId = activity?.guide?.id;
+    if (!guideId) {
+      setGuideReviewAverage(undefined);
+      return;
+    }
+    let cancelled = false;
+    setGuideReviewAverage(undefined);
+    (async () => {
+      try {
+        const data = await getGuideReviews(guideId);
+        if (!cancelled) setGuideReviewAverage(data.averageRating ?? null);
+      } catch {
+        if (!cancelled) setGuideReviewAverage(undefined);
       }
     })();
     return () => {
@@ -359,14 +386,13 @@ export default function TourDetails() {
       : `${expertiseFirst} Guide`
     : "Guide";
   const guideLocationLine = guideProfile?.location || activity.location;
-  const guideRatingLine =
-    guideProfile?.rating != null && Number.isFinite(guideProfile.rating)
-      ? guideProfile.rating.toFixed(1)
-      : "0.0";
+  const guideRatingLine = formatGuideRatingDisplay(
+    guideReviewAverage != null ? guideReviewAverage : guideProfile?.rating
+  );
   const guideChargeLine =
     guideProfile?.pricing?.length && guideProfile.pricing[0]?.price != null
       ? formatGuideTierCharge(guideProfile.pricing[0])
-      : "$50/day";
+      : "$50/person/day";
   const guideAvatarUri = resolveGuideAvatarUri(guideProfile?.avatar);
 
   const openGuideProfile = () => {
@@ -490,7 +516,7 @@ export default function TourDetails() {
         <View style={styles.ratingRow}>
           <Ionicons name="star" size={18} color="#FFD700" />
           <Text style={styles.ratingText}>
-            {reviews?.averageRating?.toFixed(1) || "N/A"}
+            {formatGuideRatingDisplay(reviews?.averageRating)}
           </Text>
           {reviews && reviews.reviewCount > 0 && (
             <Text style={styles.reviewCountText}>

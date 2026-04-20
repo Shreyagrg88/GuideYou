@@ -1,4 +1,5 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { API_URL } from "../../constants/api";
 import { SkeletonCentered } from "../components/Skeleton";
@@ -15,7 +16,6 @@ type LicenseStatus = "pending" | "viewed" | "approved" | "rejected";
 
 export default function VerificationStatus() {
   const router = useRouter();
-  const { userId } = useLocalSearchParams<{ userId: string }>();
 
   const [status, setStatus] = useState<LicenseStatus>("pending");
   const [loading, setLoading] = useState(true);
@@ -23,11 +23,35 @@ export default function VerificationStatus() {
 
   const fetchStatus = async () => {
     try {
-      const response = await fetch(
-        `${API_URL}/api/license/status/${userId}`
-      );
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Session expired", "Please log in again.", [
+          { text: "OK", onPress: () => router.replace("/login") },
+        ]);
+        return;
+      }
+
+      const url = `${API_URL}/api/license/status`;
+      if (__DEV__) {
+        console.log("[license] GET", url, "(Bearer token — no userId in path)");
+      }
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       const data = await response.json();
+
+      if (response.status === 401) {
+        Alert.alert("Session expired", "Please log in again.", [
+          { text: "OK", onPress: () => router.replace("/login") },
+        ]);
+        return;
+      }
 
       if (!response.ok) {
         Alert.alert("Error", data.msg || "Failed to fetch status");

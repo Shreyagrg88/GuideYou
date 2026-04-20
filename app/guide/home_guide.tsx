@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getNotifications } from "../../api/notifications";
 import { API_URL } from "../../constants/api";
+import { formatNprAmount } from "../../utils/bookingPrice";
 import GuideNavbar from "../components/guide_navbar";
 import { SkeletonGuideHomeScreen } from "../components/Skeleton";
 
@@ -179,7 +180,9 @@ export default function GuideHome() {
             <View style={styles.performanceBox}>
               <Text style={styles.boxTitle}>Earning</Text>
               <Text style={styles.boxValue}>
-                ${homepageData?.performance?.earnings || 0 }
+                {formatNprAmount(
+                  Number(homepageData?.performance?.earnings ?? 0)
+                )}
               </Text>
             </View>
 

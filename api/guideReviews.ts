@@ -16,7 +16,7 @@ export async function getGuideReviews(guideId: string) {
   }
 
   return data as {
-    averageRating: number;
+    averageRating: number | null;
     reviewCount: number;
     reviews: {
       id: string;
@@ -32,6 +32,31 @@ export async function getGuideReviews(guideId: string) {
       createdAt: string;
     }[];
   };
+}
+
+/** Same aggregate as guide profile (`averageRating` from reviews API). */
+export async function fetchGuideReviewAverage(
+  guideId: string
+): Promise<number | null | undefined> {
+  try {
+    const data = await getGuideReviews(guideId);
+    return data.averageRating ?? null;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Attach `averageRating` from reviews so list cards match the profile stat. */
+export async function enrichGuidesWithReviewAverage<T extends { id: string }>(
+  guides: T[]
+): Promise<Array<T & { averageRating?: number | null }>> {
+  return Promise.all(
+    guides.map(async (g) => {
+      const avg = await fetchGuideReviewAverage(g.id);
+      if (avg === undefined) return g;
+      return { ...g, averageRating: avg };
+    })
+  );
 }
 
 export async function canReviewGuide(guideId: string) {

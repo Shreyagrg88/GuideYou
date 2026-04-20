@@ -89,12 +89,15 @@ export default function Login() {
 
       let hasLicenseFile = false;
       let licenseStatus: string | null = null;
-      let submittedAt: string | null = null;
 
       try {
-        const licenseResponse = await fetch(
-          `${API_URL}/api/license/status/${user.id}`
-        );
+        const licenseResponse = await fetch(`${API_URL}/api/license/status`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
         if (licenseResponse.ok) {
           const licenseData = await licenseResponse.json();
@@ -102,7 +105,6 @@ export default function Login() {
           if (licenseData.license?.file) {
             hasLicenseFile = true;
             licenseStatus = licenseData.license.status;
-            submittedAt = licenseData.license.submittedAt;
           }
         }
       } catch (error) {
@@ -114,22 +116,12 @@ export default function Login() {
           "License Required",
           "You must upload and verify your license before accessing the app."
         );
-        router.push({
-          pathname: "/guide/verification",
-          params: { userId: user.id },
-        });
+        router.push({ pathname: "/guide/verification" });
         return;
       }
 
       if (licenseStatus !== "approved") {
-        router.push({
-          pathname: "/guide/verification_status",
-          params: {
-            userId: user.id,
-            licenseStatus,
-            submittedAt,
-          },
-        });
+        router.push({ pathname: "/guide/verification_status" });
         return;
       }
 

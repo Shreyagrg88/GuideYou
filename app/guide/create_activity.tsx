@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     Alert,
     Image,
     KeyboardAvoidingView,
@@ -22,6 +23,9 @@ import { API_URL } from "../../constants/api";
 import LocationAutocomplete from "../components/locationAutocomplete";
 
 export default function AddNewActivity() {
+  const params = useLocalSearchParams<{ activityId?: string }>();
+  const editingId = (params.activityId || "").trim();
+
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
@@ -32,8 +36,67 @@ export default function AddNewActivity() {
 
   const [duration, setDuration] = useState(3);
   const [difficulty, setDifficulty] = useState("Moderate");
+  /** New local images only (edit mode keeps server paths separately). */
   const [photos, setPhotos] = useState<string[]>([]);
+  const [existingServerPhotos, setExistingServerPhotos] = useState<string[]>([]);
+  const [formReady, setFormReady] = useState(!editingId);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!editingId) {
+      setFormReady(true);
+      return;
+    }
+    let cancelled = false;
+    setFormReady(false);
+    (async () => {
+      try {
+        const token = await AsyncStorage.getItem("token");
+        if (!token) {
+          Alert.alert("Login required", "Please sign in again.", [
+            { text: "OK", onPress: () => router.back() },
+          ]);
+          return;
+        }
+        const res = await fetch(`${API_URL}/api/activities/${editingId}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok || !data.activity) {
+          Alert.alert("Error", data.msg || "Could not load activity.", [
+            { text: "OK", onPress: () => router.back() },
+          ]);
+          return;
+        }
+        const a = data.activity;
+        setName(a.name || "");
+        setLocation(a.location || "");
+        setDescription(a.description || "");
+        setEquipment(a.equipment || "");
+        setCategory(a.category || null);
+        setDuration(typeof a.duration === "number" ? a.duration : parseInt(String(a.duration), 10) || 3);
+        setDifficulty(a.difficulty || "Moderate");
+        setExistingServerPhotos(Array.isArray(a.photos) ? a.photos : []);
+        setPhotos([]);
+      } catch {
+        if (!cancelled) {
+          Alert.alert("Error", "Failed to load activity.", [
+            { text: "OK", onPress: () => router.back() },
+          ]);
+        }
+      } finally {
+        if (!cancelled) setFormReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [editingId]);
 
   const categories = [
     "Adventure",
@@ -53,8 +116,10 @@ export default function AddNewActivity() {
     "Architecture",
   ].map((item) => ({ label: item, value: item }));
 
+  const totalPhotoCount = existingServerPhotos.length + photos.length;
+
   const pickImage = async () => {
-    if (photos.length >= 10) {
+    if (totalPhotoCount >= 10) {
       Alert.alert(
         "Photo Limit Reached",
         "You can upload a maximum of 10 photos."
@@ -73,7 +138,7 @@ export default function AddNewActivity() {
       return;
     }
 
-    const remainingSlots = 10 - photos.length;
+    const remainingSlots = 10 - totalPhotoCount;
 
     const result = await ImagePicker.launchImageLibraryAsync({
       allowsMultipleSelection: true,
@@ -83,11 +148,13 @@ export default function AddNewActivity() {
 
     if (!result.canceled && result.assets.length > 0) {
       const newImages = result.assets.map((img) => img.uri);
-      setPhotos((prev) => [...prev, ...newImages].slice(0, 10));
+      setPhotos((prev) => [...prev, ...newImages].slice(0, remainingSlots));
     }
   };
 
   const publishActivity = async () => {
+    if (!formReady) return;
+
     if (!name || !location || !description || !category) {
       Alert.alert(
         "Missing Fields",
@@ -130,6 +197,10 @@ export default function AddNewActivity() {
         formData.append("equipment", equipment.trim());
       }
 
+      if (editingId && existingServerPhotos.length > 0) {
+        formData.append("existingPhotoPaths", JSON.stringify(existingServerPhotos));
+      }
+
       photos.slice(0, 10).forEach((uri, index) => {
         formData.append("photos", {
           uri,
@@ -138,16 +209,19 @@ export default function AddNewActivity() {
         } as any);
       });
 
-      const response = await fetch(
-        `${API_URL}/api/activities`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
+      const isEdit = Boolean(editingId);
+      const url = isEdit
+        ? `${API_URL}/api/activities/${editingId}`
+        : `${API_URL}/api/activities`;
+      const method = isEdit ? "PATCH" : "POST";
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
 
       let data: any;
 
@@ -164,20 +238,23 @@ export default function AddNewActivity() {
 
       if (!response.ok) {
         Alert.alert(
-          "Publish Failed",
+          isEdit ? "Update failed" : "Publish Failed",
           data.msg || data.message || "Something went wrong."
         );
         setLoading(false);
         return;
       }
 
-      Alert.alert(
-        "Submitted for review",
-        "Your activity has been sent for admin review. Once approved, it will be published and visible to tourists. If it's not approved, you'll see the reason in My Activities and can edit and resubmit.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
+      const successTitle = isEdit ? "Activity updated" : "Submitted for review";
+      const successMsg = isEdit
+        ? "Your changes have been saved. If the activity is under admin review, updates may need re-approval depending on your server rules."
+        : "Your activity has been sent for admin review. Once approved, it will be published and visible to tourists. If it's not approved, you'll see the reason in My Activities and can edit and resubmit.";
+
+      Alert.alert(successTitle, successMsg, [
+        {
+          text: "OK",
+          onPress: () => {
+            if (!isEdit) {
               setName("");
               setLocation("");
               setDescription("");
@@ -186,11 +263,11 @@ export default function AddNewActivity() {
               setDuration(3);
               setDifficulty("Moderate");
               setPhotos([]);
-              router.back();
-            },
+            }
+            router.back();
           },
-        ]
-      );
+        },
+      ]);
     } catch (error) {
       console.error("Upload error:", error);
       Alert.alert(
@@ -201,6 +278,15 @@ export default function AddNewActivity() {
       setLoading(false);
     }
   };
+
+  if (!formReady) {
+    return (
+      <SafeAreaView style={styles.loadingSafe}>
+        <ActivityIndicator size="large" color="#007BFF" style={{ marginTop: 40 }} />
+        <Text style={styles.loadingLabel}>Loading activity…</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F3F7FF" }}>
@@ -218,7 +304,7 @@ export default function AddNewActivity() {
             <TouchableOpacity onPress={() => router.back()}>
               <Ionicons name="chevron-back" size={26} color="#000" />
             </TouchableOpacity>
-            <Text style={styles.title}>New Activity</Text>
+            <Text style={styles.title}>{editingId ? "Edit Activity" : "New Activity"}</Text>
           </View>
 
           {/* Activity Name */}
@@ -265,10 +351,30 @@ export default function AddNewActivity() {
           {/* Photos */}
           <Text style={styles.label}>Photo Gallery</Text>
           <Text style={styles.subText}>
-            Upload high-quality images (max 10).
+            {existingServerPhotos.length > 0
+              ? "Existing photos are kept unless your server replaces them. Add more below (max 10 total)."
+              : "Upload high-quality images (max 10)."}
           </Text>
 
           <View style={styles.photoContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {existingServerPhotos.map((path, index) => (
+                <Image
+                  key={`ex-${index}`}
+                  source={{
+                    uri: path.startsWith("http") ? path : `${API_URL}${path}`,
+                  }}
+                  style={styles.photoPreview}
+                />
+              ))}
+              {photos.map((uri, index) => (
+                <Image
+                  key={`new-${index}`}
+                  source={{ uri }}
+                  style={styles.photoPreview}
+                />
+              ))}
+            </ScrollView>
             <TouchableOpacity
               style={styles.photoButton}
               onPress={pickImage}
@@ -280,16 +386,6 @@ export default function AddNewActivity() {
               />
               <Text style={styles.photoButtonText}>Add photos</Text>
             </TouchableOpacity>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {photos.map((uri, index) => (
-                <Image
-                  key={index}
-                  source={{ uri }}
-                  style={styles.photoPreview}
-                />
-              ))}
-            </ScrollView>
           </View>
 
           {/* Duration & Difficulty */}
@@ -367,7 +463,13 @@ export default function AddNewActivity() {
             disabled={loading}
           >
             <Text style={styles.publishText}>
-              {loading ? "Publishing..." : "Publish Activity"}
+              {loading
+                ? editingId
+                  ? "Saving..."
+                  : "Publishing..."
+                : editingId
+                  ? "Save changes"
+                  : "Publish Activity"}
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -377,6 +479,8 @@ export default function AddNewActivity() {
 }
 
 const styles = StyleSheet.create({
+  loadingSafe: { flex: 1, backgroundColor: "#F3F7FF", alignItems: "center" },
+  loadingLabel: { marginTop: 12, fontFamily: "Nunito_400Regular", color: "#666" },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",

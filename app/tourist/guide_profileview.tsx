@@ -21,7 +21,8 @@ import {
     submitGuideReview,
 } from "../../api/guideReviews";
 import { API_URL } from "../../constants/api";
-import { formatGuideTierCharge } from "../../utils/bookingPrice";
+import { formatGuideProfileRateLines, formatGuideTierCharge } from "../../utils/bookingPrice";
+import { formatGuideRatingDisplay } from "../../utils/guideRating";
 import { SkeletonBlock } from "../components/Skeleton";
 import TouristNavbar from "../components/tourist_navbar";
 import { SkeletonProfileScreen } from "../components/Skeleton";
@@ -347,16 +348,15 @@ export default function GuideProfileView() {
       ? `${guide.yearsOfExperience} Yrs`
       : "—";
   const pricing = guide?.pricing;
-  const rateDisplay =
-    (pricing?.length ?? 0) > 0 && pricing?.[0].price != null
-      ? formatGuideTierCharge(pricing[0])
-      : params.guideCharge ?? "$50/day";
-  const ratingDisplay =
-    averageRating != null
-      ? averageRating.toFixed(1)
-      : guide?.rating != null
-      ? guide.rating.toFixed(1)
-      : params.guideRating ?? "4.9";
+  const rateTier =
+    (pricing?.length ?? 0) > 0 && pricing?.[0].price != null ? pricing[0] : undefined;
+  const rateDisplay = rateTier
+    ? formatGuideTierCharge(rateTier)
+    : params.guideCharge ?? "$50/person/day";
+  const rateLines = formatGuideProfileRateLines(rateTier, params.guideCharge);
+  const ratingDisplay = formatGuideRatingDisplay(
+    averageRating ?? guide?.rating ?? params.guideRating
+  );
   const languagesDisplay =
     guide?.languages?.length
       ? (Array.isArray(guide.languages) ? guide.languages : [guide.languages]).join(", ")
@@ -413,7 +413,7 @@ export default function GuideProfileView() {
         guideName: (guide?.fullName || guide?.username || params.guideName) ?? "",
         guideRole: (guide?.mainExpertise || params.guideRole) ?? "",
         guideLocation: (guide?.location || params.guideLocation) ?? "",
-        guideRating: guide?.rating != null ? String(guide.rating) : params.guideRating ?? "4.9",
+        guideRating: ratingDisplay,
         guideImage,
         guideCharge: rateDisplay,
         activityId: params.activityId ?? undefined,
@@ -488,9 +488,18 @@ export default function GuideProfileView() {
               <Text style={styles.statLabel}>Exp</Text>
               <Text style={styles.statValue}>{experience}</Text>
             </View>
-            <View style={[styles.statCell, styles.statCellBorder]}>
+            <View style={[styles.statCell, styles.statCellBorder, styles.statCellRate]}>
               <Text style={styles.statLabel}>Rate</Text>
-              <Text style={styles.statValue}>{rateDisplay}</Text>
+              <View style={styles.rateValueBlock}>
+                <Text style={styles.statValueRatePrimary} numberOfLines={2}>
+                  {rateLines.usdLine}
+                </Text>
+                {rateLines.nprLine ? (
+                  <Text style={styles.statValueRateSecondary} numberOfLines={1}>
+                    {rateLines.nprLine}
+                  </Text>
+                ) : null}
+              </View>
             </View>
             <View style={styles.statCell}>
               <Text style={styles.statLabel}>Rating</Text>
@@ -604,7 +613,7 @@ export default function GuideProfileView() {
           <Text style={styles.sectionTitle}>Reviews</Text>
           {reviewCount > 0 && averageRating != null && (
             <Text style={styles.viewAllText}>
-              {averageRating.toFixed(1)} ({reviewCount} reviews)
+              {formatGuideRatingDisplay(averageRating)} ({reviewCount} reviews)
             </Text>
           )}
         </View>
@@ -779,11 +788,41 @@ const styles = StyleSheet.create({
     backgroundColor: "#F5F8FC",
     borderRadius: 10,
     overflow: "hidden",
+    alignItems: "stretch",
   },
-  statCell: { flex: 1, paddingVertical: 10, alignItems: "center" },
+  statCell: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "flex-start",
+  },
   statCellBorder: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: "#E5E7EB" },
-  statLabel: { fontFamily: "Nunito_400Regular", fontSize: 11, color: "#666", marginBottom: 2 },
-  statValue: { fontFamily: "Nunito_700Bold", fontSize: 13, color: "#333" },
+  /** Slightly wider middle column so rate lines fit without crowding dividers. */
+  statCellRate: { flex: 1.15, paddingHorizontal: 6 },
+  statLabel: { fontFamily: "Nunito_400Regular", fontSize: 11, color: "#666", marginBottom: 4 },
+  statValue: { fontFamily: "Nunito_700Bold", fontSize: 13, color: "#333", textAlign: "center" },
+  rateValueBlock: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statValueRatePrimary: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 12,
+    lineHeight: 15,
+    color: "#333",
+    textAlign: "center",
+  },
+  statValueRateSecondary: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 10,
+    lineHeight: 13,
+    color: "#5c6570",
+    textAlign: "center",
+    marginTop: 3,
+  },
   bioBlock: { width: "100%", marginBottom: 10, paddingHorizontal: 4 },
   bioLabel: { fontFamily: "Nunito_700Bold", fontSize: 14, color: "#333", marginBottom: 4 },
   bio: { fontFamily: "Nunito_400Regular", color: "#444", lineHeight: 20 },

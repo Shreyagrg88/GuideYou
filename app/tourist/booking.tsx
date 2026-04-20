@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getGuideReviews } from "../../api/guideReviews";
 import { API_URL } from "../../constants/api";
 import { SkeletonBookingDetailScreen } from "../components/Skeleton";
 import {
@@ -11,6 +12,7 @@ import {
   formatNprAmount,
   parseUsdFromGuideChargeString,
 } from "../../utils/bookingPrice";
+import { formatGuideRatingDisplay } from "../../utils/guideRating";
 
 type DateStatus = "available" | "unavailable" | "booked" | "reserved";
 
@@ -53,6 +55,8 @@ export default function BookingPage() {
   const [usdToNprRate, setUsdToNprRate] = useState(135);
   const [submitting, setSubmitting] = useState(false);
   const [count, setCount] = useState(1);
+  /** Matches guide profile: reviews `averageRating`, then param fallback. */
+  const [profileAlignedRating, setProfileAlignedRating] = useState<string | null>(null);
 
   const areDatesAvailable = (dates: Date[]): { available: boolean; unavailableDates: string[] } => {
     const unavailableDates: string[] = [];
@@ -122,6 +126,30 @@ export default function BookingPage() {
     if (params.guideId) fetchAvailability(params.guideId);
     else setLoading(false);
   }, [params.guideId]);
+
+  useEffect(() => {
+    const gid = params.guideId?.trim();
+    if (!gid) {
+      setProfileAlignedRating(null);
+      return;
+    }
+    let cancelled = false;
+    setProfileAlignedRating(null);
+    (async () => {
+      try {
+        const data = await getGuideReviews(gid);
+        if (cancelled) return;
+        setProfileAlignedRating(
+          formatGuideRatingDisplay(data.averageRating ?? params.guideRating)
+        );
+      } catch {
+        if (!cancelled) setProfileAlignedRating(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [params.guideId, params.guideRating]);
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
@@ -260,7 +288,7 @@ export default function BookingPage() {
     }
   };
 
-  const getUsdPerPerson = (): number => {
+  const getUsdPerPersonPerDay = (): number => {
     if (pricing.length > 0 && pricing[0].price != null) {
       return Number(pricing[0].price) || 0;
     }
@@ -270,7 +298,8 @@ export default function BookingPage() {
     return 0;
   };
 
-  const usdTotalEstimate = getUsdPerPerson() * count * activityDuration;
+  const usdRatePerPersonDay = getUsdPerPersonPerDay();
+  const usdTotalEstimate = usdRatePerPersonDay * count * activityDuration;
   const nprTotalEstimate = estimateNprFromUsd(usdTotalEstimate, usdToNprRate);
 
   if (loading) {
@@ -294,8 +323,17 @@ export default function BookingPage() {
             <Text style={styles.guideInfo}>{params.guideRole || "Guide"} • {params.guideLocation || "Location"}</Text>
             <View style={styles.ratingRow}>
               <Ionicons name="star" size={14} color="#f4b400" />
-              <Text style={styles.ratingText}>{params.guideRating || "0.0"}</Text>
+              <Text style={styles.ratingText}>
+                {profileAlignedRating ?? formatGuideRatingDisplay(params.guideRating)}
+              </Text>
             </View>
+            {usdRatePerPersonDay > 0 ? (
+              <Text style={styles.rateHint}>
+                ${usdRatePerPersonDay.toFixed(0)} USD per person, per day
+              </Text>
+            ) : (
+              <Text style={styles.rateHintMuted}>Daily rate will be confirmed by the guide</Text>
+            )}
           </View>
           <Ionicons name="checkmark-circle" size={26} color="#2ecc71" />
         </View>
@@ -402,7 +440,12 @@ export default function BookingPage() {
         </View>
 
         <View style={styles.participantRow}>
-          <Text style={styles.sectionTitle}>Participants</Text>
+          <View>
+            <Text style={styles.sectionTitle}>Participants</Text>
+            <Text style={styles.participantHint}>
+              Estimated total = rate × people × days. Each +1 adds one daily rate per person.
+            </Text>
+          </View>
           <View style={styles.participantBox}>
             <TouchableOpacity onPress={() => count > 1 && setCount(count - 1)} disabled={count <= 1}>
               <Ionicons name="remove" size={20} color={count <= 1 ? "#ccc" : "#777"} />
@@ -422,7 +465,10 @@ export default function BookingPage() {
           <Text style={styles.totalLabel}>Estimated total</Text>
           <Text style={styles.totalAmount}>{formatNprAmount(nprTotalEstimate)}</Text>
           <Text style={styles.totalSub}>
-            ${usdTotalEstimate.toFixed(0)} USD · Final NPR set when guide accepts
+            {usdRatePerPersonDay > 0
+              ? `${count} people × ${activityDuration} day${activityDuration === 1 ? "" : "s"} × $${usdRatePerPersonDay.toFixed(0)}/person/day = $${usdTotalEstimate.toFixed(0)} USD`
+              : `$${usdTotalEstimate.toFixed(0)} USD`}
+            {" · "}Final NPR set when guide accepts
           </Text>
         </View>
         <TouchableOpacity style={[styles.bookBtn, submitting && styles.bookBtnDisabled]} onPress={handleBookRequest} disabled={submitting}>
@@ -479,14 +525,48 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: "row", alignItems: "center", marginHorizontal: 10 },
   legendDot: { width: 10, height: 10, borderRadius: 5, marginRight: 5 },
   legendLabel: { fontFamily: "Nunito_400Regular", fontSize: 12, color: "#666" },
-  participantRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 },
-  participantBox: { flexDirection: "row", alignItems: "center", backgroundColor: "#F1F4FA", paddingHorizontal: 15, paddingVertical: 6, borderRadius: 50 },
+  rateHint: {
+    marginTop: 6,
+    fontSize: 12,
+    fontFamily: "Nunito_600SemiBold",
+    color: "#007BFF",
+  },
+  rateHintMuted: {
+    marginTop: 6,
+    fontSize: 12,
+    fontFamily: "Nunito_400Regular",
+    color: "#888",
+  },
+  participantRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginTop: 10,
+    gap: 12,
+  },
+  participantHint: {
+    fontSize: 11,
+    fontFamily: "Nunito_400Regular",
+    color: "#666",
+    marginTop: 4,
+    maxWidth: 220,
+    lineHeight: 15,
+  },
+  participantBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F1F4FA",
+    paddingHorizontal: 15,
+    paddingVertical: 6,
+    borderRadius: 50,
+    alignSelf: "center",
+  },
   participantCount: { marginHorizontal: 15, fontFamily: "Nunito_700Bold", fontSize: 16 },
   line: { height: 1, backgroundColor: "#D9D9D9", marginVertical: 20 },
   bottomRow: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", padding: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: 1, borderColor: "#eee", elevation: 5 },
   totalLabel: { fontFamily: "Nunito_400Regular", color: "#9aa0a6", fontSize: 12 },
   totalAmount: { fontFamily: "Nunito_700Bold", fontSize: 18, color: "#000" },
-  totalSub: { fontFamily: "Nunito_400Regular", fontSize: 11, color: "#666", marginTop: 2, maxWidth: 200 },
+  totalSub: { fontFamily: "Nunito_400Regular", fontSize: 11, color: "#666", marginTop: 2, flexShrink: 1, lineHeight: 15 },
   bookBtn: { backgroundColor: "#007BFF", paddingVertical: 12, paddingHorizontal: 25, borderRadius: 10 },
   bookBtnDisabled: { backgroundColor: "#95a5a6", opacity: 0.7 },
   bookBtnText: { color: "#fff", fontFamily: "Nunito_700Bold", fontSize: 15 },

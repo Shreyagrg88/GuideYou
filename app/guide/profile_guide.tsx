@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -16,10 +16,23 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
+import {
+  estimateNprFromUsd,
+  formatGuideProfileRateLines,
+} from "../../utils/bookingPrice";
+import { formatGuideRatingDisplay } from "../../utils/guideRating";
 import GuideNavbar from "../components/guide_navbar";
 import { SkeletonBlock, SkeletonProfileScreen, SkeletonReviewCards } from "../components/Skeleton";
 
 const NAVBAR_HEIGHT = 70;
+const DEFAULT_USD_TO_NPR = 135;
+
+type GuideRateTier = {
+  price: number;
+  priceUsd?: number;
+  priceNpr?: number;
+  unit: string;
+};
 
 type GuideProfile = {
   id: string;
@@ -59,7 +72,16 @@ export default function Profile() {
   const [profile, setProfile] = useState<GuideProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [rateDisplay, setRateDisplay] = useState<string>("$10/day");
+  const [rateTier, setRateTier] = useState<GuideRateTier>({
+    price: 10,
+    priceNpr: estimateNprFromUsd(10, DEFAULT_USD_TO_NPR),
+    unit: "day",
+  });
+
+  const rateLines = useMemo(
+    () => formatGuideProfileRateLines(rateTier, undefined),
+    [rateTier]
+  );
   const [activities, setActivities] = useState<GuideActivity[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [activitiesScrollX, setActivitiesScrollX] = useState(0);
@@ -96,37 +118,59 @@ export default function Profile() {
         .then((data) => {
           if (data.pricing?.length > 0 && data.pricing[0].price != null) {
             const p = data.pricing[0];
-            const unit = (p.unit || "").toLowerCase().includes("day") ? "/day" : `/${p.unit || "day"}`;
-            setRateDisplay(`$${p.price}${unit}`);
+            const unitRaw =
+              p.unit != null && String(p.unit).trim()
+                ? String(p.unit).trim()
+                : "day";
+            const usd = Number(p.priceUsd ?? p.price);
+            if (!Number.isFinite(usd)) return;
+            const fx =
+              typeof data.usdToNprRate === "number" && data.usdToNprRate > 0
+                ? data.usdToNprRate
+                : DEFAULT_USD_TO_NPR;
+            const npr =
+              p.priceNpr != null && Number.isFinite(Number(p.priceNpr))
+                ? Math.round(Number(p.priceNpr))
+                : estimateNprFromUsd(usd, fx);
+            setRateTier({
+              price: usd,
+              priceUsd:
+                p.priceUsd != null && Number.isFinite(Number(p.priceUsd))
+                  ? Number(p.priceUsd)
+                  : undefined,
+              priceNpr: npr,
+              unit: unitRaw,
+            });
           }
         })
         .catch(() => {});
     });
   }, [profile?.id]);
 
+  const fetchMyActivities = useCallback(async () => {
+    const token = await AsyncStorage.getItem("token");
+    if (!token) return;
+    setActivitiesLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/activities/guide/my-activities`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (response.ok) setActivities(data.activities || []);
+    } catch {
+      setActivities([]);
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    const fetchMyActivities = async () => {
-      const token = await AsyncStorage.getItem("token");
-      if (!token) return;
-      setActivitiesLoading(true);
-      try {
-        const response = await fetch(`${API_URL}/api/activities/guide/my-activities`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        const data = await response.json();
-        if (response.ok) setActivities(data.activities || []);
-      } catch {
-        setActivities([]);
-      } finally {
-        setActivitiesLoading(false);
-      }
-    };
     if (profile?.id) fetchMyActivities();
-  }, [profile?.id]);
+  }, [profile?.id, fetchMyActivities]);
 
   useEffect(() => {
     const fetchGuideReviews = async () => {
@@ -191,7 +235,8 @@ export default function Profile() {
   useFocusEffect(
     useCallback(() => {
       fetchProfile();
-    }, [])
+      fetchMyActivities();
+    }, [fetchMyActivities])
   );
 
   const fetchProfile = async () => {
@@ -338,18 +383,23 @@ export default function Profile() {
                   : " "}
               </Text>
             </View>
-            <View style={[styles.statCell, styles.statCellBorder]}>
+            <View style={[styles.statCell, styles.statCellBorder, styles.statCellRate]}>
               <Text style={styles.statLabel}>Rate</Text>
-              <Text style={styles.statValue}>{rateDisplay}</Text>
+              <View style={styles.rateValueBlock}>
+                <Text style={styles.statValueRatePrimary} numberOfLines={2}>
+                  {rateLines.usdLine}
+                </Text>
+                {rateLines.nprLine ? (
+                  <Text style={styles.statValueRateSecondary} numberOfLines={1}>
+                    {rateLines.nprLine}
+                  </Text>
+                ) : null}
+              </View>
             </View>
             <View style={styles.statCell}>
               <Text style={styles.statLabel}>Rating</Text>
               <Text style={styles.statValue}>
-                {averageRating != null
-                  ? averageRating.toFixed(1)
-                  : profile.rating != null
-                  ? profile.rating.toFixed(1)
-                  : "4.9"}
+                {formatGuideRatingDisplay(averageRating ?? profile.rating)}
               </Text>
             </View>
           </View>
@@ -411,7 +461,16 @@ export default function Profile() {
                 <TouchableOpacity
                   key={a.id}
                   style={styles.activityCard}
-                  onPress={() => router.push({ pathname: "/guide/create_activity", params: { activityId: a.id } })}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/guide/activity_detail",
+                      params: {
+                        id: a.id,
+                        status: a.status,
+                        rejectionReason: a.rejectionReason ?? "",
+                      },
+                    })
+                  }
                 >
                   <Image source={{ uri: getActivityImageUri(a.photos) }} style={styles.activityImage} />
                   <Text style={styles.activityCardTitle} numberOfLines={2}>{a.name}</Text>
@@ -440,7 +499,7 @@ export default function Profile() {
           <Text style={styles.sectionTitle}>Reviews</Text>
           {reviewCount > 0 && averageRating != null && (
             <Text style={styles.viewAllText}>
-              {averageRating.toFixed(1)} ({reviewCount} reviews)
+              {formatGuideRatingDisplay(averageRating)} ({reviewCount} reviews)
             </Text>
           )}
         </View>
@@ -567,10 +626,38 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: "hidden",
   },
-  statCell: { flex: 1, paddingVertical: 10, alignItems: "center" },
+  statCell: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "flex-start",
+  },
   statCellBorder: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: "#E5E7EB" },
+  statCellRate: { flex: 1.15, paddingHorizontal: 6 },
   statLabel: { fontFamily: "Nunito_400Regular", fontSize: 11, color: "#666", marginBottom: 2 },
-  statValue: { fontFamily: "Nunito_700Bold", fontSize: 13, color: "#333" },
+  statValue: { fontFamily: "Nunito_700Bold", fontSize: 13, color: "#333", textAlign: "center" },
+  rateValueBlock: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statValueRatePrimary: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 12,
+    lineHeight: 15,
+    color: "#333",
+    textAlign: "center",
+  },
+  statValueRateSecondary: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 10,
+    lineHeight: 13,
+    color: "#5c6570",
+    textAlign: "center",
+    marginTop: 3,
+  },
   bioBlock: { width: "100%", marginBottom: 10, paddingHorizontal: 4 },
   bioLabel: { fontFamily: "Nunito_700Bold", fontSize: 14, color: "#333", marginBottom: 4 },
   bio: { fontFamily: "Nunito_400Regular", color: "#444", lineHeight: 20 },

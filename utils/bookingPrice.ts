@@ -75,6 +75,13 @@ export function resolveEsewaBookingDisplay(booking: {
   };
 }
 
+/** Shown next to USD amount so totals (people × days × rate) are understood. */
+const PERSON_UNIT_SUFFIX = (unit: string): string => {
+  const u = (unit || "day").trim().toLowerCase();
+  if (u.includes("day")) return "/person/day";
+  return `/person/${unit || "day"}`;
+};
+
 /** Guide tier: USD rate + NPR hint when API sends priceNpr. */
 export function formatGuideTierCharge(p: {
   price: number;
@@ -82,13 +89,54 @@ export function formatGuideTierCharge(p: {
   priceNpr?: number;
   unit: string;
 }): string {
-  const unitRaw = (p.unit || "day").toLowerCase();
-  const unitSuffix = unitRaw.includes("day") ? "/day" : `/${p.unit || "day"}`;
+  const unitSuffix = PERSON_UNIT_SUFFIX(p.unit || "day");
   const usd = p.priceUsd ?? p.price;
   if (p.priceNpr != null && Number.isFinite(p.priceNpr)) {
-    return `$${usd}${unitSuffix} · NPR ${Math.round(p.priceNpr).toLocaleString("en-US")}`;
+    return `$${usd}${unitSuffix} · NPR ${Math.round(p.priceNpr).toLocaleString("en-US")}${unitSuffix}`;
   }
   return `$${usd}${unitSuffix}`;
+}
+
+export type GuideProfileRateLines = { usdLine: string; nprLine: string | null };
+
+/**
+ * Two-line rate for narrow UI (e.g. profile stat column): USD with unit on first line;
+ * NPR on second line without repeating /person/day to reduce clutter.
+ */
+export function formatGuideProfileRateLines(
+  tier:
+    | {
+        price: number;
+        priceUsd?: number;
+        priceNpr?: number;
+        unit: string;
+      }
+    | null
+    | undefined,
+  fallbackCharge?: string
+): GuideProfileRateLines {
+  if (tier != null && tier.price != null && Number.isFinite(Number(tier.price))) {
+    const usd = tier.priceUsd ?? tier.price;
+    const unitSuffix = PERSON_UNIT_SUFFIX(tier.unit || "day");
+    const usdLine = `$${usd}${unitSuffix}`;
+    const nprLine =
+      tier.priceNpr != null && Number.isFinite(tier.priceNpr)
+        ? `NPR ${Math.round(tier.priceNpr).toLocaleString("en-US")}`
+        : null;
+    return { usdLine, nprLine };
+  }
+
+  const fb = (fallbackCharge || "").trim();
+  if (fb) {
+    const parts = fb.split(/\s*·\s*/);
+    if (parts.length >= 2) {
+      const nprRaw = parts[1].trim().replace(/\/person\/day$/i, "").trim();
+      return { usdLine: parts[0].trim(), nprLine: nprRaw || null };
+    }
+    return { usdLine: fb, nprLine: null };
+  }
+
+  return { usdLine: "$50/person/day", nprLine: null };
 }
 
 /** Homepage / search guide card charge string. */
@@ -104,17 +152,17 @@ export function formatGuideListCharge(g: {
   const usd = g.chargeUsd ?? g.rate;
   const npr = g.chargeNpr;
   if (usd != null && npr != null && Number.isFinite(usd) && Number.isFinite(npr)) {
-    return `$${usd}/day · NPR ${Math.round(npr).toLocaleString("en-US")}`;
+    return `$${usd}/person/day · NPR ${Math.round(npr).toLocaleString("en-US")}/person/day`;
   }
-  if (usd != null) return `$${usd}/day`;
-  return "$10/day";
+  if (usd != null) return `$${usd}/person/day`;
+  return "$10/person/day";
 }
 
 export function estimateNprFromUsd(usdTotal: number, rate: number): number {
   return Math.round(usdTotal * rate);
 }
 
-/** Parse USD from guideCharge like "$50/day" or "$50/day · NPR 6,750". */
+/** Parse USD from guideCharge like "$50/person/day" or legacy "$50/day · NPR …". */
 export function parseUsdFromGuideChargeString(charge: string): number {
   const m = charge.match(/\$\s*([\d,]+\.?\d*)/);
   if (m) return parseFloat(m[1].replace(/,/g, "")) || 0;
