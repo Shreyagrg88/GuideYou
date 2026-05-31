@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -16,105 +16,171 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import DropDownPicker from "react-native-dropdown-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
+import {
+  ITINERARY_DAY_MAX_CHARS,
+  normalizeItineraryDaysFromApi,
+} from "../../utils/itineraryDays";
+import {
+  isActivityRejectedStatus,
+  parseActivityFromResponse,
+  pickRejectionReason,
+  pickRouteParam,
+} from "../../utils/activityRejection";
 
-import LocationAutocomplete from "../components/locationAutocomplete";
+import LocationAutocomplete from "@/components/locationAutocomplete";
+
+const ACCENT_BLUE = "#007BFF";
+
+/** Section title with theme blue bullet (matches app primary actions). */
+function SectionLabel({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: object;
+}) {
+  return (
+    <View style={[styles.sectionLabelRow, style]}>
+      <View style={styles.sectionLabelBullet} />
+      <Text style={styles.sectionLabelText}>{children}</Text>
+    </View>
+  );
+}
+
+const CATEGORY_OPTIONS = [
+  "Adventure",
+  "Culture",
+  "Food",
+  "Night Life",
+  "Photography",
+  "Shopping",
+  "Music",
+  "Sports",
+  "Art",
+  "History",
+  "Nature",
+  "Local Experiences",
+  "Hiking",
+  "Festivals",
+  "Architecture",
+] as const;
 
 export default function AddNewActivity() {
-  const params = useLocalSearchParams<{ activityId?: string }>();
-  const editingId = (params.activityId || "").trim();
+  const params = useLocalSearchParams<{ activityId?: string | string[] }>();
+  const editingId = pickRouteParam(params.activityId);
 
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
   const [equipment, setEquipment] = useState("");
 
-  const [categoryOpen, setCategoryOpen] = useState(false);
   const [category, setCategory] = useState<string | null>(null);
 
   const [duration, setDuration] = useState(3);
+  /** One free-text plan per day; length always matches `duration`. */
+  const [itineraryDays, setItineraryDays] = useState<string[]>(() =>
+    Array.from({ length: 3 }, () => "")
+  );
   const [difficulty, setDifficulty] = useState("Moderate");
   /** New local images only (edit mode keeps server paths separately). */
   const [photos, setPhotos] = useState<string[]>([]);
   const [existingServerPhotos, setExistingServerPhotos] = useState<string[]>([]);
   const [formReady, setFormReady] = useState(!editingId);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activityStatus, setActivityStatus] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
 
-  useEffect(() => {
+  const isRejectedEdit = isActivityRejectedStatus(activityStatus);
+
+  const loadActivityForEdit = useCallback(async () => {
     if (!editingId) {
       setFormReady(true);
+      setLoadError(null);
       return;
     }
-    let cancelled = false;
+
     setFormReady(false);
-    (async () => {
-      try {
-        const token = await AsyncStorage.getItem("token");
-        if (!token) {
-          Alert.alert("Login required", "Please sign in again.", [
-            { text: "OK", onPress: () => router.back() },
-          ]);
-          return;
-        }
-        const res = await fetch(`${API_URL}/api/activities/${editingId}`, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-        const data = await res.json().catch(() => ({}));
-        if (cancelled) return;
-        if (!res.ok || !data.activity) {
-          Alert.alert("Error", data.msg || "Could not load activity.", [
-            { text: "OK", onPress: () => router.back() },
-          ]);
-          return;
-        }
-        const a = data.activity;
-        setName(a.name || "");
-        setLocation(a.location || "");
-        setDescription(a.description || "");
-        setEquipment(a.equipment || "");
-        setCategory(a.category || null);
-        setDuration(typeof a.duration === "number" ? a.duration : parseInt(String(a.duration), 10) || 3);
-        setDifficulty(a.difficulty || "Moderate");
-        setExistingServerPhotos(Array.isArray(a.photos) ? a.photos : []);
-        setPhotos([]);
-      } catch {
-        if (!cancelled) {
-          Alert.alert("Error", "Failed to load activity.", [
-            { text: "OK", onPress: () => router.back() },
-          ]);
-        }
-      } finally {
-        if (!cancelled) setFormReady(true);
+    setLoadError(null);
+
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        setLoadError("Please sign in again to edit this activity.");
+        return;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+
+      const res = await fetch(`${API_URL}/api/activities/${editingId}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      const a = parseActivityFromResponse(data);
+
+      if (!res.ok || !a) {
+        setLoadError(
+          (typeof data.msg === "string" && data.msg) ||
+            "Could not load this activity."
+        );
+        return;
+      }
+
+      const dur =
+        typeof a.duration === "number"
+          ? a.duration
+          : parseInt(String(a.duration), 10) || 3;
+      setName(String(a.name ?? ""));
+      setLocation(String(a.location ?? ""));
+      setDescription(String(a.description ?? ""));
+      setEquipment(a.equipment != null ? String(a.equipment) : "");
+      setCategory(a.category != null ? String(a.category) : null);
+      setDuration(dur);
+      setItineraryDays(
+        normalizeItineraryDaysFromApi(
+          a.itineraryDays ?? a.itinerary ?? a.dayPlans,
+          dur
+        )
+      );
+      setDifficulty(String(a.difficulty ?? "Moderate"));
+      setExistingServerPhotos(Array.isArray(a.photos) ? (a.photos as string[]) : []);
+      setPhotos([]);
+      setActivityStatus(a.status != null ? String(a.status) : null);
+      setRejectionReason(pickRejectionReason(a));
+      setFormReady(true);
+    } catch {
+      setLoadError("Failed to load activity. Check your connection and try again.");
+    }
   }, [editingId]);
 
-  const categories = [
-    "Adventure",
-    "Culture",
-    "Food",
-    "Night Life",
-    "Photography",
-    "Shopping",
-    "Music",
-    "Sports",
-    "Art",
-    "History",
-    "Nature",
-    "Local Experiences",
-    "Hiking",
-    "Festivals",
-    "Architecture",
-  ].map((item) => ({ label: item, value: item }));
+  useEffect(() => {
+    void loadActivityForEdit();
+  }, [loadActivityForEdit]);
+
+  useEffect(() => {
+    setItineraryDays((prev) => {
+      if (duration === prev.length) return prev;
+      if (duration > prev.length) {
+        return [
+          ...prev,
+          ...Array.from({ length: duration - prev.length }, () => ""),
+        ];
+      }
+      return prev.slice(0, duration);
+    });
+  }, [duration]);
+
+  const updateItineraryDay = (index: number, text: string) => {
+    setItineraryDays((prev) => {
+      const next = [...prev];
+      if (index >= 0 && index < next.length) next[index] = text;
+      return next;
+    });
+  };
 
   const totalPhotoCount = existingServerPhotos.length + photos.length;
 
@@ -155,10 +221,10 @@ export default function AddNewActivity() {
   const publishActivity = async () => {
     if (!formReady) return;
 
-    if (!name || !location || !description || !category) {
+    if (!name.trim() || !location.trim() || !description.trim() || !category) {
       Alert.alert(
         "Missing Fields",
-        "Please fill in all required fields."
+        "Please fill in activity name, location, description, and category."
       );
       return;
     }
@@ -169,6 +235,32 @@ export default function AddNewActivity() {
         "Please provide a detailed description (20+ characters)."
       );
       return;
+    }
+
+    const itineraryPayload = itineraryDays.slice(0, duration);
+    if (itineraryPayload.length !== duration) {
+      Alert.alert(
+        "Itinerary mismatch",
+        `Add plans for all ${duration} days (internal error: expected ${duration} entries).`
+      );
+      return;
+    }
+    for (let i = 0; i < itineraryPayload.length; i++) {
+      const t = itineraryPayload[i].trim();
+      if (!t) {
+        Alert.alert(
+          "Incomplete itinerary",
+          `Day ${i + 1} cannot be empty. Describe what happens that day.`
+        );
+        return;
+      }
+      if (itineraryPayload[i].length > ITINERARY_DAY_MAX_CHARS) {
+        Alert.alert(
+          "Itinerary too long",
+          `Day ${i + 1} must be at most ${ITINERARY_DAY_MAX_CHARS.toLocaleString()} characters.`
+        );
+        return;
+      }
     }
 
     setLoading(true);
@@ -186,6 +278,8 @@ export default function AddNewActivity() {
       }
 
       const formData = new FormData();
+      const isEdit = Boolean(editingId);
+
       formData.append("name", name.trim());
       formData.append("location", location.trim());
       formData.append("description", description.trim());
@@ -197,8 +291,17 @@ export default function AddNewActivity() {
         formData.append("equipment", equipment.trim());
       }
 
+      formData.append(
+        "itineraryDays",
+        JSON.stringify(itineraryPayload)
+      );
+
       if (editingId && existingServerPhotos.length > 0) {
         formData.append("existingPhotoPaths", JSON.stringify(existingServerPhotos));
+      }
+
+      if (isEdit && isRejectedEdit) {
+        formData.append("status", "pending_approval");
       }
 
       photos.slice(0, 10).forEach((uri, index) => {
@@ -209,7 +312,6 @@ export default function AddNewActivity() {
         } as any);
       });
 
-      const isEdit = Boolean(editingId);
       const url = isEdit
         ? `${API_URL}/api/activities/${editingId}`
         : `${API_URL}/api/activities`;
@@ -245,9 +347,15 @@ export default function AddNewActivity() {
         return;
       }
 
-      const successTitle = isEdit ? "Activity updated" : "Submitted for review";
+      const successTitle = isEdit
+        ? isRejectedEdit
+          ? "Resubmitted for review"
+          : "Activity updated"
+        : "Submitted for review";
       const successMsg = isEdit
-        ? "Your changes have been saved. If the activity is under admin review, updates may need re-approval depending on your server rules."
+        ? isRejectedEdit
+          ? "Your activity has been sent back to admin for review. You'll be notified once it's approved."
+          : "Your changes have been saved. If the activity is under admin review, updates may need re-approval depending on your server rules."
         : "Your activity has been sent for admin review. Once approved, it will be published and visible to tourists. If it's not approved, you'll see the reason in My Activities and can edit and resubmit.";
 
       Alert.alert(successTitle, successMsg, [
@@ -261,6 +369,7 @@ export default function AddNewActivity() {
               setEquipment("");
               setCategory(null);
               setDuration(3);
+              setItineraryDays(Array.from({ length: 3 }, () => ""));
               setDifficulty("Moderate");
               setPhotos([]);
             }
@@ -280,6 +389,22 @@ export default function AddNewActivity() {
   };
 
   if (!formReady) {
+    if (loadError) {
+      return (
+        <SafeAreaView style={styles.loadingSafe}>
+          <Ionicons name="alert-circle-outline" size={48} color="#DC2626" style={{ marginTop: 40 }} />
+          <Text style={styles.loadErrorTitle}>Could not load activity</Text>
+          <Text style={styles.loadErrorText}>{loadError}</Text>
+          <TouchableOpacity style={styles.loadErrorRetryBtn} onPress={() => void loadActivityForEdit()}>
+            <Text style={styles.loadErrorRetryText}>Try again</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.loadErrorBackBtn} onPress={() => router.back()}>
+            <Text style={styles.loadErrorBackText}>Go back</Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+      );
+    }
+
     return (
       <SafeAreaView style={styles.loadingSafe}>
         <ActivityIndicator size="large" color="#007BFF" style={{ marginTop: 40 }} />
@@ -299,16 +424,45 @@ export default function AddNewActivity() {
           contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
+          {/* Header — title centered, back on the left */}
           <View style={styles.titleRow}>
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity
+              style={styles.titleBackBtn}
+              onPress={() => router.back()}
+              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+            >
               <Ionicons name="chevron-back" size={26} color="#000" />
             </TouchableOpacity>
-            <Text style={styles.title}>{editingId ? "Edit Activity" : "New Activity"}</Text>
+            <View style={styles.titleCenter}>
+              <Text style={styles.title} numberOfLines={1}>
+                {editingId
+                  ? isRejectedEdit
+                    ? "Edit and resubmit"
+                    : "Edit Activity"
+                  : "New Activity"}
+              </Text>
+            </View>
+            <View style={styles.titleRightSpacer} />
           </View>
 
+          {isRejectedEdit ? (
+            <View style={styles.rejectionBanner}>
+              <View style={styles.rejectionBannerHeader}>
+                <Ionicons name="alert-circle-outline" size={20} color="#DC2626" />
+                <Text style={styles.rejectionBannerTitle}>Admin feedback</Text>
+              </View>
+              <Text style={styles.rejectionBannerText}>
+                {rejectionReason ||
+                  "No specific reason was provided. Review your listing and resubmit when ready."}
+              </Text>
+              <Text style={styles.rejectionBannerHint}>
+                Update the fields below, then save to send the activity for review again.
+              </Text>
+            </View>
+          ) : null}
+
           {/* Activity Name */}
-          <Text style={styles.label}>Activity Name</Text>
+          <SectionLabel>Activity Name</SectionLabel>
           <TextInput
             style={styles.input}
             placeholder="Enter activity name"
@@ -317,14 +471,15 @@ export default function AddNewActivity() {
           />
 
           {/* Location */}
-          <Text style={styles.label}>Location</Text>
+          <SectionLabel>Location</SectionLabel>
           <LocationAutocomplete
             value={location}
+            onChangeText={setLocation}
             onSelect={(data) => setLocation(data.name)}
           />
 
           {/* Description */}
-          <Text style={styles.label}>Detailed Description</Text>
+          <SectionLabel>Detailed Description</SectionLabel>
           <TextInput
             style={[styles.input, styles.multilineInput]}
             multiline
@@ -334,22 +489,36 @@ export default function AddNewActivity() {
             textAlignVertical="top"
           />
 
-          {/* Category */}
-          <Text style={styles.label}>Category</Text>
-          <DropDownPicker
-            open={categoryOpen}
-            value={category}
-            items={categories}
-            setOpen={setCategoryOpen}
-            setValue={setCategory}
-            style={styles.dropdown}
-            dropDownContainerStyle={styles.dropdownContainer}
-            placeholder="Select Category"
-            listMode="MODAL"
-          />
+          {/* Category — inline chips (no modal) */}
+          <SectionLabel>Category</SectionLabel>
+          <Text style={styles.categoryHint}>
+            Tap one option below
+          </Text>
+          <View style={styles.categoryChipsWrap}>
+            {CATEGORY_OPTIONS.map((cat) => {
+              const selected = category === cat;
+              return (
+                <TouchableOpacity
+                  key={cat}
+                  activeOpacity={0.85}
+                  style={[styles.categoryChip, selected && styles.categoryChipSelected]}
+                  onPress={() => setCategory(cat)}
+                >
+                  <Text
+                    style={[
+                      styles.categoryChipText,
+                      selected && styles.categoryChipTextSelected,
+                    ]}
+                  >
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           {/* Photos */}
-          <Text style={styles.label}>Photo Gallery</Text>
+          <SectionLabel>Photo Gallery</SectionLabel>
           <Text style={styles.subText}>
             {existingServerPhotos.length > 0
               ? "Existing photos are kept unless your server replaces them. Add more below (max 10 total)."
@@ -390,7 +559,7 @@ export default function AddNewActivity() {
 
           {/* Duration & Difficulty */}
           <View style={styles.durationBox}>
-            <Text style={styles.durationLabel}>Duration</Text>
+            <SectionLabel style={styles.sectionLabelInCard}>Duration</SectionLabel>
 
             <View style={styles.durationRow}>
               <TouchableOpacity
@@ -412,7 +581,9 @@ export default function AddNewActivity() {
               <Text style={styles.daysLabel}>Days</Text>
             </View>
 
-            <Text style={styles.diffLabel}>Difficulty Level</Text>
+            <SectionLabel style={styles.sectionLabelInCardSpacing}>
+              Difficulty Level
+            </SectionLabel>
 
             <View style={styles.diffRow}>
               {["Easy", "Moderate", "Hard"].map((level) => (
@@ -436,7 +607,9 @@ export default function AddNewActivity() {
               ))}
             </View>
 
-            <Text style={styles.label}>Equipment Needed</Text>
+            <SectionLabel style={styles.sectionLabelInCardSpacing}>
+              Equipment Needed
+            </SectionLabel>
             <Text style={styles.subText}>
               Write each item on a new line (list format)
             </Text>
@@ -451,6 +624,32 @@ export default function AddNewActivity() {
               onChangeText={setEquipment}
               textAlignVertical="top"
             />
+          </View>
+
+          <View style={styles.itineraryHeadingRow}>
+            <View style={styles.sectionLabelBullet} />
+            <Text style={styles.itineraryHeading}>
+              Itinerary for {duration} {duration === 1 ? "day" : "days"}
+            </Text>
+          </View>
+          <View style={styles.itineraryCard}>
+            {itineraryDays.map((dayText, index) => (
+              <View key={`day-${index}`} style={styles.itineraryDayBlock}>
+                <View style={styles.itineraryDayLabelRow}>
+                  <View style={styles.itineraryDayBullet} />
+                  <Text style={styles.itineraryDayLabel}>Day {index + 1}</Text>
+                </View>
+                <TextInput
+                  style={styles.itineraryDayField}
+                  multiline
+                  maxLength={ITINERARY_DAY_MAX_CHARS}
+                  placeholder="Outline schedule, stops, and highlights for this day…"
+                  value={dayText}
+                  onChangeText={(t) => updateItineraryDay(index, t)}
+                  textAlignVertical="top"
+                />
+              </View>
+            ))}
           </View>
 
           {/* Publish */}
@@ -468,7 +667,9 @@ export default function AddNewActivity() {
                   ? "Saving..."
                   : "Publishing..."
                 : editingId
-                  ? "Save changes"
+                  ? isRejectedEdit
+                    ? "Resubmit for review"
+                    : "Save changes"
                   : "Publish Activity"}
             </Text>
           </TouchableOpacity>
@@ -479,23 +680,85 @@ export default function AddNewActivity() {
 }
 
 const styles = StyleSheet.create({
-  loadingSafe: { flex: 1, backgroundColor: "#F3F7FF", alignItems: "center" },
+  loadingSafe: { flex: 1, backgroundColor: "#F3F7FF", alignItems: "center", paddingHorizontal: 24 },
   loadingLabel: { marginTop: 12, fontFamily: "Nunito_400Regular", color: "#666" },
+  loadErrorTitle: {
+    marginTop: 16,
+    fontFamily: "Nunito_700Bold",
+    fontSize: 18,
+    color: "#333",
+    textAlign: "center",
+  },
+  loadErrorText: {
+    marginTop: 8,
+    fontFamily: "Nunito_400Regular",
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  loadErrorRetryBtn: {
+    marginTop: 24,
+    backgroundColor: "#007BFF",
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  loadErrorRetryText: { color: "#fff", fontFamily: "Nunito_700Bold", fontSize: 16 },
+  loadErrorBackBtn: { marginTop: 12, paddingHorizontal: 28, paddingVertical: 12 },
+  loadErrorBackText: { color: "#007BFF", fontFamily: "Nunito_700Bold", fontSize: 16 },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
     marginTop: 2,
     marginBottom: 25,
   },
+  titleBackBtn: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
+  titleCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  titleRightSpacer: {
+    width: 44,
+  },
   title: {
     fontSize: 20,
     fontFamily: "Nunito_700Bold",
-    marginLeft: 80,
+    textAlign: "center",
   },
   label: {
     fontSize: 16,
     fontFamily: "Nunito_700Bold",
     marginTop: 15,
+  },
+  sectionLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 15,
+    gap: 10,
+  },
+  sectionLabelBullet: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: ACCENT_BLUE,
+  },
+  sectionLabelText: {
+    fontSize: 16,
+    fontFamily: "Nunito_700Bold",
+    color: "#11181C",
+  },
+  sectionLabelInCard: {
+    marginTop: 0,
+  },
+  sectionLabelInCardSpacing: {
+    marginTop: 18,
   },
   subText: { fontSize: 12, color: "#777" },
   input: {
@@ -509,12 +772,38 @@ const styles = StyleSheet.create({
     color: "#777",
   },
   multilineInput: { height: 100 },
-  dropdown: {
-    borderRadius: 10,
-    borderColor: "#D0D6E0",
-    marginTop: 8,
+  categoryHint: {
+    fontSize: 12,
+    color: "#777",
+    marginTop: 6,
   },
-  dropdownContainer: { borderColor: "#D0D6E0" },
+  categoryChipsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 10,
+    gap: 10,
+  },
+  categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "#D0D6E0",
+    backgroundColor: "#fff",
+  },
+  categoryChipSelected: {
+    backgroundColor: ACCENT_BLUE,
+    borderColor: ACCENT_BLUE,
+  },
+  categoryChipText: {
+    fontSize: 14,
+    fontFamily: "Nunito_400Regular",
+    color: "#555",
+  },
+  categoryChipTextSelected: {
+    fontFamily: "Nunito_700Bold",
+    color: "#fff",
+  },
   photoContainer: { marginTop: 10 },
   photoButton: {
     height: 90,
@@ -587,6 +876,60 @@ const styles = StyleSheet.create({
   },
   diffText: { color: "#555" },
   diffTextActive: { color: "#fff", fontFamily: "Nunito_700Bold" },
+  itineraryHeadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 22,
+    marginBottom: 12,
+    gap: 10,
+  },
+  itineraryHeading: {
+    flex: 1,
+    fontSize: 17,
+    fontFamily: "Nunito_700Bold",
+    color: "#11181C",
+  },
+  itineraryCard: {
+    backgroundColor: "#E6F2FF",
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    borderRadius: 14,
+    gap: 22,
+  },
+  itineraryDayBlock: {
+    width: "100%",
+  },
+  itineraryDayLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+    gap: 8,
+  },
+  itineraryDayBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: ACCENT_BLUE,
+  },
+  itineraryDayLabel: {
+    fontSize: 15,
+    fontFamily: "Nunito_700Bold",
+    color: "#11181C",
+  },
+  /** Do not reuse `styles.input` here — its fixed height breaks multiline layout. */
+  itineraryDayField: {
+    width: "100%",
+    minHeight: 92,
+    borderWidth: 1,
+    borderColor: "#D0D6E0",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: "#fff",
+    fontSize: 15,
+    color: "#333",
+    lineHeight: 22,
+  },
   publishButton: {
     marginTop: 25,
     backgroundColor: "#007BFF",
@@ -600,4 +943,36 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_700Bold",
   },
   publishButtonDisabled: { opacity: 0.6 },
+  rejectionBanner: {
+    backgroundColor: "#FFF5F5",
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#FFE5E5",
+  },
+  rejectionBannerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  rejectionBannerTitle: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 15,
+    color: "#DC2626",
+  },
+  rejectionBannerText: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 14,
+    color: "#444",
+    lineHeight: 20,
+  },
+  rejectionBannerHint: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 12,
+    color: "#777",
+    marginTop: 10,
+    lineHeight: 18,
+  },
 });

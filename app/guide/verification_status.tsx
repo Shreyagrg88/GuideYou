@@ -1,8 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { API_URL } from "../../constants/api";
-import { SkeletonCentered } from "../components/Skeleton";
+import { confirmLogout } from "../../utils/authSession";
+import { resetToGuideHome } from "../../utils/onboardingNav";
+import { SkeletonCentered } from "@/components/Skeleton";
 import {
   Alert,
   ScrollView,
@@ -11,11 +14,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type LicenseStatus = "pending" | "viewed" | "approved" | "rejected";
 
 export default function VerificationStatus() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [status, setStatus] = useState<LicenseStatus>("pending");
   const [loading, setLoading] = useState(true);
@@ -179,7 +184,7 @@ export default function VerificationStatus() {
             </Text>
             <TouchableOpacity
               style={styles.continueButton}
-              onPress={() => router.push("/guide/home_guide")}
+              onPress={() => resetToGuideHome(router)}
               activeOpacity={0.8}
             >
               <Text style={styles.continueButtonText}>Continue</Text>
@@ -201,7 +206,7 @@ export default function VerificationStatus() {
             </View>
             <TouchableOpacity
               style={styles.uploadButton}
-              onPress={() => router.push("/guide/verification")}
+              onPress={() => router.replace("/guide/verification")}
               activeOpacity={0.8}
             >
               <Text style={styles.uploadButtonText}>Upload New License</Text>
@@ -212,6 +217,22 @@ export default function VerificationStatus() {
             Your documents are being{"\n"}reviewed.
           </Text>
         )}
+
+        <View style={[styles.logoutSection, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <Text style={styles.logoutHint}>
+            {status === "approved"
+              ? "Sign out if you want to use a different account."
+              : "You can log out and return later. Sign in again anytime to check your status."}
+          </Text>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={() => confirmLogout(router)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="log-out-outline" size={20} color="#E53935" />
+            <Text style={styles.logoutButtonText}>Log out</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
@@ -376,5 +397,38 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontFamily: "Nunito_700Bold",
+  },
+  logoutSection: {
+    marginTop: 36,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.06)",
+    alignItems: "center",
+  },
+  logoutHint: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 13,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 19,
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    backgroundColor: "#FFF",
+  },
+  logoutButtonText: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 15,
+    color: "#E53935",
   },
 });

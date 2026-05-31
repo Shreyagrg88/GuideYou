@@ -87,7 +87,7 @@ export default function ExpertiseScreen() {
 
       Alert.alert("Success", "Your expertise has been saved!");
 
-      router.push({
+      router.replace({
         pathname: "/guide/verification",
         params: { userId },
       });
@@ -109,7 +109,7 @@ export default function ExpertiseScreen() {
 
       <TouchableOpacity
         onPress={() =>
-          router.push({
+          router.replace({
             pathname: "/guide/verification",
             params: { userId: userId },
           })
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingTop: 70,
     paddingBottom: 20,
   },

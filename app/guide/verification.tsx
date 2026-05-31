@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
+import { getStoredAuthUser } from "../../utils/authSession";
+import { resetToGuideOnboarding } from "../../utils/onboardingNav";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { API_URL } from "../../constants/api";
@@ -12,8 +14,28 @@ import {
   Alert,
 } from "react-native";
 
+function pickParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0]?.trim() ?? "";
+  return value?.trim() ?? "";
+}
+
+async function resolveGuideUserId(routeUserId: string): Promise<string> {
+  if (routeUserId) return routeUserId;
+
+  const storedId = await AsyncStorage.getItem("userId");
+  if (storedId?.trim()) return storedId.trim();
+
+  const user = await getStoredAuthUser();
+  const fromUser = user?.id;
+  if (fromUser && String(fromUser).trim()) return String(fromUser).trim();
+
+  return "";
+}
+
 export default function LicenseUpload() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ userId?: string | string[] }>();
+  const routeUserId = pickParam(params.userId);
 
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<{
@@ -44,7 +66,7 @@ export default function LicenseUpload() {
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         allowsEditing: true,
         quality: 1,
       });
@@ -78,7 +100,18 @@ export default function LicenseUpload() {
         return;
       }
 
+      const userId = await resolveGuideUserId(routeUserId);
+      if (!userId) {
+        Alert.alert(
+          "Session error",
+          "Your account ID was not found. Please log out and log in again, then try uploading."
+        );
+        setLoading(false);
+        return;
+      }
+
       const formData = new FormData();
+      formData.append("userId", userId);
       formData.append("license", {
         uri: selectedFile.uri,
         name: selectedFile.name,
@@ -105,7 +138,7 @@ export default function LicenseUpload() {
         "License submitted for verification. Review within 48 hours."
       );
 
-      router.replace({ pathname: "/guide/verification_status" });
+      resetToGuideOnboarding(router, "/guide/verification_status");
 
     } catch (error) {
       console.error("Upload error:", error);

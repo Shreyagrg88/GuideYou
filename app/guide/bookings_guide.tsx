@@ -4,8 +4,11 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { API_URL } from "../../constants/api";
+import { resolveAvatarUri } from "../../utils/avatar";
+import UserAvatar from "../../components/user-avatar";
+import ScreenHeader from "../../components/screen-header";
 import GuideNavbar from "../components/guide_navbar";
-import { SkeletonBookingTab } from "../components/Skeleton";
+import { SkeletonBookingTab } from "@/components/Skeleton";
 
 type Booking = {
   id: string;
@@ -300,7 +303,7 @@ export default function BookingRequestScreen() {
 
   const renderRequests = () => {
     if (loading) return <SkeletonBookingTab />;
-    if (requests.length === 0) return <View style={styles.emptyContainer}><Text style={styles.emptyText}>No pending booking requests</Text></View>;
+    if (requests.length === 0) return <View style={styles.emptyContainer}><Text style={styles.emptyText}>No booking requests or payments awaiting</Text></View>;
 
     // Separate pending and accepted bookings
     const pendingBookings = requests.filter((req) => req.status === "pending");
@@ -315,17 +318,7 @@ export default function BookingRequestScreen() {
               <Text style={styles.sectionSubtitle}>Awaiting Payment</Text>
             )}
             {acceptedBookings.map((req) => {
-              const rawAvatar = req.tourist.avatar
-                ? req.tourist.avatar.startsWith("http")
-                  ? req.tourist.avatar
-                  : `${API_URL}${req.tourist.avatar}`
-                : null;
-              const avatarUri =
-                rawAvatar &&
-                !rawAvatar.includes("photo-1544005313-94ddf0286df2") &&
-                !rawAvatar.includes("i.pravatar.cc")
-                  ? rawAvatar
-                  : null;
+              const avatarUri = resolveAvatarUri(req.tourist.avatar);
 
               return (
                 <TouchableOpacity 
@@ -333,17 +326,12 @@ export default function BookingRequestScreen() {
                   style={styles.requestCard}
                   onPress={() => navigateToBookingDetail(req)}
                 >
-                  {avatarUri ? (
-                    <Image source={{ uri: avatarUri }} style={styles.profilePic} />
-                  ) : (
-                    <View style={[styles.profilePic, styles.profilePlaceholder]}>
-                      <Text style={styles.profileInitials}>
-                        {(req.tourist.name || req.tourist.username || "T")
-                          .charAt(0)
-                          .toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
+                  <UserAvatar
+                    uri={avatarUri}
+                    name={req.tourist.name || req.tourist.username}
+                    size={50}
+                    style={styles.profilePic}
+                  />
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.reqName}>{req.tourist.name || req.tourist.username}</Text>
                     <Text style={styles.reqTrek}>{req.activity?.name || "Custom Tour"}</Text>
@@ -370,17 +358,7 @@ export default function BookingRequestScreen() {
               <Text style={styles.sectionSubtitle}>Pending Requests</Text>
             )}
             {pendingBookings.map((req) => {
-              const rawAvatar = req.tourist.avatar
-                ? req.tourist.avatar.startsWith("http")
-                  ? req.tourist.avatar
-                  : `${API_URL}${req.tourist.avatar}`
-                : null;
-              const avatarUri =
-                rawAvatar &&
-                !rawAvatar.includes("photo-1544005313-94ddf0286df2") &&
-                !rawAvatar.includes("i.pravatar.cc")
-                  ? rawAvatar
-                  : null;
+              const avatarUri = resolveAvatarUri(req.tourist.avatar);
 
               return (
                 <TouchableOpacity 
@@ -388,17 +366,12 @@ export default function BookingRequestScreen() {
                   style={styles.requestCard}
                   onPress={() => navigateToBookingDetail(req)}
                 >
-                  {avatarUri ? (
-                    <Image source={{ uri: avatarUri }} style={styles.profilePic} />
-                  ) : (
-                    <View style={[styles.profilePic, styles.profilePlaceholder]}>
-                      <Text style={styles.profileInitials}>
-                        {(req.tourist.name || req.tourist.username || "T")
-                          .charAt(0)
-                          .toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
+                  <UserAvatar
+                    uri={avatarUri}
+                    name={req.tourist.name || req.tourist.username}
+                    size={50}
+                    style={styles.profilePic}
+                  />
         <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={styles.reqName}>{req.tourist.name || req.tourist.username}</Text>
                     <Text style={styles.reqTrek}>{req.activity?.name || "Custom Tour"}</Text>
@@ -441,9 +414,7 @@ export default function BookingRequestScreen() {
   return (
     <View style={styles.mainContainer}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>Booking Detail</Text>
-        </View>
+        <ScreenHeader title="Bookings" showBack={false} includeTopInset marginBottom={30} />
 
         <View style={styles.tabRow}>
           {["upcoming", "past", "requests"].map((t) => (
@@ -471,8 +442,6 @@ const styles = StyleSheet.create({
   loadingContainer: { padding: 40, alignItems: "center", justifyContent: "center" },
   emptyContainer: { padding: 40, alignItems: "center" },
   emptyText: { fontSize: 16, fontFamily: "Nunito_400Regular", color: "#999" },
-  titleRow: { flexDirection: "row", alignItems: "center", marginTop: 30, marginBottom: 30, width: "100%", justifyContent: "center", position: "relative" },
-  title: { fontSize: 20, fontFamily: "Nunito_700Bold", textAlign: "center" },
   tabRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 5 },
   tab: { fontSize: 16, fontFamily: "Nunito_400Regular", color: "#888" },
   activeTabText: { color: "#1B8BFF", fontFamily: "Nunito_700Bold" },

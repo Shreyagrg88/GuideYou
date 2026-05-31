@@ -122,3 +122,10 @@ export async function sendMessageToCounterpart(counterpartId: string, text: stri
 
   return data.message as ChatApiMessage;
 }
+
+/** Messages sorted oldest → newest for chat UI. */
+export function sortChatMessages(messages: ChatApiMessage[]): ChatApiMessage[] {
+  return [...messages].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+}

@@ -1,6 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -16,22 +14,15 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import ScreenHeader from "../../components/screen-header";
 import { API_URL } from "../../constants/api";
-import { SkeletonProfileScreen } from "../components/Skeleton";
-
-type GuideProfile = {
-  id: string;
-  username: string;
-  fullName: string;
-  email: string;
-  avatar: string;
-  bio: string;
-  mainExpertise: string;
-  location: string;
-  expertise: string[];
-  yearsOfExperience?: number | string;
-  languages?: string[];
-};
+import { fetchGuideProfile, saveGuideProfile } from "../../api/guideProfile";
+import { resolveAvatarUri } from "../../utils/avatar";
+import {
+  launchProfileImagePicker,
+  type PickedProfileImage,
+} from "../../utils/profileImagePicker";
+import { SkeletonProfileScreen } from "@/components/Skeleton";
 
 export default function EditProfile() {
   const router = useRouter();
@@ -46,7 +37,7 @@ export default function EditProfile() {
   const [location, setLocation] = useState("");
   const [yearsOfExperience, setYearsOfExperience] = useState("");
   const [languagesStr, setLanguagesStr] = useState("");
-  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [pickedAvatar, setPickedAvatar] = useState<PickedProfileImage | null>(null);
   const [originalAvatar, setOriginalAvatar] = useState<string | null>(null);
 
   const scale = width / 375;
@@ -59,35 +50,7 @@ export default function EditProfile() {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem("token");
-
-      if (!token) {
-        Alert.alert("Authentication Required", "Please login again");
-        router.push("/login");
-        return;
-      }
-
-      const response = await fetch(`${API_URL}/api/guide/profile`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          Alert.alert("Session Expired", "Please login again");
-          router.push("/login");
-        } else {
-          Alert.alert("Error", data.msg || "Failed to load profile");
-        }
-        return;
-      }
-
-      const profile: GuideProfile = data.guide;
+      const profile = await fetchGuideProfile();
       setFullName(profile.fullName || "");
       setBio(profile.bio || "");
       setMainExpertise(profile.mainExpertise || "");
@@ -95,35 +58,28 @@ export default function EditProfile() {
       setYearsOfExperience(profile.yearsOfExperience?.toString() || "");
       setLanguagesStr(Array.isArray(profile.languages) ? profile.languages.join(", ") : "");
       setOriginalAvatar(profile.avatar || null);
-    } catch (error) {
-      console.error("Profile fetch error:", error);
-      Alert.alert("Error", "Failed to load profile. Please try again.");
+    } catch (error: unknown) {
+      const err = error as Error & { status?: number };
+      console.error("Profile fetch error:", err);
+      if (err.status === 401 || err.message === "Not logged in") {
+        Alert.alert("Authentication Required", "Please login again");
+        router.push("/login");
+        return;
+      }
+      Alert.alert("Error", err.message || "Failed to load profile. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   const pickImage = async () => {
-    const permission =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (!permission.granted) {
-      Alert.alert(
-        "Permission Required",
-        "Please allow access to photos."
-      );
+    const picked = await launchProfileImagePicker();
+    if (picked === "denied") {
+      Alert.alert("Permission Required", "Please allow access to photos.");
       return;
     }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets.length > 0) {
-      setAvatarUri(result.assets[0].uri);
+    if (picked) {
+      setPickedAvatar(picked);
     }
   };
 
@@ -135,101 +91,63 @@ export default function EditProfile() {
 
     try {
       setSaving(true);
-      const token = await AsyncStorage.getItem("token");
-
-      if (!token) {
-        Alert.alert("Authentication Required", "Please login again");
-        router.push("/login");
-        return;
-      }
-
-      const formData = new FormData();
-
-      if (fullName.trim()) {
-        formData.append("fullName", fullName.trim());
-      }
-      if (bio.trim()) {
-        formData.append("bio", bio.trim());
-      }
-      if (mainExpertise.trim()) {
-        formData.append("mainExpertise", mainExpertise.trim());
-      }
-      if (location.trim()) {
-        formData.append("location", location.trim());
-      }
-      if (yearsOfExperience.trim()) {
-        const years = parseInt(yearsOfExperience.trim(), 10);
-        if (!isNaN(years) && years >= 0) {
-          formData.append("yearsOfExperience", years.toString());
-        }
-      }
 
       const languagesArray = languagesStr
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-      if (languagesArray.length > 0) {
-        formData.append("languages", languagesArray.join(", "));
-      }
 
-      // Only append avatar if user selected a new image
-      if (avatarUri) {
-        formData.append("avatar", {
-          uri: avatarUri,
-          type: "image/jpeg",
-          name: "avatar.jpg",
-        } as any);
-      }
-
-      const response = await fetch(`${API_URL}/api/guide/profile`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          // Don't set Content-Type - React Native will set it automatically for FormData
+      const result = await saveGuideProfile(
+        {
+          fullName: fullName.trim() || undefined,
+          bio: bio.trim() || undefined,
+          mainExpertise: mainExpertise.trim() || undefined,
+          location: location.trim() || undefined,
+          yearsOfExperience: yearsOfExperience.trim()
+            ? parseInt(yearsOfExperience.trim(), 10)
+            : undefined,
+          languages: languagesArray.length > 0 ? languagesArray : undefined,
         },
-        body: formData,
-      });
+        pickedAvatar
+      );
 
-      let data: any;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        console.error("Failed to parse response:", parseError);
-        Alert.alert("Server Error", `Server returned ${response.status}. Please try again.`);
-        setSaving(false);
-        return;
+      if (result.guide.avatar) {
+        setOriginalAvatar(result.guide.avatar);
+        setPickedAvatar(null);
       }
 
-      if (!response.ok) {
-        Alert.alert("Update Failed", data.msg || "Failed to update profile");
-        return;
-      }
-
-      Alert.alert("Success", "Profile updated successfully!", [
+      Alert.alert("Success", result.msg || "Profile updated successfully!", [
         {
           text: "OK",
           onPress: () => router.back(),
         },
       ]);
-    } catch (error: any) {
-      console.error("Update profile error:", error);
-      Alert.alert("Error", "Failed to update profile. Please try again.");
+    } catch (error: unknown) {
+      const err = error as Error & { status?: number };
+      console.error("Update profile error:", err);
+      if (err.status === 401 || err.message === "Not logged in") {
+        Alert.alert("Authentication Required", "Please login again");
+        router.push("/login");
+        return;
+      }
+      if (err.message?.includes("Network request failed")) {
+        Alert.alert(
+          "Connection error",
+          `Could not reach the server at ${API_URL}. Ensure your phone and Mac are on the same Wi‑Fi and the backend is running on port 5001.`
+        );
+        return;
+      }
+      Alert.alert("Update Failed", err.message || "Failed to update profile. Please try again.");
     } finally {
       setSaving(false);
     }
   };
 
-  const getAvatarUri = () => {
-    if (avatarUri) {
-      return avatarUri;
+  const getAvatarUri = (): string | null => {
+    if (pickedAvatar?.uri) {
+      return pickedAvatar.uri;
     }
-    if (originalAvatar) {
-      if (originalAvatar.startsWith("http")) {
-        return originalAvatar;
-      }
-      return `${API_URL}${originalAvatar}`;
-    }
-    return "https://images.unsplash.com/photo-1544005313-94ddf0286df2";
+    return resolveAvatarUri(originalAvatar);
   };
 
   if (loading) {
@@ -244,21 +162,30 @@ export default function EditProfile() {
       }}
     >
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={s(26)} color="#000" />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { fontSize: s(20) }]}>
-          Edit Profile
-        </Text>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader
+        title="Edit Profile"
+        includeTopInset
+        titleStyle={{ fontSize: s(20) }}
+        marginBottom={30}
+      />
 
       <View style={styles.avatarWrapper}>
-        <Image
-          source={{ uri: getAvatarUri() }}
-          style={[styles.avatar, { width: s(90), height: s(90) }]}
-        />
+        {getAvatarUri() ? (
+          <Image
+            source={{ uri: getAvatarUri()! }}
+            style={[styles.avatar, { width: s(90), height: s(90) }]}
+          />
+        ) : (
+          <View
+            style={[
+              styles.avatar,
+              styles.avatarPlaceholder,
+              { width: s(90), height: s(90) },
+            ]}
+          >
+            <Ionicons name="person" size={s(40)} color="#94A3B8" />
+          </View>
+        )}
 
         <TouchableOpacity
           style={styles.editAvatarBtn}
@@ -369,18 +296,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 40,
-    marginBottom: 30,
-  },
-
-  headerTitle: {
-    fontFamily: "Nunito_700Bold",
-  },
-
   avatarWrapper: {
     alignItems: "center",
     marginBottom: 30,
@@ -388,6 +303,12 @@ const styles = StyleSheet.create({
 
   avatar: {
     borderRadius: 100,
+  },
+
+  avatarPlaceholder: {
+    backgroundColor: "#E2E8F0",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   editAvatarBtn: {

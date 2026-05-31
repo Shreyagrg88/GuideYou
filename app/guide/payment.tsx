@@ -21,7 +21,8 @@ import {
   type GuidePayoutDetailsDto,
   type PayoutMethod,
 } from "../../api/guidePayout";
-import { SkeletonProfileScreen } from "../components/Skeleton";
+import ScreenHeader from "../../components/screen-header";
+import { SkeletonProfileScreen } from "@/components/Skeleton";
 
 function isPayoutConfigured(d: GuidePayoutDetailsDto | null): boolean {
   return d != null && (d.payoutMethod === "esewa" || d.payoutMethod === "bank");
@@ -178,13 +179,12 @@ export default function GuidePaymentScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="chevron-back" size={s(26)} color="#000" />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { fontSize: s(20) }]}>Payout details</Text>
-          <View style={{ width: s(26) }} />
-        </View>
+        <ScreenHeader
+          title="Payout details"
+          includeTopInset
+          titleStyle={{ fontSize: s(20) }}
+          marginBottom={20}
+        />
 
         {showSummary && baseline ? (
           <>
@@ -433,17 +433,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: "#666",
     fontFamily: "Nunito_400Regular",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 40,
-    marginBottom: 20,
-  },
-  headerTitle: {
-    fontFamily: "Nunito_700Bold",
-    color: "#000",
   },
   heroCard: {
     backgroundColor: "#fff",

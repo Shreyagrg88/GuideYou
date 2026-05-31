@@ -16,9 +16,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getGuideReviews } from "../../api/guideReviews";
 import { API_URL } from "../../constants/api";
-import { SkeletonCalendarPlaceholder } from "../components/Skeleton";
+import ScreenHeader from "../../components/screen-header";
+import UserAvatar from "../../components/user-avatar";
+import { PAGE_PADDING_HORIZONTAL } from "../../constants/layout";
+import { SkeletonCalendarPlaceholder } from "@/components/Skeleton";
 import {
   estimateNprFromUsd,
+  formatBookingEstimateBreakdown,
+  formatBookingSummaryPricing,
+  formatDailyRateOnCard,
   formatNprAmount,
   parseUsdFromGuideChargeString,
 } from "../../utils/bookingPrice";
@@ -332,6 +338,14 @@ export default function CustomTourRequest() {
   const tripDays = selectedDateRange.length > 0 ? selectedDateRange.length : 1;
   const usdTotalEstimate = pricePerPerson * tripDays * participantCount;
   const nprTotalEstimate = estimateNprFromUsd(usdTotalEstimate, usdToNprRate);
+  const summaryPricing = formatBookingSummaryPricing({
+    nprTotal: nprTotalEstimate,
+    usdTotal: usdTotalEstimate,
+    usdPerPersonDay: pricePerPerson,
+    participants: participantCount,
+    days: tripDays,
+    usdToNprRate,
+  });
 
   const handleNext = () => {
     if (!startDate) {
@@ -418,7 +432,31 @@ export default function CustomTourRequest() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.msg || errorData.message || "Failed to send tour request");
+        const apiMsg = errorData.msg || errorData.message || "";
+        const lower = String(apiMsg).toLowerCase();
+        if (
+          lower.includes("open request") ||
+          lower.includes("overlapping") ||
+          lower.includes("already has")
+        ) {
+          Alert.alert(
+            "Dates not available",
+            "This guide already has an open request for these dates."
+          );
+          return;
+        }
+        if (
+          lower.includes("held while") ||
+          lower.includes("temporarily held") ||
+          lower.includes("completes payment")
+        ) {
+          Alert.alert(
+            "Dates not available",
+            "These dates are temporarily held. Try another day or check back in a few hours."
+          );
+          return;
+        }
+        throw new Error(apiMsg || "Failed to send tour request");
       }
 
       await response.json();
@@ -450,13 +488,12 @@ export default function CustomTourRequest() {
   return (
     <View style={styles.page}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <View style={styles.titleRow}>
-          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={26} color="#007BFF" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Custom Tour Request</Text>
-        </View>
+        <ScreenHeader
+          title="Custom Tour Request"
+          onBack={handleBack}
+          includeTopInset
+          marginBottom={16}
+        />
 
         {/* Guide Info Card - tappable to view guide profile */}
         <TouchableOpacity
@@ -479,15 +516,10 @@ export default function CustomTourRequest() {
           }}
           activeOpacity={0.7}
         >
-          <Image
-            source={{
-              uri:
-                params.guideImage?.startsWith("http")
-                  ? params.guideImage
-                  : params.guideImage
-                    ? `${API_URL}${params.guideImage}`
-                    : "https://i.pravatar.cc/150?img=12",
-            }}
+          <UserAvatar
+            uri={params.guideImage}
+            name={params.guideName}
+            size={56}
             style={styles.profileImg}
           />
           <View style={{ flex: 1 }}>
@@ -501,6 +533,11 @@ export default function CustomTourRequest() {
                 {profileAlignedRating ?? formatGuideRatingDisplay(params.guideRating)}
               </Text>
             </View>
+            {pricePerPerson > 0 ? (
+              <Text style={styles.rateHint}>
+                {formatDailyRateOnCard(pricePerPerson, usdToNprRate)}
+              </Text>
+            ) : null}
           </View>
           <Ionicons name="checkmark-circle" size={26} color="#2ecc71" />
         </TouchableOpacity>
@@ -674,14 +711,9 @@ export default function CustomTourRequest() {
                 Duration: {selectedDateRange.length}{" "}
                 {selectedDateRange.length === 1 ? "day" : "days"}
               </Text>
-              <Text style={styles.summaryText}>
-                Rate: ${pricePerPerson.toFixed(0)} USD per person, per day
-              </Text>
-              <Text style={styles.summaryText}>
-                Total: {formatNprAmount(nprTotalEstimate)} (${usdTotalEstimate.toFixed(0)} USD est.) —{" "}
-                {participantCount} people × {tripDays} day{tripDays === 1 ? "" : "s"} × $
-                {pricePerPerson.toFixed(0)}/person/day
-              </Text>
+              <Text style={styles.summaryText}>Rate: {summaryPricing.rateLine}</Text>
+              <Text style={styles.summaryText}>Total: {summaryPricing.totalLine}</Text>
+              <Text style={styles.summaryText}>{summaryPricing.breakdownLine}</Text>
               <Text style={styles.summaryText}>Participants: {participantCount}</Text>
             </View>
 
@@ -751,9 +783,13 @@ export default function CustomTourRequest() {
               <Text style={styles.totalLabel}>Estimated total</Text>
               <Text style={styles.totalAmount}>{formatNprAmount(nprTotalEstimate)}</Text>
               <Text style={styles.totalSub}>
-                {participantCount} people × {tripDays} day{tripDays === 1 ? "" : "s"} × $
-                {pricePerPerson.toFixed(0)}/person/day = ${usdTotalEstimate.toFixed(0)} USD · Final NPR when
-                guide accepts
+                {formatBookingEstimateBreakdown({
+                  participants: participantCount,
+                  days: tripDays,
+                  usdPerPersonDay: pricePerPerson,
+                  usdTotal: usdTotalEstimate,
+                  finalNote: "Final NPR when guide accepts",
+                })}
               </Text>
             </View>
             <TouchableOpacity
@@ -787,24 +823,9 @@ export default function CustomTourRequest() {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: "#E8F2FF" },
-  scrollContent: { padding: 20, paddingBottom: 140 },
-  titleRow: { 
-    flexDirection: "row", 
-    alignItems: "center", 
-    marginTop: 30,
-    position: "relative",
-    justifyContent: "center",
-  },
-  backButton: {
-    position: "absolute",
-    left: 0,
-    zIndex: 1,
-  },
-  title: { 
-    fontSize: 20, 
-    fontFamily: "Nunito_700Bold",
-    textAlign: "center",
-    flex: 1,
+  scrollContent: {
+    paddingHorizontal: PAGE_PADDING_HORIZONTAL,
+    paddingBottom: 140,
   },
   profileCard: {
     backgroundColor: "#fff",
@@ -812,8 +833,7 @@ const styles = StyleSheet.create({
     padding: 15,
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 30,
-    marginBottom: 30,
+    marginBottom: 24,
     elevation: 3,
   },
   profileImg: { width: 55, height: 55, borderRadius: 50, marginRight: 12 },
@@ -821,6 +841,12 @@ const styles = StyleSheet.create({
   guideInfo: { fontFamily: "Nunito_400Regular", color: "#777", fontSize: 13 },
   ratingRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
   ratingText: { marginLeft: 4, fontFamily: "Nunito_400Regular", fontSize: 13 },
+  rateHint: {
+    marginTop: 6,
+    fontSize: 12,
+    fontFamily: "Nunito_600SemiBold",
+    color: "#007BFF",
+  },
   calendarHeaderSection: { marginBottom: 10 },
   sectionTitle: { fontSize: 18, fontFamily: "Nunito_700Bold", marginBottom: 5 },
   dateHint: { fontSize: 12, fontFamily: "Nunito_400Regular", color: "#666", marginBottom: 4 },
@@ -936,6 +962,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 6,
     borderRadius: 50,
+    alignSelf: "flex-end",
   },
   participantCount: { marginHorizontal: 15, fontFamily: "Nunito_700Bold", fontSize: 16 },
   line: { height: 1, backgroundColor: "#D9D9D9", marginVertical: 20 },
@@ -945,7 +972,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: "#fff",
-    padding: 20,
+    paddingHorizontal: PAGE_PADDING_HORIZONTAL,
+    paddingTop: 16,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",

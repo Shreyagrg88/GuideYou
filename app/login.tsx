@@ -1,9 +1,27 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { registerPushToken } from "../api/notifications";
 import { API_URL } from "../constants/api";
+import {
+  persistAuthSession,
+  pickStoredUserId,
+  replaceWithRoleHome,
+  useRedirectIfAuthenticated,
+} from "../utils/authSession";
+import {
+  markGuideAccountDisabled,
+  replaceWithAccountDisabled,
+  clearGuideAccountDisabled,
+} from "../utils/guideAccountGuard";
+import {
+  resetToGuideOnboarding,
+} from "../utils/onboardingNav";
+import {
+  normalizeEmail,
+  validateLoginForm,
+} from "../utils/authValidation";
+import { ensurePlatformTermsAccepted } from "../utils/platformTerms";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -18,41 +36,40 @@ import {
 
 export default function Login() {
   const router = useRouter();
+  useRedirectIfAuthenticated(router);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  const isValidEmail = (email: string) => /\S+@\S+\.\S+/.test(email);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please fill in all fields");
+    const validationError = validateLoginForm(email, password);
+    if (validationError) {
+      setErrorMessage(validationError);
       return;
     }
 
-    if (!isValidEmail(email)) {
-      Alert.alert("Error", "Please enter a valid email");
-      return;
-    }
+    const normalizedEmail = normalizeEmail(email);
 
     try {
       setLoading(true);
+      setErrorMessage(null);
 
       const response = await fetch(
         `${API_URL}/api/auth/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email: normalizedEmail, password }),
         }
       );
 
       const data = await response.json();
 
       if (!response.ok) {
-        Alert.alert("Login Failed", data.msg || "Invalid credentials");
+        setErrorMessage(data.msg || "Invalid credentials");
         return;
       }
 
@@ -63,21 +80,27 @@ export default function Login() {
         return;
       }
 
-      await AsyncStorage.setItem("token", token);
-      await AsyncStorage.setItem("userRole", user.role);
-      await AsyncStorage.setItem("userId", user.id);
+      await persistAuthSession(token, user);
 
       if (user.role === "tourist" || user.role === "guide" || user.role === "admin") {
         registerPushToken(token);
       }
 
+      const userId = pickStoredUserId(user);
+
       if (user.role === "tourist") {
-        router.push("/tourist/home_tourist");
+        if (
+          userId &&
+          !(await ensurePlatformTermsAccepted(router, userId, user.role))
+        ) {
+          return;
+        }
+        replaceWithRoleHome(router, user.role);
         return;
       }
 
       if (user.role === "admin") {
-        router.push("/admin/home_admin");
+        replaceWithRoleHome(router, user.role);
         return;
       }
 
@@ -85,6 +108,14 @@ export default function Login() {
         Alert.alert("Error", "Unknown role");
         return;
       }
+
+      if (data.accountDisabled === true || user.accountStatus === "disabled") {
+        await markGuideAccountDisabled();
+        replaceWithAccountDisabled(router);
+        return;
+      }
+
+      await clearGuideAccountDisabled();
 
 
       let hasLicenseFile = false;
@@ -116,20 +147,27 @@ export default function Login() {
           "License Required",
           "You must upload and verify your license before accessing the app."
         );
-        router.push({ pathname: "/guide/verification" });
+        resetToGuideOnboarding(router, "/guide/verification");
         return;
       }
 
       if (licenseStatus !== "approved") {
-        router.push({ pathname: "/guide/verification_status" });
+        resetToGuideOnboarding(router, "/guide/verification_status");
         return;
       }
 
-      router.replace("/guide/home_guide");
+      if (
+        userId &&
+        !(await ensurePlatformTermsAccepted(router, userId, user.role))
+      ) {
+        return;
+      }
+
+      replaceWithRoleHome(router, user.role);
 
     } catch (error) {
       console.error("Login error:", error);
-      Alert.alert("Network Error", "Please try again later");
+      setErrorMessage("Network error. Please try again later.");
     } finally {
       setLoading(false);
     }
@@ -149,14 +187,27 @@ export default function Login() {
         <Text style={styles.title}>Login</Text>
         <Text style={styles.subtitle}>Welcome back</Text>
 
+        {errorMessage ? (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle-outline" size={18} color="#b91c1c" />
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        ) : null}
+
         <TextInput
           style={styles.input}
           placeholder="Email"
           placeholderTextColor="#777"
           keyboardType="email-address"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(value) => {
+            setEmail(value);
+            if (errorMessage) setErrorMessage(null);
+          }}
           autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="emailAddress"
+          editable={!loading}
         />
 
         <View style={styles.passwordContainer}>
@@ -166,7 +217,11 @@ export default function Login() {
             placeholderTextColor="#777"
             secureTextEntry={!showPassword}
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(value) => {
+              setPassword(value);
+              if (errorMessage) setErrorMessage(null);
+            }}
+            editable={!loading}
           />
           <TouchableOpacity
             style={styles.eyeIcon}
@@ -180,7 +235,10 @@ export default function Login() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.forgotContainer}>
+        <TouchableOpacity
+          style={styles.forgotContainer}
+          onPress={() => router.push("/forgot-password")}
+        >
           <Text style={styles.forgot}>Forgot password?</Text>
         </TouchableOpacity>
 
@@ -280,5 +338,21 @@ const styles = StyleSheet.create({
   linkHighlight: {
     color: "#007BFF",
     fontFamily: "Nunito_700Bold",
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#fef2f2",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 15,
+  },
+  errorText: {
+    flex: 1,
+    fontFamily: "Nunito_400Regular",
+    fontSize: 14,
+    color: "#b91c1c",
+    lineHeight: 20,
   },
 });

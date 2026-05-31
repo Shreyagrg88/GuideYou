@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -19,9 +19,15 @@ import {
     fetchMessagesWithCounterpart,
     markConversationRead,
     sendMessageToCounterpart,
+    sortChatMessages,
+    type ChatApiMessage,
 } from "../../api/chat";
 import { API_URL } from "../../constants/api";
-import { SkeletonChatMessagesBody } from "../components/Skeleton";
+import { resolveAvatarUri } from "../../utils/avatar";
+import UserAvatar from "../../components/user-avatar";
+import { SkeletonChatMessagesBody } from "@/components/Skeleton";
+
+const CHAT_POLL_MS = 4000;
 
 type ChatMessage = {
   id: string;
@@ -31,6 +37,17 @@ type ChatMessage = {
   seen?: boolean;
   seenAt?: string | null;
 };
+
+function mapToChatMessages(raw: ChatApiMessage[]): ChatMessage[] {
+  return sortChatMessages(raw).map((m) => ({
+    id: m.id,
+    text: m.text,
+    sender: m.senderRole,
+    createdAt: m.createdAt,
+    seen: m.seen,
+    seenAt: m.seenAt,
+  }));
+}
 
 export default function ChatTourist() {
   const router = useRouter();
@@ -44,11 +61,7 @@ export default function ChatTourist() {
   const guideName = params.guideName ?? "";
   const guideAvatar = params.guideAvatar;
 
-  const getAvatarUri = () => {
-    if (!guideAvatar) return null;
-    return guideAvatar.startsWith("http") ? guideAvatar : `${API_URL}${guideAvatar}`;
-  };
-
+  const avatarUri = resolveAvatarUri(guideAvatar);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -57,54 +70,42 @@ export default function ChatTourist() {
 
   const listRef = useRef<FlatList<ChatMessage> | null>(null);
 
-  useEffect(() => {
-    if (!counterpartId) {
-      setError("Missing counterpart for chat.");
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    (async () => {
+  const loadMessages = useCallback(
+    async (silent = false) => {
+      if (!counterpartId) {
+        setError("Missing counterpart for chat.");
+        setLoading(false);
+        return;
+      }
       try {
-        setLoading(true);
-        setError(null);
+        if (!silent) {
+          setLoading(true);
+          setError(null);
+        }
         const data = await fetchMessagesWithCounterpart(counterpartId);
-        if (cancelled) return;
-
-        const mapped: ChatMessage[] = (data.messages || [])
-          .sort(
-            (a, b) =>
-              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          )
-          .map((m) => ({
-            id: m.id,
-            text: m.text,
-            sender: m.senderRole,
-            createdAt: m.createdAt,
-            seen: m.seen,
-            seenAt: m.seenAt,
-          }));
-
-        setMessages(mapped);
-
+        setMessages(mapToChatMessages(data.messages || []));
         markConversationRead(counterpartId).catch(() => {});
-      } catch (e: any) {
-        if (!cancelled) {
+      } catch (e: unknown) {
+        if (!silent) {
           console.error("fetchMessagesWithCounterpart error:", e);
-          setError(e.message || "Failed to load chat");
+          setError(e instanceof Error ? e.message : "Failed to load chat");
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!silent) setLoading(false);
       }
-    })();
+    },
+    [counterpartId]
+  );
 
-    return () => {
-      cancelled = true;
-    };
-  }, [counterpartId]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadMessages(false);
+      const interval = setInterval(() => {
+        void loadMessages(true);
+      }, CHAT_POLL_MS);
+      return () => clearInterval(interval);
+    }, [loadMessages])
+  );
 
   useEffect(() => {
     if (listRef.current && messages.length > 0) {
@@ -220,13 +221,7 @@ export default function ChatTourist() {
           }}
           activeOpacity={0.7}
         >
-          {getAvatarUri() ? (
-            <Image source={{ uri: getAvatarUri()! }} style={styles.headerAvatar} />
-          ) : (
-            <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
-              <Ionicons name="person" size={20} color="#9CA3AF" />
-            </View>
-          )}
+          <UserAvatar uri={avatarUri} name={guideName} size={36} style={styles.headerAvatar} />
           <Text style={styles.headerName} numberOfLines={1}>
             {guideName || "Guide"}
           </Text>

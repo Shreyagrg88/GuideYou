@@ -15,9 +15,9 @@ import {
   generateItineraryForSelectedDay,
   generateItineraryForActivity,
   type GenerateItineraryResponse,
-  type ItineraryDay,
 } from "../../api/aiPlanner";
-import { SkeletonBlock, SkeletonWeatherItineraryScreen } from "../components/Skeleton";
+import ScreenHeader from "../../components/screen-header";
+import { SkeletonWeatherItineraryScreen } from "@/components/Skeleton";
 
 const PAGE_BG = "#E6F2FF";
 const ACCENT = "#007BFF";
@@ -61,7 +61,6 @@ function titleCaseWords(raw: string): string {
 
 function conditionFromIcon(icon?: string): string {
   if (!icon) return "";
-  // OpenWeather icon groups: 09/10 rain, 11 thunderstorm, 13 snow, 50 mist.
   if (icon.startsWith("09") || icon.startsWith("10") || icon.startsWith("11")) return "Rainy";
   if (icon.startsWith("13")) return "Snowy";
   if (icon.startsWith("50")) return "Misty";
@@ -94,7 +93,6 @@ function defaultTips(activityName?: string): string[] {
 }
 
 function parseHourLabel(raw: string): string {
-  // Backend can send "YYYY-MM-DD HH:mm:ss" without timezone; treat as UTC and display Nepal time.
   const normalized = raw.includes("T") ? raw : raw.replace(" ", "T");
   const withZone = /([zZ]|[+\-]\d{2}:\d{2})$/.test(normalized)
     ? normalized
@@ -119,11 +117,58 @@ function formatDayDate(raw: string): string {
   });
 }
 
-/** Expo Router may pass a string or string[] for the same param. */
 function paramOne(v: string | string[] | undefined): string {
   if (v == null) return "";
   const x = Array.isArray(v) ? v[0] : v;
   return String(x ?? "").trim();
+}
+
+function mapApiWeatherToUi(apiWeather: GenerateItineraryResponse["weather"]): WeatherUi {
+  return {
+    tempC: Number(apiWeather?.tempC ?? 0),
+    feelsLikeC: Number(apiWeather?.feelsLikeC ?? apiWeather?.tempC ?? 0),
+    condition: pickDisplayCondition(apiWeather),
+    hourly: Array.isArray(apiWeather?.hourly)
+      ? apiWeather!.hourly!.map((h) => ({
+          time: String(h.time || ""),
+          tempC: Number(h.tempC ?? 0),
+          icon: String(h.icon || "03d"),
+        }))
+      : [],
+    daily: Array.isArray(apiWeather?.daily)
+      ? apiWeather.daily.map((d) => ({
+          date: String(d.date || ""),
+          label: String(d.label || ""),
+          condition: String(d.condition || d.description || "Unknown"),
+          description: String(d.description || ""),
+          minTempC: Number(d.minTempC ?? 0),
+          maxTempC: Number(d.maxTempC ?? 0),
+          rainChance: Number(d.rainChance ?? 0),
+          unavailable: Boolean(d.unavailable),
+          activityScore:
+            typeof d.activityScore === "number" ? Number(d.activityScore) : undefined,
+          activityVerdict: d.activityVerdict ? String(d.activityVerdict) : undefined,
+          reason: d.reason ? String(d.reason) : undefined,
+        }))
+      : [],
+    bestDayForActivity: apiWeather?.bestDayForActivity
+      ? {
+          index: Number(apiWeather.bestDayForActivity.index ?? 0),
+          date: String(apiWeather.bestDayForActivity.date || ""),
+          label: String(apiWeather.bestDayForActivity.label || "Best Day"),
+          activityScore:
+            typeof apiWeather.bestDayForActivity.activityScore === "number"
+              ? Number(apiWeather.bestDayForActivity.activityScore)
+              : undefined,
+          activityVerdict: apiWeather.bestDayForActivity.activityVerdict
+            ? String(apiWeather.bestDayForActivity.activityVerdict)
+            : undefined,
+          reason: apiWeather.bestDayForActivity.reason
+            ? String(apiWeather.bestDayForActivity.reason)
+            : undefined,
+        }
+      : null,
+  };
 }
 
 export default function WeatherAndItineraryScreen() {
@@ -139,15 +184,13 @@ export default function WeatherAndItineraryScreen() {
   const headerTitle = (paramOne(params.location) || FALLBACK_LOCATION).replace(/\s+/g, " ");
   const activityName = paramOne(params.activityName) || "Selected activity";
   const activityId = paramOne(params.activityId);
-  const initialDays = Math.max(1, Number(paramOne(params.numberOfDays) || "1") || 1);
+  const numberOfDays = Math.max(1, Number(paramOne(params.numberOfDays) || "1") || 1);
 
-  const [numberOfDays, setNumberOfDays] = useState(initialDays);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [loadingItinerary, setLoadingItinerary] = useState(false);
-  const [itineraryError, setItineraryError] = useState<string | null>(null);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [loadingSelectedDay, setLoadingSelectedDay] = useState(false);
+  const [recommendationError, setRecommendationError] = useState<string | null>(null);
 
   const [weather, setWeather] = useState<WeatherUi | null>(null);
   const [recommendation, setRecommendation] = useState<{
@@ -155,9 +198,8 @@ export default function WeatherAndItineraryScreen() {
     subtitle: string;
     bullets: string[];
   } | null>(null);
-  const [itinerary, setItinerary] = useState<ItineraryDay[]>([]);
 
-  const applyRecommendationAndItinerary = useCallback(
+  const applyRecommendation = useCallback(
     (data: GenerateItineraryResponse) => {
       setRecommendation({
         title: data.recommendation?.title || "AI Recommendation",
@@ -169,8 +211,7 @@ export default function WeatherAndItineraryScreen() {
             ? data.recommendation.bullets
             : defaultTips(activityName),
       });
-      setItinerary(Array.isArray(data.itinerary) ? data.itinerary : []);
-      setItineraryError(null);
+      setRecommendationError(null);
     },
     [activityName]
   );
@@ -184,84 +225,21 @@ export default function WeatherAndItineraryScreen() {
       }
 
       const data = await generateItineraryForActivity(activityId, numberOfDays);
-      const apiWeather = data.weather;
-
-      setWeather({
-        tempC: Number(apiWeather?.tempC ?? 0),
-        feelsLikeC: Number(apiWeather?.feelsLikeC ?? apiWeather?.tempC ?? 0),
-        condition: pickDisplayCondition(apiWeather),
-        hourly: Array.isArray(apiWeather?.hourly)
-          ? apiWeather!.hourly!.map((h) => ({
-              time: String(h.time || ""),
-              tempC: Number(h.tempC ?? 0),
-              icon: String(h.icon || "03d"),
-            }))
-          : [],
-        daily: Array.isArray(apiWeather?.daily)
-          ? apiWeather.daily.map((d) => ({
-              date: String(d.date || ""),
-              label: String(d.label || ""),
-              condition: String(d.condition || d.description || "Unknown"),
-              description: String(d.description || ""),
-              minTempC: Number(d.minTempC ?? 0),
-              maxTempC: Number(d.maxTempC ?? 0),
-              rainChance: Number(d.rainChance ?? 0),
-              unavailable: Boolean(d.unavailable),
-              activityScore:
-                typeof d.activityScore === "number" ? Number(d.activityScore) : undefined,
-              activityVerdict: d.activityVerdict ? String(d.activityVerdict) : undefined,
-              reason: d.reason ? String(d.reason) : undefined,
-            }))
-          : [],
-        bestDayForActivity: apiWeather?.bestDayForActivity
-          ? {
-              index: Number(apiWeather.bestDayForActivity.index ?? 0),
-              date: String(apiWeather.bestDayForActivity.date || ""),
-              label: String(apiWeather.bestDayForActivity.label || "Best Day"),
-              activityScore:
-                typeof apiWeather.bestDayForActivity.activityScore === "number"
-                  ? Number(apiWeather.bestDayForActivity.activityScore)
-                  : undefined,
-              activityVerdict: apiWeather.bestDayForActivity.activityVerdict
-                ? String(apiWeather.bestDayForActivity.activityVerdict)
-                : undefined,
-              reason: apiWeather.bestDayForActivity.reason
-                ? String(apiWeather.bestDayForActivity.reason)
-                : undefined,
-            }
-          : null,
-      });
+      setWeather(mapApiWeatherToUi(data.weather));
       setSelectedDayIndex(0);
-
-      applyRecommendationAndItinerary(data);
-    } catch (e: any) {
+      applyRecommendation(data);
+    } catch (e: unknown) {
       setWeather(null);
       setRecommendation(null);
-      setItinerary([]);
-      setError(e?.message || "Failed to load weather and itinerary");
+      setError(e instanceof Error ? e.message : "Failed to load weather and recommendations");
     } finally {
       setLoading(false);
     }
-  }, [activityId, applyRecommendationAndItinerary, numberOfDays]);
+  }, [activityId, applyRecommendation, numberOfDays]);
 
   useEffect(() => {
     load();
   }, [load]);
-
-  const regenerateItinerary = useCallback(async () => {
-    if (!activityId) return;
-    setLoadingItinerary(true);
-    setItineraryError(null);
-    try {
-      const data = await generateItineraryForActivity(activityId, numberOfDays);
-      setItinerary(Array.isArray(data.itinerary) ? data.itinerary : []);
-    } catch (e: any) {
-      setItinerary([]);
-      setItineraryError(e?.message || "Failed to generate itinerary");
-    } finally {
-      setLoadingItinerary(false);
-    }
-  }, [activityId, numberOfDays]);
 
   const onSelectDay = useCallback(
     async (nextIndex: number) => {
@@ -269,7 +247,7 @@ export default function WeatherAndItineraryScreen() {
       if (nextIndex < 0 || nextIndex >= weather.daily.length) return;
       setSelectedDayIndex(nextIndex);
       setLoadingSelectedDay(true);
-      setItineraryError(null);
+      setRecommendationError(null);
       try {
         const selected = weather.daily[nextIndex];
         const data = await generateItineraryForSelectedDay(
@@ -278,14 +256,16 @@ export default function WeatherAndItineraryScreen() {
           1,
           selected?.date || undefined
         );
-        applyRecommendationAndItinerary(data);
-      } catch (e: any) {
-        setItineraryError(e?.message || "Failed to load selected-day itinerary");
+        applyRecommendation(data);
+      } catch (e: unknown) {
+        setRecommendationError(
+          e instanceof Error ? e.message : "Failed to load recommendation for this day"
+        );
       } finally {
         setLoadingSelectedDay(false);
       }
     },
-    [activityId, applyRecommendationAndItinerary, weather]
+    [activityId, applyRecommendation, weather]
   );
 
   if (loading) {
@@ -308,15 +288,7 @@ export default function WeatherAndItineraryScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 + insets.bottom }]}
       >
-        <View style={styles.titleRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backWrap} hitSlop={12}>
-            <Ionicons name="chevron-back" size={26} color="#000" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={2}>
-            {headerTitle}
-          </Text>
-          <View style={styles.backPlaceholder} />
-        </View>
+        <ScreenHeader title={headerTitle} marginBottom={20} />
 
         {error || !weather ? (
           <View style={styles.errorBox}>
@@ -360,7 +332,7 @@ export default function WeatherAndItineraryScreen() {
                 <View style={styles.dailyNavRow}>
                   <TouchableOpacity
                     onPress={() => onSelectDay(Math.max(0, safeSelectedIndex - 1))}
-                    disabled={safeSelectedIndex <= 0}
+                    disabled={safeSelectedIndex <= 0 || loadingSelectedDay}
                     style={[styles.navBtn, safeSelectedIndex <= 0 && styles.navBtnDisabled]}
                   >
                     <Ionicons name="chevron-back" size={18} color="#007BFF" />
@@ -371,7 +343,7 @@ export default function WeatherAndItineraryScreen() {
                   </View>
                   <TouchableOpacity
                     onPress={() => onSelectDay(Math.min(dailyDays.length - 1, safeSelectedIndex + 1))}
-                    disabled={safeSelectedIndex >= dailyDays.length - 1}
+                    disabled={safeSelectedIndex >= dailyDays.length - 1 || loadingSelectedDay}
                     style={[
                       styles.navBtn,
                       safeSelectedIndex >= dailyDays.length - 1 && styles.navBtnDisabled,
@@ -452,6 +424,9 @@ export default function WeatherAndItineraryScreen() {
                 <ActivityIndicator size="small" color={ACCENT} />
               </View>
             ) : null}
+            {recommendationError ? (
+              <Text style={styles.errorInline}>{recommendationError}</Text>
+            ) : null}
             <View style={styles.aiCard}>
               {(recommendation?.bullets || defaultTips(activityName)).map((line, i) => (
                 <View key={i} style={styles.bulletRow}>
@@ -460,64 +435,6 @@ export default function WeatherAndItineraryScreen() {
                 </View>
               ))}
             </View>
-
-            <View style={styles.daysControlRow}>
-              <Text style={styles.daysLabel}>Number of days</Text>
-              <View style={styles.daysStepper}>
-                <TouchableOpacity
-                  onPress={() => setNumberOfDays((d) => Math.max(1, d - 1))}
-                  style={styles.daysBtn}
-                >
-                  <Ionicons name="remove" size={16} color="#007BFF" />
-                </TouchableOpacity>
-                <Text style={styles.daysValue}>{numberOfDays}</Text>
-                <TouchableOpacity
-                  onPress={() => setNumberOfDays((d) => Math.min(14, d + 1))}
-                  style={styles.daysBtn}
-                >
-                  <Ionicons name="add" size={16} color="#007BFF" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.generateBtn, loadingItinerary && { opacity: 0.7 }]}
-              onPress={regenerateItinerary}
-              activeOpacity={0.85}
-              disabled={loadingItinerary}
-            >
-              <Text style={styles.generateBtnText}>Generate itinerary</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.sectionTitle}>Itinerary</Text>
-            {loadingItinerary ? (
-              <View style={{ marginVertical: 12 }}>
-                <SkeletonBlock width="100%" height={56} borderRadius={12} style={{ marginBottom: 10 }} />
-                <SkeletonBlock width="100%" height={56} borderRadius={12} />
-              </View>
-            ) : itineraryError ? (
-              <Text style={styles.errorInline}>{itineraryError}</Text>
-            ) : itinerary.length > 0 ? (
-              itinerary.map((day) => (
-                <View key={`day-${day.day}`} style={styles.dayCard}>
-                  <Text style={styles.dayTitle}>Day {day.day}</Text>
-                  <Text style={styles.dayLine}>
-                    <Text style={styles.dayPart}>Morning: </Text>
-                    {day.morning}
-                  </Text>
-                  <Text style={styles.dayLine}>
-                    <Text style={styles.dayPart}>Afternoon: </Text>
-                    {day.afternoon}
-                  </Text>
-                  <Text style={styles.dayLine}>
-                    <Text style={styles.dayPart}>Evening: </Text>
-                    {day.evening}
-                  </Text>
-                </View>
-              ))
-            ) : (
-              <Text style={styles.errorInline}>No itinerary available right now.</Text>
-            )}
           </>
         )}
       </ScrollView>
@@ -528,18 +445,6 @@ export default function WeatherAndItineraryScreen() {
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: PAGE_BG },
   scrollContent: { paddingHorizontal: 20 },
-  titleRow: { flexDirection: "row", alignItems: "center", marginTop: 16, marginBottom: 20 },
-  backWrap: { width: 40, justifyContent: "center" },
-  backPlaceholder: { width: 40 },
-  headerTitle: {
-    flex: 1,
-    fontSize: 20,
-    fontFamily: "Nunito_700Bold",
-    color: "#000",
-    textAlign: "center",
-  },
-  loadingBox: { paddingVertical: 48, alignItems: "center" },
-  loadingText: { marginTop: 12, fontFamily: "Nunito_400Regular", color: "#666", fontSize: 14 },
   errorBox: { paddingVertical: 32, paddingHorizontal: 16, alignItems: "center" },
   errorTitle: { marginTop: 16, fontSize: 18, fontFamily: "Nunito_700Bold", color: "#333" },
   errorMessage: {
@@ -678,43 +583,6 @@ const styles = StyleSheet.create({
   bulletRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 10 },
   bullet: { fontSize: 16, color: "#000", marginRight: 8, lineHeight: 22 },
   bulletText: { flex: 1, fontSize: 15, fontFamily: "Nunito_400Regular", color: "#000", lineHeight: 22 },
-  daysControlRow: {
-    marginTop: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  daysLabel: { fontSize: 14, color: "#555", fontFamily: "Nunito_700Bold" },
-  daysStepper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: "#E4E7EC",
-  },
-  daysBtn: { width: 24, height: 24, justifyContent: "center", alignItems: "center" },
-  daysValue: { minWidth: 24, textAlign: "center", fontSize: 14, fontFamily: "Nunito_700Bold" },
-  generateBtn: {
-    backgroundColor: "#007BFF",
-    borderRadius: 22,
-    paddingVertical: 10,
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  generateBtnText: { color: "#fff", fontSize: 14, fontFamily: "Nunito_700Bold" },
-  dayCard: { backgroundColor: "#fff", borderRadius: 12, padding: 12, marginBottom: 10 },
-  dayTitle: { fontSize: 16, fontFamily: "Nunito_700Bold", marginBottom: 8 },
-  dayLine: {
-    fontSize: 13,
-    color: "#444",
-    fontFamily: "Nunito_400Regular",
-    marginBottom: 6,
-    lineHeight: 20,
-  },
-  dayPart: { fontFamily: "Nunito_700Bold" },
   inlineLoaderWrap: { marginBottom: 10, alignItems: "flex-start" },
   errorInline: { fontSize: 13, color: "#666", fontFamily: "Nunito_400Regular", marginBottom: 12 },
 });

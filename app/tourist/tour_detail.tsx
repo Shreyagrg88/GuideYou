@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Dimensions,
@@ -21,9 +21,11 @@ import {
   SkeletonEligibilityRow,
   SkeletonReviewCards,
   SkeletonTourDetailScreen,
-} from "../components/Skeleton";
-import { formatGuideTierCharge } from "../../utils/bookingPrice";
+} from "@/components/Skeleton";
+import { formatGuideListCharge, formatGuideTierCharge } from "../../utils/bookingPrice";
 import { formatGuideRatingDisplay } from "../../utils/guideRating";
+import { resolveAvatarUri } from "../../utils/avatar";
+import { normalizeItineraryDaysFromApi } from "../../utils/itineraryDays";
 
 type GuidePublicProfile = {
   id: string;
@@ -56,6 +58,8 @@ type ActivityData = {
   duration: number;
   difficulty: string;
   equipment: string;
+  /** From GET /api/activities/:id — strings or `{ day, summary }[]` */
+  itineraryDays?: unknown;
   guide: {
     id: string;
     username: string;
@@ -81,14 +85,6 @@ type ReviewsData = {
   reviews: Review[];
 };
 
-const PLACEHOLDER_GUIDE_AVATAR = "https://i.pravatar.cc/150?img=12";
-
-function resolveGuideAvatarUri(raw: string | undefined): string {
-  if (raw == null || !String(raw).trim()) return PLACEHOLDER_GUIDE_AVATAR;
-  const s = String(raw).trim();
-  return s.startsWith("http") ? s : `${API_URL}${s}`;
-}
-
 export default function TourDetails() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -113,9 +109,21 @@ export default function TourDetails() {
   const [canReviewLoading, setCanReviewLoading] = useState(false);
   const [bookingEndDate, setBookingEndDate] = useState<string | null>(null);
   const [guideProfile, setGuideProfile] = useState<GuidePublicProfile | null>(null);
-  /** Same source as guide profile: reviews API average, then profile `rating`. */
-  const [guideReviewAverage, setGuideReviewAverage] = useState<number | null | undefined>(
-    undefined
+  /** From guide reviews API only — no profile `rating` fallback (avoids fake defaults). */
+  const [guideReviewStats, setGuideReviewStats] = useState<{
+    averageRating: number | null;
+    reviewCount: number;
+  } | null>(null);
+
+  const itineraryByDay = useMemo(() => {
+    if (!activity) return [];
+    const dur = Math.max(1, Number(activity.duration) || 1);
+    return normalizeItineraryDaysFromApi(activity.itineraryDays, dur);
+  }, [activity]);
+
+  const hasTripItinerary = useMemo(
+    () => itineraryByDay.some((s) => s.trim().length > 0),
+    [itineraryByDay]
   );
 
   useEffect(() => {
@@ -159,17 +167,24 @@ export default function TourDetails() {
   useEffect(() => {
     const guideId = activity?.guide?.id;
     if (!guideId) {
-      setGuideReviewAverage(undefined);
+      setGuideReviewStats(null);
       return;
     }
     let cancelled = false;
-    setGuideReviewAverage(undefined);
+    setGuideReviewStats(null);
     (async () => {
       try {
         const data = await getGuideReviews(guideId);
-        if (!cancelled) setGuideReviewAverage(data.averageRating ?? null);
+        if (!cancelled) {
+          setGuideReviewStats({
+            averageRating: data.averageRating ?? null,
+            reviewCount: data.reviewCount ?? 0,
+          });
+        }
       } catch {
-        if (!cancelled) setGuideReviewAverage(undefined);
+        if (!cancelled) {
+          setGuideReviewStats({ averageRating: null, reviewCount: 0 });
+        }
       }
     })();
     return () => {
@@ -386,14 +401,42 @@ export default function TourDetails() {
       : `${expertiseFirst} Guide`
     : "Guide";
   const guideLocationLine = guideProfile?.location || activity.location;
-  const guideRatingLine = formatGuideRatingDisplay(
-    guideReviewAverage != null ? guideReviewAverage : guideProfile?.rating
-  );
+
+  const hasActivityRatings =
+    reviews != null &&
+    reviews.reviewCount > 0 &&
+    reviews.averageRating != null &&
+    Number.isFinite(Number(reviews.averageRating));
+
+  const hasGuideRatings =
+    guideReviewStats != null &&
+    guideReviewStats.reviewCount > 0 &&
+    guideReviewStats.averageRating != null &&
+    Number.isFinite(Number(guideReviewStats.averageRating));
+
+  const activityRatingLabel = hasActivityRatings
+    ? formatGuideRatingDisplay(reviews!.averageRating)
+    : "No ratings yet";
+
+  const guideRatingLine = hasGuideRatings
+    ? formatGuideRatingDisplay(guideReviewStats!.averageRating)
+    : guideReviewStats === null
+      ? "…"
+      : "No reviews yet";
+
+  /** For navigation params — never send a fake numeric rating. */
+  const guideRatingForParams = hasGuideRatings
+    ? formatGuideRatingDisplay(guideReviewStats!.averageRating)
+    : "—";
+
   const guideChargeLine =
-    guideProfile?.pricing?.length && guideProfile.pricing[0]?.price != null
+    guideProfile?.pricing?.length &&
+    guideProfile.pricing[0]?.price != null &&
+    Number.isFinite(Number(guideProfile.pricing[0].price)) &&
+    Number(guideProfile.pricing[0].price) > 0
       ? formatGuideTierCharge(guideProfile.pricing[0])
-      : "$50/person/day";
-  const guideAvatarUri = resolveGuideAvatarUri(guideProfile?.avatar);
+      : formatGuideListCharge({});
+  const guideAvatarUri = resolveAvatarUri(guideProfile?.avatar);
 
   const openGuideProfile = () => {
     if (!embeddedGuide?.id) return;
@@ -402,10 +445,10 @@ export default function TourDetails() {
       params: {
         guideId: embeddedGuide.id,
         guideName: guideDisplayName,
-        guideImage: guideAvatarUri,
+        guideImage: guideAvatarUri ?? "",
         guideRole: guideRoleLine,
         guideLocation: guideLocationLine,
-        guideRating: guideRatingLine,
+        guideRating: guideRatingForParams,
         guideCharge: guideChargeLine,
         description: guideProfile?.bio ?? "",
       },
@@ -427,8 +470,8 @@ export default function TourDetails() {
         guideName: guideDisplayName,
         guideRole: guideRoleLine,
         guideLocation: guideLocationLine,
-        guideRating: guideRatingLine,
-        guideImage: guideAvatarUri,
+        guideRating: guideRatingForParams,
+        guideImage: guideAvatarUri ?? "",
         guideCharge: guideChargeLine,
         activityId: activity.id,
         duration: activity.duration.toString(),
@@ -436,18 +479,31 @@ export default function TourDetails() {
     });
   };
 
+  const activityRatingDisplay = reviewLoading
+    ? "…"
+    : activityRatingLabel;
+
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingBottom: 30 + insets.bottom }}
+      contentContainerStyle={{
+        paddingTop: Math.max(insets.top, 12) + 4,
+        paddingHorizontal: 20,
+        paddingBottom: 30 + insets.bottom,
+      }}
     >
       <View style={styles.titleRow}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.titleBackBtn}
+          onPress={() => router.back()}
+          hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+        >
           <Ionicons name="chevron-back" size={26} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={styles.title} numberOfLines={2}>
           {activity.name}
         </Text>
+        <View style={styles.titleRightSpacer} />
       </View>
 
       {/* Photo Gallery */}
@@ -492,15 +548,32 @@ export default function TourDetails() {
           onPress={openGuideProfile}
           activeOpacity={0.7}
         >
-          <Image source={{ uri: guideAvatarUri }} style={styles.guideProfileImg} />
+          {guideAvatarUri ? (
+            <Image source={{ uri: guideAvatarUri }} style={styles.guideProfileImg} />
+          ) : (
+            <View style={[styles.guideProfileImg, styles.guideProfileImgPlaceholder]}>
+              <Ionicons name="person" size={24} color="#9aa5b5" />
+            </View>
+          )}
           <View style={{ flex: 1 }}>
             <Text style={styles.guideProfileName}>{guideDisplayName}</Text>
             <Text style={styles.guideProfileInfo}>
               {guideRoleLine} • {guideLocationLine}
             </Text>
             <View style={styles.guideProfileRatingRow}>
-              <Ionicons name="star" size={14} color="#f4b400" />
-              <Text style={styles.guideProfileRatingText}>{guideRatingLine}</Text>
+              <Ionicons
+                name={hasGuideRatings ? "star" : "star-outline"}
+                size={14}
+                color={hasGuideRatings ? "#f4b400" : "#A8B0BA"}
+              />
+              <Text
+                style={[
+                  styles.guideProfileRatingText,
+                  !hasGuideRatings && styles.ratingTextMuted,
+                ]}
+              >
+                {guideRatingLine}
+              </Text>
             </View>
           </View>
           <Ionicons name="checkmark-circle" size={26} color="#2ecc71" />
@@ -510,18 +583,27 @@ export default function TourDetails() {
       <View style={styles.infoRow}>
         <View style={styles.locationRow}>
           <Ionicons name="location-outline" size={18} color="#007BFF" />
-          <Text style={styles.locationText}>{activity.location}</Text>
+          <Text style={styles.locationText} numberOfLines={2}>
+            {activity.location}
+          </Text>
         </View>
 
         <View style={styles.ratingRow}>
-          <Ionicons name="star" size={18} color="#FFD700" />
-          <Text style={styles.ratingText}>
-            {formatGuideRatingDisplay(reviews?.averageRating)}
+          <Ionicons
+            name={hasActivityRatings ? "star" : "star-outline"}
+            size={18}
+            color={hasActivityRatings ? "#FFD700" : "#A8B0BA"}
+          />
+          <Text
+            style={[
+              styles.ratingText,
+              !hasActivityRatings && !reviewLoading && styles.ratingTextMuted,
+            ]}
+          >
+            {activityRatingDisplay}
           </Text>
-          {reviews && reviews.reviewCount > 0 && (
-            <Text style={styles.reviewCountText}>
-              ({reviews.reviewCount})
-            </Text>
+          {hasActivityRatings && reviews != null && (
+            <Text style={styles.reviewCountText}>({reviews.reviewCount})</Text>
           )}
         </View>
       </View>
@@ -558,6 +640,22 @@ export default function TourDetails() {
                   </Text>
                 </View>
               ))}
+          </View>
+        </>
+      )}
+
+      {hasTripItinerary && (
+        <>
+          <Text style={styles.sectionTitle}>Trip itinerary</Text>
+          <View style={styles.tripItineraryWrap}>
+            {itineraryByDay.map((dayText, index) =>
+              dayText.trim() ? (
+                <View key={`it-day-${index}`} style={styles.tripItineraryDayCard}>
+                  <Text style={styles.tripItineraryDayTitle}>Day {index + 1}</Text>
+                  <Text style={styles.tripItineraryDayText}>{dayText.trim()}</Text>
+                </View>
+              ) : null
+            )}
           </View>
         </>
       )}
@@ -684,7 +782,7 @@ export default function TourDetails() {
       >
         <Ionicons name="cloud-outline" size={22} color="#007BFF" />
         <View style={{ marginLeft: 10 }}>
-          <Text style={styles.weatherTitle}>Weather & AI itinerary</Text>
+          <Text style={styles.weatherTitle}>Weather & AI Recommendation</Text>
           <Text style={styles.weatherSubtitle}>
             Check forecast and smart tips
           </Text>
@@ -708,24 +806,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F3F7FF",
-    padding: 20,
   },
 
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 30,
-    marginBottom: 20,
+    marginBottom: 16,
+    minHeight: 44,
+  },
+
+  titleBackBtn: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
+
+  titleRightSpacer: {
+    width: 44,
   },
 
   title: {
+    flex: 1,
     fontSize: 20,
     fontFamily: "Nunito_700Bold",
-    marginLeft: 20,
+    textAlign: "center",
+    paddingHorizontal: 8,
+    lineHeight: 26,
+    color: "#11181C",
+  },
+
+  ratingTextMuted: {
+    color: "#7A8490",
+    fontSize: 13,
   },
 
   mainImage: {
-    width: Dimensions.get("window").width - 40,
+    width: Dimensions.get("window").width - 32,
     height: 220,
     borderRadius: 12,
     marginBottom: 10,
@@ -733,25 +850,34 @@ const styles = StyleSheet.create({
 
   infoRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
     marginBottom: 20,
-    alignItems: "center",
   },
 
   locationRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
+    flex: 1,
+    flexBasis: "55%",
+    minWidth: 160,
   },
 
   locationText: {
     marginLeft: 5,
+    flex: 1,
     color: "#007BFF",
     fontFamily: "Nunito_400Regular",
+    fontSize: 14,
+    lineHeight: 20,
   },
 
   ratingRow: {
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 0,
   },
 
   ratingText: {
@@ -882,6 +1008,11 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
   },
   guideProfileImg: { width: 55, height: 55, borderRadius: 50, marginRight: 12 },
+  guideProfileImgPlaceholder: {
+    backgroundColor: "#E8EDF3",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   guideProfileName: { fontFamily: "Nunito_700Bold", fontSize: 16 },
   guideProfileInfo: { fontFamily: "Nunito_400Regular", color: "#777", fontSize: 13 },
   guideProfileRatingRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
@@ -889,10 +1020,10 @@ const styles = StyleSheet.create({
   photoGalleryContainer: {
     marginBottom: 10,
     position: "relative",
-    width: Dimensions.get("window").width - 40,
+    width: Dimensions.get("window").width - 32,
   },
   photoItemContainer: {
-    width: Dimensions.get("window").width - 40,
+    width: Dimensions.get("window").width - 32,
   },
   photoCounter: {
     position: "absolute",
@@ -1084,5 +1215,28 @@ const styles = StyleSheet.create({
     color: "#444",
     lineHeight: 20,
     fontFamily: "Nunito_400Regular",
+  },
+  tripItineraryWrap: {
+    marginBottom: 18,
+    gap: 12,
+  },
+  tripItineraryDayCard: {
+    backgroundColor: "#E7F0FF",
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#C5DCF7",
+  },
+  tripItineraryDayTitle: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 15,
+    color: "#007BFF",
+    marginBottom: 8,
+  },
+  tripItineraryDayText: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 14,
+    color: "#333",
+    lineHeight: 22,
   },
 });

@@ -1,9 +1,11 @@
 import React from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
-import { useRouter } from "expo-router"; 
+import { useRouter } from "expo-router";
+import { useRedirectIfAuthenticated } from "../utils/authSession";
 
 export default function GetStarted() {
-  const router = useRouter(); 
+  const router = useRouter();
+  useRedirectIfAuthenticated(router);
 
   return (
     <View style={styles.container}>
@@ -28,7 +30,7 @@ export default function GetStarted() {
       >
         <Text style={styles.buttonText}>Login</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push("/signup")}>
+      <TouchableOpacity onPress={() => router.replace("/signup")}>
         <Text style={styles.link}>Create an Account</Text>
       </TouchableOpacity>
     </View>

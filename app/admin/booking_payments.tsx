@@ -18,8 +18,9 @@ import {
   type GuidePayoutStatusFilter,
 } from "../../api/adminBookingsPayments";
 import { formatNprAmount } from "../../utils/bookingPrice";
+import { formatGuidePayoutStatusLabel } from "../../utils/bookingMilestoneDisplay";
 import AdminNavBar from "../components/admin_navbar";
-import { SkeletonBookingTab } from "../components/Skeleton";
+import { SkeletonBookingTab } from "@/components/Skeleton";
 
 function formatShortDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -128,7 +129,11 @@ export default function AdminBookingPaymentsScreen() {
         >
           <Text style={styles.countLine}>
             {total} booking{total !== 1 ? "s" : ""}
-            {filter === "pending" ? " awaiting release" : filter === "paid" ? " released" : ""}
+            {filter === "pending"
+              ? " awaiting release (includes start-only releases)"
+              : filter === "paid"
+                ? " released"
+                : ""}
           </Text>
 
           {bookings.length === 0 ? (
@@ -165,16 +170,24 @@ export default function AdminBookingPaymentsScreen() {
                   <View
                     style={[
                       styles.pill,
-                      b.guidePayoutStatus === "paid" ? styles.pillPaid : styles.pillPending,
+                      b.guidePayoutStatus === "paid"
+                        ? styles.pillPaid
+                        : b.guidePayoutStatus === "partial"
+                          ? styles.pillPartial
+                          : styles.pillPending,
                     ]}
                   >
                     <Text
                       style={[
                         styles.pillText,
-                        b.guidePayoutStatus === "paid" ? styles.pillTextPaid : styles.pillTextPending,
+                        b.guidePayoutStatus === "paid"
+                          ? styles.pillTextPaid
+                          : b.guidePayoutStatus === "partial"
+                            ? styles.pillTextPartial
+                            : styles.pillTextPending,
                       ]}
                     >
-                      {b.guidePayoutStatus === "paid" ? "Released" : "Pending"}
+                      {formatGuidePayoutStatusLabel(b.guidePayoutStatus)}
                     </Text>
                   </View>
                 </View>
@@ -182,10 +195,21 @@ export default function AdminBookingPaymentsScreen() {
                   <Text style={styles.amountLabel}>Guide receives</Text>
                   <Text style={styles.amountValue}>{formatNprAmount(b.guideEarning)}</Text>
                 </View>
+                {b.guidePayoutStatus === "partial" ? (
+                  <View style={styles.trancheRow}>
+                    <Text style={styles.trancheMeta}>
+                      Start {formatNprAmount(b.guideStartPayoutAmount ?? 0)} released
+                    </Text>
+                    <Text style={styles.trancheMetaDot}>·</Text>
+                    <Text style={styles.trancheMeta}>
+                      Final {formatNprAmount(b.guideFinalPayoutAmount ?? 0)} pending
+                    </Text>
+                  </View>
+                ) : null}
                 <View style={styles.metaRow}>
                   <Text style={styles.meta}>Gross {formatNprAmount(b.price)}</Text>
                   <Text style={styles.metaDot}>·</Text>
-                  <Text style={styles.meta}>Fee 10% {formatNprAmount(b.platformCommission)}</Text>
+                  <Text style={styles.meta}>Fee 15% {formatNprAmount(b.platformCommission)}</Text>
                 </View>
                 <View style={styles.footerRow}>
                   <Text style={styles.footerText}>Paid {formatShortDate(b.paidAt)}</Text>
@@ -358,6 +382,27 @@ const styles = StyleSheet.create({
   },
   pillTextPaid: {
     color: "#2e7d32",
+  },
+  pillPartial: {
+    backgroundColor: "#E3F2FD",
+  },
+  pillTextPartial: {
+    color: "#1565C0",
+  },
+  trancheRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  trancheMeta: {
+    fontSize: 12,
+    fontFamily: "Nunito_600SemiBold",
+    color: "#1565C0",
+  },
+  trancheMetaDot: {
+    marginHorizontal: 6,
+    color: "#1565C0",
   },
   amountRow: {
     flexDirection: "row",

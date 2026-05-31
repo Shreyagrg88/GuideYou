@@ -1,16 +1,31 @@
 import React, { useEffect } from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
+import { redirectIfAuthenticated } from "../utils/authSession";
 
 export default function SplashScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    let cancelled = false;
+
+    const boot = async () => {
+      if (await redirectIfAuthenticated(router)) {
+        return;
+      }
+      if (cancelled) return;
       router.replace("/getstarted");
+    };
+
+    const timer = setTimeout(() => {
+      void boot();
     }, 2000);
-    return () => clearTimeout(timer);
-  }, []);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [router]);
 
   return (
     <View style={styles.container}>

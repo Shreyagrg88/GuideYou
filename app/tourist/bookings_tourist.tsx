@@ -14,9 +14,14 @@ import {
 } from "react-native";
 import { API_URL } from "../../constants/api";
 import { markTouristBookingComplete } from "../../api/touristBookings";
-import { formatNprAmount, resolveEsewaBookingDisplay } from "../../utils/bookingPrice";
+import { formatBookingPriceLines } from "../../utils/bookingPrice";
+import { resolveMediaUri } from "../../utils/avatar";
+import { showCancelBookingConfirm } from "../../utils/cancelTouristBooking";
+import ScreenHeader from "../../components/screen-header";
+import ActivityThumbnail from "../../components/activity-thumbnail";
+import UserAvatar from "../../components/user-avatar";
 import TouristNavbar from "../components/tourist_navbar";
-import { SkeletonBookingTab } from "../components/Skeleton";
+import { SkeletonBookingTab } from "@/components/Skeleton";
 
 type Booking = {
   id: string;
@@ -60,6 +65,7 @@ type Booking = {
   cancelledAt?: string;
   completedAt?: string;
   paymentId?: string;
+  paymentStatus?: string | null;
 };
 
 export default function BookingsTouristScreen() {
@@ -166,16 +172,8 @@ export default function BookingsTouristScreen() {
     }
   };
 
-  // Format image URL
-  const getImageUrl = (path: string | null | undefined): string => {
-    if (!path) {
-      return "https://i.pravatar.cc/300?img=1";
-    }
-    if (path.startsWith("http")) {
-      return path;
-    }
-    return `${API_URL}${path}`;
-  };
+  const getMediaUri = (path: string | null | undefined): string | null =>
+    resolveMediaUri(path);
 
   // Navigate to booking detail page
   const navigateToBookingDetail = (booking: Booking) => {
@@ -185,6 +183,18 @@ export default function BookingsTouristScreen() {
         bookingId: booking.id.toString(),
       },
     });
+  };
+
+  const renderBookingPrice = (booking: Booking) => {
+    const { nprPrimary, usdSecondary } = formatBookingPriceLines(booking);
+    return (
+      <>
+        <Text style={styles.bookingPriceLine}>{nprPrimary}</Text>
+        {usdSecondary ? (
+          <Text style={styles.bookingPriceSub}>{usdSecondary}</Text>
+        ) : null}
+      </>
+    );
   };
 
   // Fetch bookings from API
@@ -361,85 +371,32 @@ export default function BookingsTouristScreen() {
   };
 
   // Cancel booking
-  const handleCancel = async (bookingId: string) => {
-    Alert.alert(
-      "Cancel Booking",
-      "Are you sure you want to cancel this booking?",
-      [
-        {
-          text: "No",
-          style: "cancel",
-        },
-        {
-          text: "Yes, Cancel",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setProcessingId(bookingId);
-              const token = await AsyncStorage.getItem("token");
+  const findBookingById = (bookingId: string): Booking | undefined =>
+    [...upcoming, ...accepted, ...pending, ...past].find((b) => b.id === bookingId);
 
-              if (!token) {
-                Alert.alert("Error", "Please login again.");
-                router.push("/login");
-                return;
-              }
-
-              const url = `${API_URL}/api/tourist/bookings/${bookingId}/cancel`;
-              const response = await fetch(url, {
-                method: "PATCH",
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  "Content-Type": "application/json",
-                },
-              });
-
-              const responseText = await response.text();
-              const isHTML = responseText.trim().startsWith('<');
-
-              // Check if response is HTML (error page) instead of JSON
-              if (!response.ok || isHTML) {
-                let errorMessage = `Failed to cancel booking (${response.status})`;
-                if (response.status === 400) {
-                  errorMessage = "Booking already cancelled or cannot cancel completed booking.";
-                } else if (response.status === 401) {
-                  errorMessage = "Authentication failed. Please login again.";
-                  router.push("/login");
-                  return;
-                } else if (response.status === 403) {
-                  errorMessage = "You don't have permission to cancel this booking.";
-                } else if (response.status === 404) {
-                  errorMessage = "Booking not found.";
-                } else if (response.status === 500) {
-                  errorMessage = "Server error. Please try again.";
-                }
-                Alert.alert("Error", errorMessage);
-                return;
-              }
-
-              let data;
-              try {
-                data = JSON.parse(responseText);
-              } catch (parseError: any) {
-                Alert.alert("Error", "Invalid server response. Please try again.");
-                return;
-              }
-
-              Alert.alert("Success", "Booking cancelled successfully");
-              
-              // Refresh all tabs to ensure cancelled booking appears in past tab
-              await fetchBookings();
-              
-              // Switch to past tab to show the cancelled booking
-              setTab("past");
-            } catch (error: any) {
-              console.error("Cancel booking error:", error);
-              Alert.alert("Error", "Failed to cancel booking. Please try again.");
-            } finally {
-              setProcessingId(null);
-            }
-          },
-        },
-      ]
+  const handleCancel = (bookingId: string) => {
+    const booking = findBookingById(bookingId);
+    showCancelBookingConfirm(
+      {
+        bookingId,
+        status: booking?.status ?? "pending",
+        paymentStatus: booking?.paymentStatus,
+        paidAt: booking?.paidAt,
+        price: booking?.price ?? 0,
+        priceNpr: booking?.priceNpr,
+        startDate: booking?.startDate ?? "",
+      },
+      async (message) => {
+        try {
+          setProcessingId(bookingId);
+          await fetchBookings();
+          setTab("past");
+          Alert.alert("Booking cancelled", message);
+        } finally {
+          setProcessingId(null);
+        }
+      },
+      (message) => Alert.alert("Error", message)
     );
   };
 
@@ -486,7 +443,7 @@ export default function BookingsTouristScreen() {
 
     return upcoming.map((item) => {
       const dateInfo = formatDate(item.startDate);
-      const guideAvatarUri = getImageUrl(item.guide.avatar);
+      const guideAvatarUri = getMediaUri(item.guide.avatar);
       
       return (
         <TouchableOpacity 
@@ -513,7 +470,12 @@ export default function BookingsTouristScreen() {
             {/* Guide info and cancel button row */}
             <View style={styles.guideInfoRow}>
               <View style={styles.guideInfo}>
-                <Image source={{ uri: guideAvatarUri }} style={styles.guideAvatar} />
+                <UserAvatar
+                  uri={guideAvatarUri}
+                  name={item.guide.name || item.guide.username}
+                  size={28}
+                  style={styles.guideAvatar}
+                />
                 <Text style={styles.subUser}>{item.guide.name || item.guide.username}</Text>
               </View>
               {item.status === "paid" && (
@@ -555,9 +517,7 @@ export default function BookingsTouristScreen() {
                 </View>
               )}
             </View>
-            <Text style={styles.bookingPriceLine}>
-              {formatNprAmount(resolveEsewaBookingDisplay(item).nprDisplay)}
-            </Text>
+            {renderBookingPrice(item)}
           </View>
 
           <Ionicons name="chevron-forward" size={22} color="#1B8BFF" style={{ marginLeft: 8 }} />
@@ -607,7 +567,7 @@ export default function BookingsTouristScreen() {
         )}
         {filteredPast.map((item) => {
           const dateInfo = formatDate(item.startDate);
-          const guideAvatarUri = getImageUrl(item.guide.avatar);
+          const guideAvatarUri = getMediaUri(item.guide.avatar);
           const isCancelled = item.status === "cancelled";
           
           return (
@@ -635,7 +595,12 @@ export default function BookingsTouristScreen() {
                 {/* Guide info */}
                 <View style={styles.guideInfoRow}>
                   <View style={styles.guideInfo}>
-                    <Image source={{ uri: guideAvatarUri }} style={styles.guideAvatar} />
+                    <UserAvatar
+                      uri={guideAvatarUri}
+                      name={item.guide.name || item.guide.username}
+                      size={28}
+                      style={styles.guideAvatar}
+                    />
                     <Text style={styles.subUser}>{item.guide.name || item.guide.username}</Text>
                   </View>
                   {item.status === "paid" && item.canMarkComplete && (
@@ -660,9 +625,7 @@ export default function BookingsTouristScreen() {
                     Cancelled on {new Date(item.cancelledAt).toLocaleDateString()}
                   </Text>
                 )}
-                <Text style={styles.bookingPriceLine}>
-                  {formatNprAmount(resolveEsewaBookingDisplay(item).nprDisplay)}
-                </Text>
+                {renderBookingPrice(item)}
               </View>
             </TouchableOpacity>
           );
@@ -682,16 +645,14 @@ export default function BookingsTouristScreen() {
     if (pendingBookings.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No pending booking requests</Text>
+          <Text style={styles.emptyText}>No custom tour requests awaiting guide approval</Text>
         </View>
       );
     }
 
     return pendingBookings.map((req) => {
-      const guideAvatarUri = getImageUrl(req.guide.avatar);
-      const activityPhotoUri = req.activity?.photo 
-        ? getImageUrl(req.activity.photo)
-        : "https://images.unsplash.com/photo-1506905925346-21bda4d32df4";
+      const guideAvatarUri = getMediaUri(req.guide.avatar);
+      const activityPhotoUri = req.activity?.photo ?? null;
 
       return (
         <TouchableOpacity 
@@ -699,11 +660,16 @@ export default function BookingsTouristScreen() {
           style={styles.requestCard}
           onPress={() => navigateToBookingDetail(req)}
         >
-          <Image source={{ uri: activityPhotoUri }} style={styles.activityPhoto} />
+          <ActivityThumbnail uri={activityPhotoUri} style={styles.activityPhoto} />
 
           <View style={{ flex: 1, marginLeft: 12 }}>
             <View style={styles.guideInfo}>
-              <Image source={{ uri: guideAvatarUri }} style={styles.guideAvatarSmall} />
+              <UserAvatar
+                uri={guideAvatarUri}
+                name={req.guide.name || req.guide.username}
+                size={24}
+                style={styles.guideAvatarSmall}
+              />
               <Text style={styles.reqName}>{req.guide.name || req.guide.username}</Text>
             </View>
             <Text style={styles.reqTrek}>
@@ -718,9 +684,7 @@ export default function BookingsTouristScreen() {
                 Party of {req.participantCount}
               </Text>
             </View>
-            <Text style={styles.bookingPriceLine}>
-              {formatNprAmount(resolveEsewaBookingDisplay(req).nprDisplay)}
-            </Text>
+            {renderBookingPrice(req)}
           </View>
 
           <TouchableOpacity
@@ -750,16 +714,14 @@ export default function BookingsTouristScreen() {
     if (accepted.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No accepted booking requests</Text>
+          <Text style={styles.emptyText}>No bookings awaiting payment</Text>
         </View>
       );
     }
 
     return accepted.map((req) => {
-      const guideAvatarUri = getImageUrl(req.guide.avatar);
-      const activityPhotoUri = req.activity?.photo 
-        ? getImageUrl(req.activity.photo)
-        : "https://images.unsplash.com/photo-1506905925346-21bda4d32df4";
+      const guideAvatarUri = getMediaUri(req.guide.avatar);
+      const activityPhotoUri = req.activity?.photo ?? null;
       const remaining = timeRemaining.get(req.id) || "";
       const isExpired = remaining === "Expired";
       const expiryMinutes = req.paymentExpiresAt 
@@ -772,11 +734,16 @@ export default function BookingsTouristScreen() {
           style={[styles.requestCard, isExpired && styles.expiredCard]}
           onPress={() => navigateToBookingDetail(req)}
         >
-          <Image source={{ uri: activityPhotoUri }} style={styles.activityPhoto} />
+          <ActivityThumbnail uri={activityPhotoUri} style={styles.activityPhoto} />
 
           <View style={{ flex: 1, marginLeft: 12 }}>
             <View style={styles.guideInfo}>
-              <Image source={{ uri: guideAvatarUri }} style={styles.guideAvatarSmall} />
+              <UserAvatar
+                uri={guideAvatarUri}
+                name={req.guide.name || req.guide.username}
+                size={24}
+                style={styles.guideAvatarSmall}
+              />
               <Text style={styles.reqName}>{req.guide.name || req.guide.username}</Text>
             </View>
             <Text style={styles.reqTrek}>
@@ -791,9 +758,7 @@ export default function BookingsTouristScreen() {
                 Party of {req.participantCount}
               </Text>
             </View>
-            <Text style={styles.bookingPriceLine}>
-              {formatNprAmount(resolveEsewaBookingDisplay(req).nprDisplay)}
-            </Text>
+            {renderBookingPrice(req)}
 
             {/* Payment countdown timer */}
             {req.paymentExpiresAt && (
@@ -855,15 +820,17 @@ export default function BookingsTouristScreen() {
   return (
     <View style={styles.mainContainer}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>My Bookings</Text>
-        </View>
+        <ScreenHeader title="My Bookings" showBack={false} includeTopInset marginBottom={30} />
 
         <View style={styles.tabRow}>
           {["upcoming", "past", "pending", "accepted"].map((t) => (
             <TouchableOpacity key={t} onPress={() => setTab(t as any)}>
               <Text style={[styles.tab, tab === t && styles.activeTabText]}>
-                {t === "accepted" ? "Accepted" : t.charAt(0).toUpperCase() + t.slice(1)}
+                {t === "accepted"
+                  ? "Pay now"
+                  : t === "pending"
+                    ? "Requests"
+                    : t.charAt(0).toUpperCase() + t.slice(1)}
               </Text>
               {tab === t && <View style={styles.activeLine} />}
             </TouchableOpacity>
@@ -902,22 +869,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Nunito_400Regular",
     color: "#999",
-  },
-
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 30,
-    marginBottom: 30,
-    width: "100%",
-    justifyContent: "center",
-    position: "relative",
-  },
-
-  title: {
-    fontSize: 20,
-    fontFamily: "Nunito_700Bold",
-    textAlign: "center",
   },
 
   tabRow: {
@@ -1028,6 +979,12 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_700Bold",
     color: "#1B8BFF",
     marginTop: 6,
+  },
+  bookingPriceSub: {
+    fontSize: 11,
+    fontFamily: "Nunito_400Regular",
+    color: "#666",
+    marginTop: 2,
   },
 
   statusText: {

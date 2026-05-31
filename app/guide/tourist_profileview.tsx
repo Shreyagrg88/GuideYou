@@ -13,7 +13,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
-import { SkeletonBlock, SkeletonProfileBlock } from "../components/Skeleton";
+import { resolveAvatarUri, resolveMediaUri } from "../../utils/avatar";
+import ActivityThumbnail from "../../components/activity-thumbnail";
+import { SkeletonBlock, SkeletonProfileBlock } from "@/components/Skeleton";
+import ScreenHeader from "../../components/screen-header";
 import GuideNavbar from "../components/guide_navbar";
 
 const NAVBAR_HEIGHT = 70;
@@ -34,14 +37,11 @@ type PastActivityItem = {
   id: string;
   title: string;
   location: string;
-  imageUri: string;
+  imageUri: string | null;
   dateRange: string;
   isCustomTour: boolean;
   participantCount: number;
 };
-
-const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1544005313-94ddf0286df2";
-const DEFAULT_ACTIVITY_IMAGE = "https://images.unsplash.com/photo-1506905925346-21bda4d32df4";
 
 const toArray = (v: unknown): string[] => {
   if (v == null) return [];
@@ -179,9 +179,7 @@ export default function TouristProfileView() {
           const title = b.activity?.name || b.tourName || "Custom Tour";
           const location = b.activity?.location || b.location || "—";
           const photo = b.activity?.photos?.[0] || b.activity?.photo;
-          const imageUri = photo
-            ? (photo.startsWith("http") ? photo : `${API_URL}${photo}`)
-            : DEFAULT_ACTIVITY_IMAGE;
+          const imageUri = photo ? resolveMediaUri(photo) : null;
           const startStr = b.startDate
             ? new Date(b.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
             : "";
@@ -247,15 +245,7 @@ export default function TouristProfileView() {
   const languages = profile?.languages ?? [];
   const interests = profile?.interests ?? [];
 
-  const getAvatarUri = (): string | null => {
-    if (!avatarSrc) return null;
-    // Treat the shared stock image as "no custom dp"
-    const normalized = avatarSrc.startsWith("http") ? avatarSrc : `${API_URL}${avatarSrc}`;
-    if (normalized.includes("photo-1544005313-94ddf0286df2")) {
-      return null;
-    }
-    return normalized;
-  };
+  const avatarUri = resolveAvatarUri(avatarSrc);
 
   const showPastLeftArrow = pastActivities.length > 1 && pastScrollX > 10;
   const showPastRightArrow =
@@ -338,13 +328,12 @@ export default function TouristProfileView() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-            <Ionicons name="chevron-back" size={s(26)} color="#000" />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { fontSize: s(20) }]}>Profile</Text>
-          <View style={styles.headerBtn} />
-        </View>
+        <ScreenHeader
+          title="Profile"
+          includeTopInset
+          titleStyle={{ fontSize: s(20) }}
+          marginBottom={24}
+        />
 
         {(loading || profileLoading) && !profile ? (
           <View style={styles.loadingWrap}>
@@ -353,9 +342,9 @@ export default function TouristProfileView() {
         ) : profile ? (
           <>
             <View style={styles.profileBlock}>
-              {getAvatarUri() ? (
+              {avatarUri ? (
                 <Image
-                  source={{ uri: getAvatarUri()! }}
+                  source={{ uri: avatarUri }}
                   style={[styles.avatar, { width: s(100), height: s(100) }]}
                 />
               ) : (
@@ -446,7 +435,7 @@ export default function TouristProfileView() {
                       style={styles.activityCard}
                       onPress={() => handleOpenBooking(a.id)}
                     >
-                      <Image source={{ uri: a.imageUri }} style={styles.activityImage} />
+                      <ActivityThumbnail uri={a.imageUri} style={styles.activityImage} />
                       <Text style={styles.activityCardTitle} numberOfLines={2}>
                         {a.title}
                       </Text>
@@ -495,14 +484,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#F3F7FF" },
   centered: { justifyContent: "center", alignItems: "center", padding: 24 },
   container: { flex: 1, paddingHorizontal: 20 },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  headerBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
-  headerTitle: { fontFamily: "Nunito_700Bold", fontSize: 20, color: "#000" },
   loadingWrap: { paddingVertical: 48, alignItems: "center" },
   loadingText: { marginTop: 10, fontFamily: "Nunito_400Regular", color: "#666" },
   loadingSmall: { paddingVertical: 24, alignItems: "center" },

@@ -15,8 +15,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { ScreenHeaderBar } from "../../components/screen-header";
 import { API_URL } from "../../constants/api";
-import { SkeletonReviewDocumentScreen } from "../components/Skeleton";
+import { PAGE_PADDING_HORIZONTAL } from "../../constants/layout";
+import { SkeletonReviewDocumentScreen } from "@/components/Skeleton";
 
 type LicenseData = {
   user: {
@@ -135,14 +137,7 @@ export default function ReviewLicense() {
 
   return (
     <View style={styles.root}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>License Review</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <ScreenHeaderBar title="License Review" backIcon="arrow-back" />
 
       <ScrollView contentContainerStyle={styles.content}>
         {/* Personal Detail */}
@@ -247,21 +242,9 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#FFF" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
 
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 40,
-    paddingHorizontal: 16,
-  },
-
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: "Nunito_700Bold",
-  },
-
   content: {
-    padding: 16,
+    paddingHorizontal: PAGE_PADDING_HORIZONTAL,
+    paddingTop: 16,
     paddingBottom: 40,
   },
 

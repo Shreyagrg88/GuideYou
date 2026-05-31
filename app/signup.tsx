@@ -1,7 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import { registerPushToken } from "../api/notifications";
 import { API_URL } from "../constants/api";
+import {
+  establishSessionAfterSignup,
+  pickStoredUserId,
+} from "../utils/authSession";
+import {
+  MIN_PASSWORD_LENGTH,
+  normalizeEmail,
+  trimUsername,
+  validateSignupForm,
+} from "../utils/authValidation";
 import {
   Alert,
   FlatList,
@@ -30,44 +41,36 @@ export default function Signup() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const roles = [
     { id: "guide", label: "Guide" },
     { id: "tourist", label: "Tourist" },
   ];
 
-  const isValidEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+  const clearError = () => {
+    if (errorMessage) setErrorMessage(null);
   };
 
   const handleSignup = async () => {
-    // Validate all fields are filled
-    if (!role || !username || !email || !password || !confirmPassword) {
-      Alert.alert("Validation Error", "Please fill in all fields!");
+    const validationError = validateSignupForm({
+      role,
+      username,
+      email,
+      password,
+      confirmPassword,
+    });
+    if (validationError) {
+      setErrorMessage(validationError);
       return;
     }
 
-    // Validate email format
-    if (!isValidEmail(email)) {
-      Alert.alert("Validation Error", "Please enter a valid email address!");
-      return;
-    }
-
-    // Validate password length
-    if (password.length < 6) {
-      Alert.alert("Validation Error", "Password must be at least 6 characters long!");
-      return;
-    }
-
-    // Validate passwords match
-    if (password !== confirmPassword) {
-      Alert.alert("Validation Error", "Passwords do not match!");
-      return;
-    }
+    const normalizedEmail = normalizeEmail(email);
+    const trimmedUsername = trimUsername(username);
 
     try {
       setLoading(true);
+      setErrorMessage(null);
 
       const response = await fetch(
         `${API_URL}/api/auth/signup`,
@@ -76,10 +79,10 @@ export default function Signup() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             role,
-            username,
-            email,
+            username: trimmedUsername,
+            email: normalizedEmail,
             password,
-            confirmPassword
+            confirmPassword,
           }),
         }
       );
@@ -88,7 +91,7 @@ export default function Signup() {
 
       if (!response.ok) {
         let errorMessage = "Signup failed! Please try again.";
-        
+
         if (data.msg) {
           errorMessage = data.msg;
         } else if (data.message) {
@@ -100,41 +103,77 @@ export default function Signup() {
         }
 
         const errorLower = errorMessage.toLowerCase();
-        if (errorLower.includes("email") && (errorLower.includes("exist") || errorLower.includes("already") || errorLower.includes("use"))) {
-          errorMessage = "This email is already in use. Please use a different email or try logging in.";
-        } else if (errorLower.includes("password") && (errorLower.includes("short") || errorLower.includes("length") || errorLower.includes("minimum"))) {
-          errorMessage = "Password is too short. Please use at least 6 characters.";
-        } else if (errorLower.includes("username") && (errorLower.includes("exist") || errorLower.includes("already") || errorLower.includes("taken"))) {
-          errorMessage = "This username is already taken. Please choose a different username.";
+        if (
+          errorLower.includes("email") &&
+          (errorLower.includes("exist") ||
+            errorLower.includes("already") ||
+            errorLower.includes("use"))
+        ) {
+          errorMessage =
+            "This email is already in use. Please use a different email or try logging in.";
+        } else if (
+          errorLower.includes("password") &&
+          (errorLower.includes("short") ||
+            errorLower.includes("length") ||
+            errorLower.includes("minimum"))
+        ) {
+          errorMessage = `Password is too short. Please use at least ${MIN_PASSWORD_LENGTH} characters.`;
+        } else if (
+          errorLower.includes("username") &&
+          (errorLower.includes("exist") ||
+            errorLower.includes("already") ||
+            errorLower.includes("taken"))
+        ) {
+          errorMessage =
+            "This username is already taken. Please choose a different username.";
         }
 
-        Alert.alert("Signup Failed", errorMessage);
+        setErrorMessage(errorMessage);
         return;
       }
 
-      const userId = data.user?.id;
+      const user = data.user;
+      const userId = pickStoredUserId(user);
 
       if (!userId) {
         Alert.alert("Error", "Signup successful but user ID not found. Please try again.");
         return;
       }
 
-      Alert.alert("Success", "Signup Successful!");
+      const session = await establishSessionAfterSignup(
+        data as Record<string, unknown>,
+        normalizedEmail,
+        password,
+        role
+      );
 
-      if (role === "tourist") {
-        router.replace({
-          pathname: "/tourist/interest_tourist",
-          params: { userId: userId },
-        });
-      } else {
-        router.replace({
-          pathname: "/guide/expertise_guide",
-          params: { userId: userId },
-        });
+      if (!session) {
+        Alert.alert(
+          "Account created",
+          "Your account was created but automatic sign-in failed. Please log in with your email and password.",
+          [{ text: "OK", onPress: () => router.replace("/login") }]
+        );
+        return;
       }
+
+      if (
+        session.user.role === "tourist" ||
+        session.user.role === "guide" ||
+        session.user.role === "admin"
+      ) {
+        registerPushToken(session.token);
+      }
+
+      if (router.canDismiss?.()) router.dismissAll();
+      router.replace({
+        pathname: "/platform-agreement",
+        params: { userId: session.userId, role, flow: "signup" },
+      });
     } catch (err) {
       console.error("Signup error:", err);
-      Alert.alert("Network Error", "Unable to connect to the server. Please check your internet connection and try again.");
+      setErrorMessage(
+        "Network error. Check your connection and try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -154,10 +193,18 @@ export default function Signup() {
         <Text style={styles.title}>Signup</Text>
         <Text style={styles.subtitle}>Make account</Text>
 
+        {errorMessage ? (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle-outline" size={18} color="#b91c1c" />
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        ) : null}
+
       <TouchableOpacity
         style={styles.dropdown}
         onPress={() => setShowDropdown(true)}
         activeOpacity={0.8}
+        disabled={loading}
       >
         <Text style={[styles.dropdownText, { color: role ? "#000" : "#777" }]}>
           {role ? role.charAt(0).toUpperCase() + role.slice(1) : "Select Role"}
@@ -181,6 +228,7 @@ export default function Signup() {
                     onPress={() => {
                       setRole(item.id);
                       setShowDropdown(false);
+                      clearError();
                     }}
                   >
                     <Text
@@ -204,7 +252,13 @@ export default function Signup() {
         placeholder="Username"
         placeholderTextColor="#777"
         value={username}
-        onChangeText={setUsername}
+        onChangeText={(value) => {
+          setUsername(value);
+          clearError();
+        }}
+        autoCapitalize="none"
+        autoCorrect={false}
+        editable={!loading}
       />
 
       <TextInput
@@ -213,7 +267,14 @@ export default function Signup() {
         placeholderTextColor="#777"
         keyboardType="email-address"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(value) => {
+          setEmail(value);
+          clearError();
+        }}
+        autoCapitalize="none"
+        autoCorrect={false}
+        textContentType="emailAddress"
+        editable={!loading}
       />
 
       <View style={styles.passwordContainer}>
@@ -222,8 +283,13 @@ export default function Signup() {
           placeholder="Password"
           placeholderTextColor="#777"
           secureTextEntry={!showPassword}
+          textContentType="newPassword"
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(value) => {
+            setPassword(value);
+            clearError();
+          }}
+          editable={!loading}
         />
         <TouchableOpacity
           style={styles.eyeIcon}
@@ -243,8 +309,13 @@ export default function Signup() {
           placeholder="Confirm Password"
           placeholderTextColor="#777"
           secureTextEntry={!showConfirmPassword}
+          textContentType="newPassword"
           value={confirmPassword}
-          onChangeText={setConfirmPassword}
+          onChangeText={(value) => {
+            setConfirmPassword(value);
+            clearError();
+          }}
+          editable={!loading}
         />
         <TouchableOpacity
           style={styles.eyeIcon}
@@ -389,5 +460,21 @@ const styles = StyleSheet.create({
   linkHighlight: {
     color: "#007BFF",
     fontFamily: "Nunito_700Bold",
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#fef2f2",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 15,
+  },
+  errorText: {
+    flex: 1,
+    fontFamily: "Nunito_400Regular",
+    fontSize: 14,
+    color: "#b91c1c",
+    lineHeight: 20,
   },
 });

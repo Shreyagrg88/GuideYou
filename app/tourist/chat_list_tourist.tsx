@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChatConversation, fetchConversations } from "../../api/chat";
-import { API_URL } from "../../constants/api";
-import { SkeletonConversationRows } from "../components/Skeleton";
+import UserAvatar from "../../components/user-avatar";
+import { SkeletonConversationRows } from "@/components/Skeleton";
+import ScreenHeader from "../../components/screen-header";
+import { PAGE_PADDING_HORIZONTAL } from "../../constants/layout";
 import TouristNavBar from "../components/tourist_navbar";
 
 export default function ChatListTourist() {
@@ -59,18 +61,12 @@ export default function ChatListTourist() {
       }
     >
       <View style={styles.avatarWrap}>
-        {item.avatar ? (
-          <Image
-            source={{
-              uri: item.avatar.startsWith("http") ? item.avatar : `${API_URL}${item.avatar}`,
-            }}
-            style={styles.avatar}
-          />
-        ) : (
-          <View style={[styles.avatar, styles.avatarPlaceholder]}>
-            <Ionicons name="person" size={20} color="#9CA3AF" />
-          </View>
-        )}
+        <UserAvatar
+          uri={item.avatar}
+          name={item.counterpartName}
+          size={44}
+          style={styles.avatar}
+        />
       </View>
       <View style={styles.rowMiddle}>
         <Text style={styles.name} numberOfLines={1}>
@@ -104,10 +100,7 @@ export default function ChatListTourist() {
   return (
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: insets.top + 8 }]}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Messages</Text>
-        </View>
+        <ScreenHeader title="Messages" showBack={false} marginBottom={12} />
 
         {/* Search */}
         <View style={styles.searchRow}>
@@ -161,18 +154,7 @@ export default function ChatListTourist() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#F3F7FF" },
-  content: { flex: 1, paddingHorizontal: 16 },
-  header: {
-    marginBottom: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontFamily: "Nunito_700Bold",
-    fontSize: 22,
-    color: "#000",
-  },
+  content: { flex: 1, paddingHorizontal: PAGE_PADDING_HORIZONTAL },
   searchRow: {
     flexDirection: "row",
     alignItems: "center",

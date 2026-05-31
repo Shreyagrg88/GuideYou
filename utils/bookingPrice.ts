@@ -1,3 +1,5 @@
+export const DEFAULT_USD_TO_NPR = 135;
+
 /** NPR total stored on booking (eSewa amount). */
 export function bookingNprTotal(booking: { price: number; priceNpr?: number }): number {
   return booking.priceNpr ?? booking.price;
@@ -7,17 +9,106 @@ export function formatNprAmount(amount: number): string {
   return `NPR ${Math.round(amount).toLocaleString("en-US")}`;
 }
 
+export function formatUsdAmount(
+  amount: number,
+  options?: { approx?: boolean; decimals?: number | "auto" }
+): string {
+  if (!Number.isFinite(amount)) return "$0 USD";
+  let decimals = 0;
+  if (options?.decimals === "auto") {
+    decimals = Number.isInteger(amount) ? 0 : 2;
+  } else if (typeof options?.decimals === "number") {
+    decimals = options.decimals;
+  } else {
+    decimals = Number.isInteger(amount) ? 0 : 2;
+  }
+  const prefix = options?.approx ? "~" : "";
+  return `${prefix}$${amount.toFixed(decimals)} USD`;
+}
+
+export function formatUsdPerPersonDay(usd: number): string {
+  return `$${Math.round(usd)} USD/person/day`;
+}
+
+export function formatNprPerPersonDay(npr: number): string {
+  return `NPR ${Math.round(npr).toLocaleString("en-US")}/person/day`;
+}
+
+/** Profile / booking card: daily rate in USD and NPR. */
+export function formatDailyRateOnCard(
+  usdPerPersonDay: number,
+  usdToNprRate: number = DEFAULT_USD_TO_NPR
+): string {
+  if (usdPerPersonDay <= 0) return "";
+  const npr = estimateNprFromUsd(usdPerPersonDay, usdToNprRate);
+  return `${formatUsdPerPersonDay(usdPerPersonDay)} · ${formatNprPerPersonDay(npr)}`;
+}
+
+/** Bottom bar subtext for booking / custom-tour estimates. */
+export function formatBookingEstimateBreakdown(opts: {
+  participants: number;
+  days: number;
+  usdPerPersonDay: number;
+  usdTotal: number;
+  finalNote?: string;
+}): string {
+  const { participants, days, usdPerPersonDay, usdTotal, finalNote } = opts;
+  const dayLabel = days === 1 ? "day" : "days";
+  let line =
+    usdPerPersonDay > 0
+      ? `${participants} people × ${days} ${dayLabel} × ${formatUsdPerPersonDay(usdPerPersonDay)} = ${formatUsdAmount(usdTotal)}`
+      : formatUsdAmount(usdTotal);
+  if (finalNote) line += ` · ${finalNote}`;
+  return line;
+}
+
+export type BookingPriceLines = {
+  nprPrimary: string;
+  usdSecondary: string | null;
+};
+
+export function formatBookingPriceLines(
+  booking: Parameters<typeof resolveEsewaBookingDisplay>[0]
+): BookingPriceLines {
+  const d = resolveEsewaBookingDisplay(booking);
+  return {
+    nprPrimary: formatNprAmount(d.nprDisplay),
+    usdSecondary: d.usdSecondaryLine,
+  };
+}
+
+/** Step-2 summary block (custom tour / booking review). */
+export function formatBookingSummaryPricing(opts: {
+  nprTotal: number;
+  usdTotal: number;
+  usdPerPersonDay: number;
+  participants: number;
+  days: number;
+  usdToNprRate: number;
+}): { rateLine: string; totalLine: string; breakdownLine: string } {
+  const nprPerDay = estimateNprFromUsd(opts.usdPerPersonDay, opts.usdToNprRate);
+  return {
+    rateLine: `${formatUsdPerPersonDay(opts.usdPerPersonDay)} · ${formatNprPerPersonDay(nprPerDay)}`,
+    totalLine: `${formatNprAmount(opts.nprTotal)} · ${formatUsdAmount(opts.usdTotal, { approx: true })} est.`,
+    breakdownLine: formatBookingEstimateBreakdown({
+      participants: opts.participants,
+      days: opts.days,
+      usdPerPersonDay: opts.usdPerPersonDay,
+      usdTotal: opts.usdTotal,
+    }),
+  };
+}
+
 /** Secondary line: USD reference for booking totals. */
 export function formatBookingUsdLine(
   priceUsd: number | undefined,
   priceUsdApproximated?: boolean
 ): string | null {
   if (priceUsd == null || !Number.isFinite(priceUsd)) return null;
-  const fixed = priceUsd.toFixed(2);
   if (priceUsdApproximated) {
-    return `~$${fixed} USD (approx. for older booking)`;
+    return `${formatUsdAmount(priceUsd, { approx: true, decimals: 2 })} (approx. for older booking)`;
   }
-  return `$${fixed} USD`;
+  return formatUsdAmount(priceUsd, { decimals: 2 });
 }
 
 /**
@@ -61,7 +152,7 @@ export function resolveEsewaBookingDisplay(booking: {
     const usd = booking.price;
     return {
       nprDisplay: Math.round(usd * rate),
-      usdSecondaryLine: `$${usd.toFixed(2)} USD`,
+      usdSecondaryLine: formatUsdAmount(usd, { decimals: 2 }),
       legacyUsdInPriceField: true,
       storedRawPrice: booking.price,
     };
@@ -92,9 +183,9 @@ export function formatGuideTierCharge(p: {
   const unitSuffix = PERSON_UNIT_SUFFIX(p.unit || "day");
   const usd = p.priceUsd ?? p.price;
   if (p.priceNpr != null && Number.isFinite(p.priceNpr)) {
-    return `$${usd}${unitSuffix} · NPR ${Math.round(p.priceNpr).toLocaleString("en-US")}${unitSuffix}`;
+    return `$${usd} USD${unitSuffix} · NPR ${Math.round(p.priceNpr).toLocaleString("en-US")}${unitSuffix}`;
   }
-  return `$${usd}${unitSuffix}`;
+  return `$${usd} USD${unitSuffix}`;
 }
 
 export type GuideProfileRateLines = { usdLine: string; nprLine: string | null };
@@ -118,7 +209,7 @@ export function formatGuideProfileRateLines(
   if (tier != null && tier.price != null && Number.isFinite(Number(tier.price))) {
     const usd = tier.priceUsd ?? tier.price;
     const unitSuffix = PERSON_UNIT_SUFFIX(tier.unit || "day");
-    const usdLine = `$${usd}${unitSuffix}`;
+    const usdLine = `$${usd} USD${unitSuffix}`;
     const nprLine =
       tier.priceNpr != null && Number.isFinite(tier.priceNpr)
         ? `NPR ${Math.round(tier.priceNpr).toLocaleString("en-US")}`
@@ -136,7 +227,7 @@ export function formatGuideProfileRateLines(
     return { usdLine: fb, nprLine: null };
   }
 
-  return { usdLine: "$50/person/day", nprLine: null };
+  return { usdLine: "Not set", nprLine: null };
 }
 
 /** Homepage / search guide card charge string. */
@@ -152,10 +243,10 @@ export function formatGuideListCharge(g: {
   const usd = g.chargeUsd ?? g.rate;
   const npr = g.chargeNpr;
   if (usd != null && npr != null && Number.isFinite(usd) && Number.isFinite(npr)) {
-    return `$${usd}/person/day · NPR ${Math.round(npr).toLocaleString("en-US")}/person/day`;
+    return `$${usd} USD/person/day · NPR ${Math.round(npr).toLocaleString("en-US")}/person/day`;
   }
-  if (usd != null) return `$${usd}/person/day`;
-  return "$10/person/day";
+  if (usd != null) return `$${usd} USD/person/day`;
+  return "Rate not set";
 }
 
 export function estimateNprFromUsd(usdTotal: number, rate: number): number {

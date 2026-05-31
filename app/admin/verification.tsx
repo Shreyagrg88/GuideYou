@@ -11,17 +11,17 @@ import {
   View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
-import { SkeletonBlock, SkeletonListScreen } from "../components/Skeleton";
+import {
+  fetchAdminPendingLicenses,
+  getStoredUserRole,
+  type AdminPendingLicense,
+} from "../../api/adminAccount";
+import { SkeletonBlock, SkeletonListScreen } from "@/components/Skeleton";
+import { ScreenHeaderBar } from "../../components/screen-header";
+import { PAGE_PADDING_HORIZONTAL } from "../../constants/layout";
 import AdminNavBar from "../components/admin_navbar";
 
-type LicenseItem = {
-  userId: string;
-  username: string;
-  email: string;
-  licenseFile: string;
-  submittedAt: string;
-  status: string;
-};
+type LicenseItem = AdminPendingLicense;
 
 type ActivityItem = {
   id: string;
@@ -89,26 +89,28 @@ export default function VerificationRequest() {
 
       if (!token) {
         Alert.alert("Unauthorized", "Please login again");
+        router.replace("/login");
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/license/pending`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
+      const role = await getStoredUserRole();
+      if (role !== "admin") {
+        Alert.alert(
+          "Access denied",
+          "This area is for administrators only. Please log in with an admin account."
+        );
+        router.replace("/login");
+        return;
       }
 
-      const data = await response.json();
-      setLicenses(data.licenses || []);
+      const licenses = await fetchAdminPendingLicenses(token);
+      setLicenses(licenses);
     } catch (error: any) {
       console.error("Pending licenses error:", error);
-      Alert.alert("Error", error.message || "Failed to load requests");
+      const message =
+        error instanceof Error ? error.message : "Failed to load requests";
+      Alert.alert("Error", message);
+      setLicenses([]);
     } finally {
       setLoading(false);
     }
@@ -122,13 +124,7 @@ export default function VerificationRequest() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Verification</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <ScreenHeaderBar title="Verification" backIcon="arrow-back" />
 
       <View style={styles.segment}>
         <TouchableOpacity
@@ -235,24 +231,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 40,
-    marginBottom: 20,
-    paddingHorizontal: 16,
-  },
-
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: "Nunito_700Bold",
-  },
-
   segment: {
     flexDirection: "row",
     backgroundColor: "#E8EEF4",
-    marginHorizontal: 16,
+    marginHorizontal: PAGE_PADDING_HORIZONTAL,
     borderRadius: 12,
     marginBottom: 16,
   },
@@ -277,7 +259,7 @@ const styles = StyleSheet.create({
   },
 
   list: {
-    paddingHorizontal: 16,
+    paddingHorizontal: PAGE_PADDING_HORIZONTAL,
     paddingBottom: 100,
   },
 
@@ -304,7 +286,7 @@ const styles = StyleSheet.create({
 
   reviewBtn: {
     backgroundColor: "#007BFF",
-    paddingHorizontal: 16,
+    paddingHorizontal: PAGE_PADDING_HORIZONTAL,
     paddingVertical: 6,
     borderRadius: 20,
   },

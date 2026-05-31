@@ -11,10 +11,13 @@ import {
     View,
 } from "react-native";
 import { enrichGuidesWithReviewAverage } from "../../api/guideReviews";
+import ScreenHeader from "../../components/screen-header";
 import { API_URL } from "../../constants/api";
-import { SkeletonListScreen } from "../components/Skeleton";
+import { SkeletonListScreen } from "@/components/Skeleton";
 import { formatGuideListCharge } from "../../utils/bookingPrice";
 import { formatGuideRatingDisplay, pickGuideListRatingSource } from "../../utils/guideRating";
+import { resolveAvatarUri } from "../../utils/avatar";
+import UserAvatar from "../../components/user-avatar";
 
 type Guide = {
   id: string;
@@ -92,13 +95,7 @@ export default function GuideList() {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.titleRow}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={26} color="#000" />
-        </TouchableOpacity>
-
-        <Text style={styles.title}>Guides For You</Text>
-      </View>
+      <ScreenHeader title="Guides For You" includeTopInset marginBottom={20} />
 
       {guides.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -108,18 +105,17 @@ export default function GuideList() {
         </View>
       ) : (
         guides.map((g) => {
-          const guideImage = g.image.startsWith("http") ? g.image : `${API_URL}${g.image}`;
+          const guideImage = resolveAvatarUri(g.image);
           const chargeLine = formatGuideListCharge(g);
           const ratingLine = formatGuideRatingDisplay(pickGuideListRatingSource(g));
           const profileParams = {
             guideId: g.id,
             guideName: g.name,
-            guideRole: g.role,
-            guideLocation: g.location,
+            guideRole: g.role || "",
+            guideLocation: g.location || "",
             guideRating: ratingLine,
-            guideImage,
             guideCharge: chargeLine,
-            description: g.description,
+            ...(guideImage ? { guideImage } : {}),
             activityId: activityId || undefined,
             duration: duration || undefined,
           };
@@ -131,10 +127,7 @@ export default function GuideList() {
               onPress={() => router.push({ pathname: "/tourist/guide_profileview", params: profileParams })}
             >
               <View style={styles.cardHeader}>
-                <Image
-                  source={{ uri: guideImage }}
-                  style={styles.profilePic}
-                />
+                <UserAvatar uri={g.image} name={g.name} size={50} style={styles.profilePic} />
 
                 <View style={{ marginLeft: 10, flex: 1 }}>
                   <Text style={styles.guideName}>{g.name}</Text>
@@ -221,19 +214,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 30,
-    marginBottom: 20,
-  },
-
-  title: {
-    fontSize: 20,
-    fontFamily: "Nunito_700Bold",
-    marginLeft: 80,
-  },
-
   emptyContainer: {
     padding: 40,
     alignItems: "center",
@@ -262,6 +242,11 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
+  },
+  profilePicPlaceholder: {
+    backgroundColor: "#E8EDF3",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   guideName: {

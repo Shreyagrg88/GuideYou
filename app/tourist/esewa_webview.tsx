@@ -6,7 +6,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { API_URL } from "../../constants/api";
-import { SkeletonBlock } from "../components/Skeleton";
+import { ScreenHeaderBar } from "../../components/screen-header";
+import { SkeletonBlock } from "@/components/Skeleton";
 
 const POLL_INTERVAL_MS = 1500;
 const POLL_MAX_MS = 60000;
@@ -185,14 +186,8 @@ export default function EsewaWebViewScreen() {
   // Prefer server-rendered formUrl (avoids signature issues through client routing)
   if (!formUrl && (!gatewayUrl || !esewaParams)) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={24} color="#000" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>eSewa Payment</Text>
-          <View style={styles.backBtn} />
-        </View>
+      <View style={styles.container}>
+        <ScreenHeaderBar title="eSewa Payment" barStyle={{ borderBottomColor: "#eee" }} />
         <View style={styles.centered}>
           <Text style={styles.errorText}>Missing payment data. Go back and try again.</Text>
         </View>
@@ -201,14 +196,8 @@ export default function EsewaWebViewScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color="#000" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>eSewa Payment</Text>
-        <View style={styles.backBtn} />
-      </View>
+    <View style={styles.container}>
+      <ScreenHeaderBar title="eSewa Payment" barStyle={{ borderBottomColor: "#eee" }} />
       {loading && (
         <View style={styles.loadingWrap}>
           <SkeletonBlock width="85%" height={36} borderRadius={8} style={{ marginBottom: 16 }} />
@@ -243,26 +232,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#000",
   },
   webview: {
     flex: 1,

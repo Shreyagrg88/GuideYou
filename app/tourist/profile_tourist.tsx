@@ -16,8 +16,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
+import { confirmLogout } from "../../utils/authSession";
+import { resolveAvatarUri, resolveMediaUri } from "../../utils/avatar";
+import ActivityThumbnail from "../../components/activity-thumbnail";
+import ScreenHeader from "../../components/screen-header";
 import TouristNavbar from "../components/tourist_navbar";
-import { SkeletonBlock, SkeletonProfileScreen } from "../components/Skeleton";
+import { SkeletonBlock, SkeletonProfileScreen } from "@/components/Skeleton";
 
 const NAVBAR_HEIGHT = 70;
 
@@ -37,7 +41,7 @@ type PastActivityItem = {
   id: string;
   title: string;
   location: string;
-  imageUri: string;
+  imageUri: string | null;
   guideName: string;
   dateRange: string;
   isCustomTour: boolean;
@@ -83,7 +87,6 @@ export default function ProfileTourist() {
             id: "",
             username: "Tourist",
             fullName: "Tourist User",
-            avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2",
           });
           return;
         }
@@ -111,7 +114,6 @@ export default function ProfileTourist() {
         id: "",
         username: "Tourist",
         fullName: "Tourist User",
-        avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2",
       });
     } finally {
       setLoading(false);
@@ -151,9 +153,7 @@ export default function ProfileTourist() {
         const title = b.activity?.name || b.tourName || "Custom Tour";
         const location = b.activity?.location || b.location || "—";
         const photo = b.activity?.photos?.[0] || b.activity?.photo;
-        const imageUri = photo
-          ? (photo.startsWith("http") ? photo : `${API_URL}${photo}`)
-          : "https://images.unsplash.com/photo-1506905925346-21bda4d32df4";
+        const imageUri = photo ? resolveMediaUri(photo) : null;
         const guideName = b.guide?.name || b.guide?.username || "Guide";
         const startStr = b.startDate ? new Date(b.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
         const endStr = endDate ? endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
@@ -193,35 +193,9 @@ export default function ProfileTourist() {
     }, [fetchProfile])
   );
 
-  const handleLogout = () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            await AsyncStorage.multiRemove(["token", "user", "role", "userRole", "userId"]);
-            router.replace("/login");
-          },
-        },
-      ]
-    );
-  };
+  const handleLogout = () => confirmLogout(router);
 
-  const getAvatarUri = (): string | null => {
-    if (!profile?.avatar) return null;
-    const normalized = profile.avatar.startsWith("http")
-      ? profile.avatar
-      : `${API_URL}${profile.avatar}`;
-    // Treat the shared stock image as "no custom dp"
-    if (normalized.includes("photo-1544005313-94ddf0286df2")) {
-      return null;
-    }
-    return normalized;
-  };
+  const avatarUri = resolveAvatarUri(profile?.avatar);
 
   const showPastLeftArrow = pastActivities.length > 1 && pastScrollX > 10;
   const showPastRightArrow =
@@ -268,20 +242,23 @@ export default function ProfileTourist() {
           paddingBottom: NAVBAR_HEIGHT + insets.bottom + 30,
         }}
       >
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.push("/tourist/home_tourist")}>
-            <Ionicons name="chevron-back" size={s(26)} color="#000" />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { fontSize: s(20) }]}>Profile</Text>
-          <TouchableOpacity onPress={() => setMenuVisible(true)} style={styles.ellipsisBtn}>
-            <Ionicons name="ellipsis-horizontal" size={24} color="#000" />
-          </TouchableOpacity>
-        </View>
+        <ScreenHeader
+          title="Profile"
+          includeTopInset
+          onBack={() => router.push("/tourist/home_tourist")}
+          titleStyle={{ fontSize: s(20) }}
+          marginBottom={24}
+          right={
+            <TouchableOpacity onPress={() => setMenuVisible(true)} hitSlop={8}>
+              <Ionicons name="ellipsis-horizontal" size={24} color="#000" />
+            </TouchableOpacity>
+          }
+        />
 
         <View style={styles.profileBlock}>
-          {getAvatarUri() ? (
+          {avatarUri ? (
             <Image
-              source={{ uri: getAvatarUri()! }}
+              source={{ uri: avatarUri }}
               style={[styles.avatar, { width: s(100), height: s(100) }]}
             />
           ) : (
@@ -385,7 +362,7 @@ export default function ProfileTourist() {
                   style={styles.activityCard}
                   onPress={() => router.push({ pathname: "/tourist/booking_detail", params: { bookingId: a.id } })}
                 >
-                  <Image source={{ uri: a.imageUri }} style={styles.activityImage} />
+                  <ActivityThumbnail uri={a.imageUri} style={styles.activityImage} />
                   <Text style={styles.activityCardTitle} numberOfLines={2}>{a.title}</Text>
                   <Text style={styles.activityCardPrice}>{a.dateRange}</Text>
                   <Text style={styles.activityCardSub}>{a.guideName}</Text>
@@ -421,7 +398,7 @@ export default function ProfileTourist() {
               }}
             >
               <Ionicons name="card-outline" size={20} color="#333" />
-              <Text style={styles.modalMenuText}>Payment method</Text>
+              <Text style={styles.modalMenuText}>Payment & refunds</Text>
               <Ionicons name="chevron-forward" size={18} color="#999" />
             </TouchableOpacity>
             <TouchableOpacity
@@ -449,16 +426,6 @@ export default function ProfileTourist() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#F3F7FF" },
   container: { flex: 1, paddingHorizontal: 20 },
-
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 40,
-    marginBottom: 24,
-  },
-  headerTitle: { fontFamily: "Nunito_700Bold", fontSize: 20 },
-  ellipsisBtn: { padding: 8, width: 40, alignItems: "flex-end" },
 
   profileBlock: {
     alignItems: "center",

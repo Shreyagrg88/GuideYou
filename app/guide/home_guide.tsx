@@ -15,9 +15,16 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getNotifications } from "../../api/notifications";
 import { API_URL } from "../../constants/api";
+import { resolveMediaUri } from "../../utils/avatar";
+import ActivityThumbnail from "../../components/activity-thumbnail";
 import { formatNprAmount } from "../../utils/bookingPrice";
+import {
+  handleGuideForbiddenIfDisabled,
+  parseJsonOrEmpty,
+} from "../../utils/guideAccountGuard";
+import { pickEntityId } from "../../utils/activityRejection";
 import GuideNavbar from "../components/guide_navbar";
-import { SkeletonGuideHomeScreen } from "../components/Skeleton";
+import { SkeletonGuideHomeScreen } from "@/components/Skeleton";
 
 export default function GuideHome() {
   const insets = useSafeAreaInsets();
@@ -47,9 +54,12 @@ export default function GuideHome() {
         },
       });
 
-      const data = await response.json();
+      const data = await parseJsonOrEmpty(response);
+      if (await handleGuideForbiddenIfDisabled(router, response, data)) return;
+
       if (response.ok && data.guide) {
-        setGuideName(data.guide.fullName || data.guide.username || null);
+        const guide = data.guide as Record<string, unknown>;
+        setGuideName(String(guide.fullName || guide.username || "") || null);
       }
     } catch (error) {
       console.error("Profile fetch error:", error);
@@ -71,7 +81,8 @@ export default function GuideHome() {
         }
       );
 
-      const data = await response.json();
+      const data = await parseJsonOrEmpty(response);
+      if (await handleGuideForbiddenIfDisabled(router, response, data)) return;
 
       if (!response.ok) {
         console.error("Homepage error:", data);
@@ -130,6 +141,15 @@ export default function GuideHome() {
       ? homepageData.upcomingBookings[0]
       : null;
 
+  const openBookingDetail = (booking: Record<string, unknown>) => {
+    const bookingId = pickEntityId(booking);
+    if (!bookingId) return;
+    router.push({
+      pathname: "/guide/booking_detail",
+      params: { bookingId },
+    });
+  };
+
   return (
     <View style={styles.wrapper}>
       <ScrollView
@@ -184,6 +204,7 @@ export default function GuideHome() {
                   Number(homepageData?.performance?.earnings ?? 0)
                 )}
               </Text>
+              <Text style={styles.boxHint}>Released payouts this month</Text>
             </View>
 
             <View style={styles.performanceBox}>
@@ -218,20 +239,28 @@ export default function GuideHome() {
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Upcoming Bookings</Text>
-          <Text style={styles.seeAll}>See all</Text>
+          <TouchableOpacity
+            onPress={() =>
+              router.push({
+                pathname: "/guide/bookings_guide",
+                params: { tab: "upcoming" },
+              })
+            }
+          >
+            <Text style={styles.seeAll}>See all</Text>
+          </TouchableOpacity>
         </View>
 
         {nextBooking && (
-          <View style={styles.bookingCard}>
-            <Image
-              source={{
-                uri: nextBooking.activity?.photo 
-                  ? (nextBooking.activity.photo.startsWith("http") 
-                      ? nextBooking.activity.photo 
-                      : `${API_URL}${nextBooking.activity.photo}`)
-                  : `https://via.placeholder.com/400x180?text=No+Image`,
-              }}
+          <TouchableOpacity
+            style={styles.bookingCard}
+            activeOpacity={0.85}
+            onPress={() => openBookingDetail(nextBooking)}
+          >
+            <ActivityThumbnail
+              uri={resolveMediaUri(nextBooking.activity?.photo)}
               style={styles.bookingImage}
+              iconSize={36}
             />
 
             <View style={styles.labelTag}>
@@ -265,7 +294,7 @@ export default function GuideHome() {
                 </Text>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
       </ScrollView>
 
@@ -398,6 +427,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#000",
+  },
+
+  boxHint: {
+    marginTop: 4,
+    fontSize: 11,
+    fontFamily: "Nunito_400Regular",
+    color: "#8899aa",
   },
 
   requestBtn: {

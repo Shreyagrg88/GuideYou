@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect, useRouter } from "expo-router";
-import * as Location from "expo-location";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useFocusEffect, usePathname, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
+  BackHandler,
   FlatList,
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,20 +16,20 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  recommendActivitiesByGps,
-  type AiRecommendedActivity,
-} from "../../api/aiPlanner";
 import { enrichGuidesWithReviewAverage } from "../../api/guideReviews";
+import {
+  fetchAvailableGuidesThisWeek,
+  type AvailableGuideThisWeek,
+} from "../../api/availableGuides";
 import { getNotifications } from "../../api/notifications";
 import { API_URL } from "../../constants/api";
 import { formatGuideListCharge } from "../../utils/bookingPrice";
 import { formatGuideRatingDisplay, pickGuideListRatingSource } from "../../utils/guideRating";
+import { resolveAvatarUri } from "../../utils/avatar";
 import {
   SkeletonActivityCarousel,
-  SkeletonAiRecommendationRow,
   SkeletonBlock,
-} from "../components/Skeleton";
+} from "@/components/Skeleton";
 import TouristNavBar from "../components/tourist_navbar";
 
 const filters = ["All", "Guides", "Activities"];
@@ -44,34 +45,11 @@ type Guide = {
   verified: boolean;
 };
 
-/** Start of tomorrow 00:00 local */
-const getTomorrowStart = (): Date => {
-  const t = new Date();
-  t.setDate(t.getDate() + 1);
-  t.setHours(0, 0, 0, 0);
-  return t;
-};
-
-/** YYYY-MM-DD for a date */
-const toDateKey = (d: Date): string => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-};
-
-const toTitleCase = (raw: string): string =>
-  raw
-    .trim()
-    .split(/\s+/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-
 type HomepageActivityCard = {
   id: string;
   title: string;
   days: string;
-  rating: number;
+  rating: number | null;
   image: string | null;
   location?: string;
   category?: string;
@@ -83,7 +61,10 @@ function mapHomepageActivity(activity: any): HomepageActivityCard {
     id: activity.id,
     title: activity.title,
     days: activity.days || `${activity.duration || 12} DAYS TRIP`,
-    rating: activity.rating || 4.5,
+    rating:
+      activity.rating != null && Number.isFinite(Number(activity.rating))
+        ? Number(activity.rating)
+        : null,
     image: activity.image ? `${API_URL}${activity.image}` : null,
     location: activity.location,
     category: activity.category,
@@ -105,24 +86,6 @@ function interestsFromProfilePayload(profileData: any): string[] {
   return toArray(raw.interests);
 }
 
-function pickWeatherLabel(weather: {
-  currentDescription?: string;
-  description?: string;
-  condition?: string;
-  currentMain?: string;
-}): string {
-  const precise = String(weather.currentDescription || weather.description || "").trim();
-  if (precise) return toTitleCase(precise);
-
-  const condition = String(weather.condition || "").trim();
-  if (condition) return toTitleCase(condition);
-
-  const main = String(weather.currentMain || "").trim();
-  if (main) return toTitleCase(main);
-
-  return "";
-}
-
 export default function HomePage() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [activities, setActivities] = useState<any[]>([]);
@@ -130,7 +93,7 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchTimeout, setSearchTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeSearchFilter, setActiveSearchFilter] = useState<"Guides" | "Activities">("Guides");
   const [showListView, setShowListView] = useState(false);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
@@ -139,12 +102,13 @@ export default function HomePage() {
   const [contentWidth, setContentWidth] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
   const [notificationUnread, setNotificationUnread] = useState(0);
-  const [availableGuides, setAvailableGuides] = useState<any[]>([]);
+  const [availableGuides, setAvailableGuides] = useState<AvailableGuideThisWeek[]>([]);
   const [availableGuidesLoading, setAvailableGuidesLoading] = useState(false);
-  const [aiWeatherCondition, setAiWeatherCondition] = useState<string>("");
-  const [aiRecommendations, setAiRecommendations] = useState<AiRecommendedActivity[]>([]);
-  const [aiRecommendationsLoading, setAiRecommendationsLoading] = useState(false);
-  const [aiRecommendationsError, setAiRecommendationsError] = useState<string | null>(null);
+  const [availableWindow, setAvailableWindow] = useState<{
+    windowStart: string | null;
+    windowEnd: string | null;
+    timezone: string;
+  } | null>(null);
   const [interestSections, setInterestSections] = useState<
     { category: string; activities: HomepageActivityCard[] }[]
   >([]);
@@ -152,35 +116,19 @@ export default function HomePage() {
 
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
+  const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  const activityTitleToIdMap = useMemo(() => {
-    const m = new Map<string, string>();
-    const add = (title: string | undefined, id: string | undefined) => {
-      const t = (title || "").trim().toLowerCase();
-      const i = (id || "").trim();
-      if (t && i && !m.has(t)) m.set(t, i);
-    };
-    for (const a of activities) add(a.title, a.id);
-    for (const sec of interestSections) {
-      for (const a of sec.activities) add(a.title, a.id);
-    }
-    return m;
-  }, [activities, interestSections]);
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
 
-  const resolveAiCardActivityId = useCallback(
-    (item: AiRecommendedActivity) => {
-      const direct = (item.id || "").trim();
-      if (direct) return direct;
-      const name = (item.name || "").trim().toLowerCase();
-      if (name) {
-        const hit = activityTitleToIdMap.get(name);
-        if (hit) return hit;
-      }
-      return "";
-    },
-    [activityTitleToIdMap]
-  );
+    const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
+      BackHandler.exitApp();
+      return true;
+    });
+
+    return () => backHandler.remove();
+  }, []);
 
   const fetchNotificationUnread = useCallback(async () => {
     const token = await AsyncStorage.getItem("token");
@@ -194,150 +142,38 @@ export default function HomePage() {
     }, [fetchNotificationUnread])
   );
 
-  /** Fetch guides then filter to those available tomorrow or in the next 7 days (frontend-only). */
+  useEffect(() => {
+    if (pathname.includes("home_tourist")) {
+      fetchNotificationUnread();
+    }
+  }, [pathname, fetchNotificationUnread]);
+
+  /** Single API: guides free tomorrow through next 7 days (Nepal time). */
   const fetchAvailableGuides = useCallback(async () => {
     setAvailableGuidesLoading(true);
     setAvailableGuides([]);
     try {
-      const token = await AsyncStorage.getItem("token");
-      const categoriesToTry = ["all", "Trek", "Adventure", "Guide"];
-      let guides: any[] = [];
-      for (const cat of categoriesToTry) {
-        const res = await fetch(
-          `${API_URL}/api/tourist/guides?category=${encodeURIComponent(cat)}`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-          }
-        );
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && Array.isArray(data.guides) && data.guides.length > 0) {
-          guides = data.guides;
-          break;
-        }
-      }
-      const tomorrow = getTomorrowStart();
-      const dateKeysToCheck: string[] = [];
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(tomorrow);
-        d.setDate(d.getDate() + i);
-        dateKeysToCheck.push(toDateKey(d));
-      }
-      const maxGuidesToCheck = 12;
-      const withAvailability: any[] = [];
-      for (let i = 0; i < Math.min(guides.length, maxGuidesToCheck); i++) {
-        const g = guides[i];
-        try {
-          const avRes = await fetch(
-            `${API_URL}/api/tourist/guides/${g.id}/availability`,
-            {
-              method: "GET",
-              headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              },
-            }
-          );
-          const avData = await avRes.json().catch(() => ({}));
-          if (!avRes.ok) continue;
-          const availableSet = new Set(avData.availableDates || []);
-          const bookedSet = new Set(avData.bookedDates || []);
-          const reservedSet = new Set(avData.reservedDates || []);
-          const hasFreeDay = dateKeysToCheck.some(
-            (key) =>
-              availableSet.has(key) && !bookedSet.has(key) && !reservedSet.has(key)
-          );
-          if (hasFreeDay) withAvailability.push(g);
-        } catch {
-          // skip this guide on error
-        }
-      }
-      const enriched = await enrichGuidesWithReviewAverage(withAvailability);
-      setAvailableGuides(enriched);
+      const data = await fetchAvailableGuidesThisWeek({ days: 7, limit: 30 });
+      setAvailableGuides(data.guides);
+      setAvailableWindow({
+        windowStart: data.windowStart,
+        windowEnd: data.windowEnd,
+        timezone: data.timezone,
+      });
     } catch (e) {
       console.error("Fetch available guides error:", e);
       setAvailableGuides([]);
+      setAvailableWindow(null);
     } finally {
       setAvailableGuidesLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchAvailableGuides();
-  }, [fetchAvailableGuides]);
-
-  const fetchAiRecommendations = useCallback(async () => {
-    setAiRecommendationsLoading(true);
-    setAiRecommendationsError(null);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setAiRecommendationsError("Enable location permission to get AI activity suggestions.");
-        setAiRecommendations([]);
-        return;
-      }
-
-      let current = null as Awaited<
-        ReturnType<typeof Location.getCurrentPositionAsync>
-      > | null;
-
-      // On emulators, last known is often available before a fresh GPS fix is resolved.
-      current = await Location.getLastKnownPositionAsync({
-        maxAge: 24 * 60 * 60 * 1000,
-        requiredAccuracy: 5000,
-      });
-
-      if (!current) {
-        try {
-          current = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-            mayShowUserSettingsDialog: true,
-          });
-        } catch {
-          try {
-            current = await Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.Low,
-              mayShowUserSettingsDialog: true,
-            });
-          } catch {
-            current = null;
-          }
-        }
-      }
-
-      // Final fallback for emulator sessions where GPS provider reports null.
-      const lat = current?.coords.latitude ?? 27.7172;
-      const lon = current?.coords.longitude ?? 85.324;
-
-      const data = await recommendActivitiesByGps(lat, lon);
-      setAiWeatherCondition(
-        data.weather
-          ? pickWeatherLabel({
-              currentDescription: data.weather.currentDescription,
-              description: data.weather.description,
-              condition: data.weather.condition,
-              currentMain: data.weather.currentMain,
-            })
-          : ""
-      );
-      setAiRecommendations(data.activityRecommendations || []);
-    } catch (error: any) {
-      setAiRecommendations([]);
-      setAiRecommendationsError(
-        error?.message ||
-          "Failed to load AI suggestions. Check network and location provider."
-      );
-    } finally {
-      setAiRecommendationsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchAiRecommendations();
-  }, [fetchAiRecommendations]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchAvailableGuides();
+    }, [fetchAvailableGuides])
+  );
 
   const loadHomepageActivities = useCallback(async () => {
     if (activeFilter === "Guides") {
@@ -438,14 +274,25 @@ export default function HomePage() {
     }
   }, [activities, showListView]);
 
-  // Cleanup search timeout on unmount
+  // Cleanup search debounce on unmount
   useEffect(() => {
     return () => {
-      if (searchTimeout) {
-        clearTimeout(searchTimeout);
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
       }
     };
-  }, [searchTimeout]);
+  }, []);
+
+  const clearSearch = () => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = null;
+    }
+    setSearchQuery("");
+    setSearchResults(null);
+    setIsSearching(false);
+    setActiveSearchFilter("Guides");
+  };
 
   const scrollLeft = () => {
     if (flatListRef.current) {
@@ -522,23 +369,21 @@ export default function HomePage() {
   // Debounced search handler
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
-    
-    // Clear previous timeout
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
+
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
     }
 
-    // Set new timeout for debounced search
-    const timeout = setTimeout(() => {
-      if (text.trim()) {
-        performSearch(text);
-      } else {
-        setSearchResults(null);
-        setIsSearching(false);
-      }
-    }, 500); // 500ms debounce
+    if (!text.trim()) {
+      setSearchResults(null);
+      setIsSearching(false);
+      return;
+    }
 
-    setSearchTimeout(timeout);
+    setIsSearching(true);
+    searchDebounceRef.current = setTimeout(() => {
+      performSearch(text);
+    }, 400);
   };
 
   const renderActivityCard = ({ item }: any) => (
@@ -576,7 +421,9 @@ export default function HomePage() {
         )}
         <View style={styles.activityRatingRow}>
           <Ionicons name="star" size={14} color="#FFD700" />
-          <Text style={styles.activityRating}>{item.rating}</Text>
+          <Text style={styles.activityRating}>
+            {item.rating != null ? item.rating : "N/A"}
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -614,7 +461,9 @@ export default function HomePage() {
         )}
         <View style={styles.activityListRatingRow}>
           <Ionicons name="star" size={14} color="#FFD700" />
-          <Text style={styles.activityListRating}>{item.rating}</Text>
+          <Text style={styles.activityListRating}>
+            {item.rating != null ? item.rating : "N/A"}
+          </Text>
         </View>
       </View>
 
@@ -622,53 +471,59 @@ export default function HomePage() {
     </TouchableOpacity>
   );
 
-  /** Card for "Available tomorrow & this week" – links to profile, no Message button */
-  const renderAvailableGuideCard = (guide: any) => {
-    const guideImage = guide.avatar?.startsWith("http")
-      ? guide.avatar
-      : guide.image?.startsWith("http")
-        ? guide.image
-        : guide.avatar
-          ? `${API_URL}${guide.avatar}`
-          : guide.image
-            ? `${API_URL}${guide.image}`
-            : "https://i.pravatar.cc/150?img=12";
-    const name = guide.fullName || guide.username || guide.name || "Guide";
-    const role = guide.mainExpertise || guide.expertise?.[0] || guide.role || "Guide";
-    const location = guide.location || "";
+  /** Card for "Available tomorrow & this week" – links to profile */
+  const renderAvailableGuideCard = (guide: AvailableGuideThisWeek) => {
+    const guideImage = resolveAvatarUri(guide.avatar ?? guide.image);
+    const name = String(guide.fullName || guide.username || guide.name || "Guide");
+    const role = String(
+      guide.mainExpertise ||
+        (Array.isArray(guide.expertise) ? guide.expertise[0] : "") ||
+        guide.role ||
+        ""
+    );
+    const location = String(guide.location || "");
     const rating = formatGuideRatingDisplay(pickGuideListRatingSource(guide));
-    const charge = formatGuideListCharge(guide);
+    const availabilityLabel = String(guide.availabilityLabel || "");
     return (
       <TouchableOpacity
-        key={guide.id}
+        key={String(guide.id)}
         style={styles.guideCard}
         activeOpacity={0.8}
         onPress={() =>
           router.push({
             pathname: "/tourist/guide_profileview",
             params: {
-              guideId: guide.id,
+              guideId: String(guide.id),
               guideName: name,
-              guideImage,
-              guideRole: role,
-              guideLocation: location,
-              guideRating: rating,
-              guideCharge: charge,
-              description: guide.bio || guide.description || "",
+              ...(guideImage ? { guideImage } : {}),
             },
           })
         }
       >
-        <Image source={{ uri: guideImage }} style={styles.guideAvatar} />
+        {guideImage ? (
+          <Image source={{ uri: guideImage }} style={styles.guideAvatar} />
+        ) : (
+          <View style={[styles.guideAvatar, styles.guideAvatarPlaceholder]}>
+            <Ionicons name="person" size={22} color="#9aa5b5" />
+          </View>
+        )}
         <View style={styles.guideCardContent}>
-          {guide.verified && (
+          {guide.verified ? (
             <View style={styles.verifiedBadge}>
               <Ionicons name="checkmark-circle" size={14} color="#00C851" />
               <Text style={styles.verifiedText}>Verified Guide</Text>
             </View>
-          )}
+          ) : null}
           <Text style={styles.guideName}>{name}</Text>
-          <Text style={styles.guideRole}>{role} • {location}</Text>
+          <Text style={styles.guideRole}>
+            {[role, location].filter(Boolean).join(" • ") || "—"}
+          </Text>
+          {availabilityLabel ? (
+            <View style={styles.availabilityBadge}>
+              <Ionicons name="calendar-outline" size={13} color="#15803d" />
+              <Text style={styles.availabilityBadgeText}>{availabilityLabel}</Text>
+            </View>
+          ) : null}
           <View style={styles.guideInfoRow}>
             <View style={styles.guideInfoItem}>
               <Ionicons name="star" size={14} color="#FFD700" />
@@ -683,11 +538,7 @@ export default function HomePage() {
 
   return (
     <View style={styles.page}>
-      <ScrollView
-        style={styles.container}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 90 + insets.bottom }}
-      >
+      <View style={[styles.headerArea, { paddingTop: Math.max(insets.top, 12) + 8 }]}>
         <View style={styles.headerRow}>
           <Text style={styles.logo}>
             Guide<Text style={{ color: "#007BFF" }}>You</Text>
@@ -703,44 +554,66 @@ export default function HomePage() {
         </View>
 
         <Text style={styles.subTitle}>
-          Discover amazing places and guides with us
+          Discover amazing activities and guides with us
         </Text>
 
-        {/* Search Bar */}
         <View style={styles.searchContainer}>
           <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search activities, guides, places..."
-            placeholderTextColor="#999"
-            value={searchQuery}
-            onChangeText={handleSearchChange}
-            onSubmitEditing={() => performSearch(searchQuery)}
-          />
-          {isSearching && (
-            <SkeletonBlock width={20} height={20} borderRadius={10} style={{ marginLeft: 10 }} />
-          )}
+          <View style={styles.searchInputWrap}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search activities, guides, places..."
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={handleSearchChange}
+              onSubmitEditing={() => performSearch(searchQuery)}
+              autoCorrect={false}
+              autoCapitalize="none"
+              returnKeyType="search"
+              clearButtonMode="never"
+            />
+          </View>
+          <View style={styles.searchTrailing}>
+            {isSearching ? (
+              <ActivityIndicator size="small" color="#007BFF" />
+            ) : searchQuery.length > 0 ? (
+              <TouchableOpacity
+                onPress={clearSearch}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close-circle" size={20} color="#999" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
+      </View>
 
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 90 + insets.bottom }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         {/* Search Results Section */}
-        {searchResults && searchQuery.trim() && (
+        {searchQuery.trim() && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                Search Results for "{searchQuery}"
+              <Text style={styles.sectionTitle} numberOfLines={1}>
+                Results for "{searchQuery}"
               </Text>
-              <TouchableOpacity onPress={() => {
-                setSearchQuery("");
-                setSearchResults(null);
-                setActiveSearchFilter("Guides");
-                if (searchTimeout) {
-                  clearTimeout(searchTimeout);
-                }
-              }}>
+              <TouchableOpacity onPress={clearSearch}>
                 <Text style={styles.seeAllText}>Clear</Text>
               </TouchableOpacity>
             </View>
 
+            {isSearching && !searchResults ? (
+              <View style={styles.searchLoadingWrap}>
+                <ActivityIndicator size="small" color="#007BFF" />
+                <Text style={styles.searchLoadingText}>Searching...</Text>
+              </View>
+            ) : searchResults ? (
+              <>
             {/* Instagram-style Filter Tabs */}
             <View style={styles.searchFilterRow}>
               <TouchableOpacity
@@ -782,9 +655,10 @@ export default function HomePage() {
               <>
                 {searchResults.guides && searchResults.guides.length > 0 ? (
                   searchResults.guides.map((guide: any) => {
-                    const guideImage = guide.avatar?.startsWith("/")
-                      ? `${API_URL}${guide.avatar}`
-                      : guide.avatar || "https://images.unsplash.com/photo-1544005313-94ddf0286df2";
+                    const guideImage = resolveAvatarUri(guide.avatar);
+                    const name = guide.fullName || guide.username || "Guide";
+                    const role = guide.mainExpertise || guide.expertise?.[0] || "";
+                    const location = guide.location || "";
                     return (
                       <TouchableOpacity
                         key={guide.id}
@@ -793,22 +667,21 @@ export default function HomePage() {
                           pathname: "/tourist/guide_profileview",
                           params: {
                             guideId: guide.id,
-                            guideName: guide.fullName || guide.username,
-                            guideImage,
-                            guideRole: guide.mainExpertise || guide.expertise?.[0] || "Guide",
-                            guideLocation: guide.location || "",
-                            guideRating: formatGuideRatingDisplay(
-                              pickGuideListRatingSource(guide)
-                            ),
-                            guideCharge: formatGuideListCharge(guide),
-                            description: guide.bio || "",
+                            guideName: name,
+                            ...(guideImage ? { guideImage } : {}),
                           },
                         })}
                       >
-                        <Image
-                          source={{ uri: guideImage }}
-                          style={styles.guideAvatar}
-                        />
+                        {guideImage ? (
+                          <Image
+                            source={{ uri: guideImage }}
+                            style={styles.guideAvatar}
+                          />
+                        ) : (
+                          <View style={[styles.guideAvatar, styles.guideAvatarPlaceholder]}>
+                            <Ionicons name="person" size={22} color="#9aa5b5" />
+                          </View>
+                        )}
                         <View style={styles.guideCardContent}>
                           {guide.verified && (
                             <View style={styles.verifiedBadge}>
@@ -816,9 +689,9 @@ export default function HomePage() {
                               <Text style={styles.verifiedText}>Verified Guide</Text>
                             </View>
                           )}
-                          <Text style={styles.guideName}>{guide.fullName || guide.username}</Text>
+                          <Text style={styles.guideName}>{name}</Text>
                           <Text style={styles.guideRole}>
-                            {guide.mainExpertise || guide.expertise?.[0] || "Guide"} • {guide.location}
+                            {[role, location].filter(Boolean).join(" • ") || "—"}
                           </Text>
                           <View style={styles.guideInfoRow}>
                             <View style={styles.guideInfoItem}>
@@ -871,11 +744,15 @@ export default function HomePage() {
                 )}
               </>
             )}
+              </>
+            ) : (
+              <Text style={styles.emptyText}>No results found</Text>
+            )}
           </View>
         )}
 
         {/* Regular Content (only show when not searching) */}
-        {!searchResults && (
+        {!searchQuery.trim() && (
           <>
             {/* Filter Buttons */}
             <View style={styles.filterRow}>
@@ -899,6 +776,23 @@ export default function HomePage() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            <TouchableOpacity
+              style={styles.tripPlannerCard}
+              activeOpacity={0.88}
+              onPress={() => router.push("/tourist/plan_trip")}
+            >
+              <View style={styles.tripPlannerIconWrap}>
+                <Ionicons name="sparkles" size={20} color="#007BFF" />
+              </View>
+              <View style={styles.tripPlannerTextWrap}>
+                <Text style={styles.tripPlannerTitle}>Plan your trip with AI</Text>
+                <Text style={styles.tripPlannerSubtitle}>
+                  Enter your destination, interests, and trip length to build a smart itinerary.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#007BFF" />
+            </TouchableOpacity>
 
             {/* For you Section */}
             {(activeFilter === "All" || activeFilter === "Activities") && (
@@ -1012,94 +906,15 @@ export default function HomePage() {
                 </View>
               ))}
 
-            {(activeFilter === "All" || activeFilter === "Activities") && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>AI Activity Recommendations</Text>
-                  <TouchableOpacity onPress={fetchAiRecommendations}>
-                    <Text style={styles.seeAllText}>Refresh</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {aiWeatherCondition ? (
-                  <Text style={styles.aiMetaText}>
-                    Based on current weather: {aiWeatherCondition}
-                  </Text>
-                ) : null}
-
-                {aiRecommendationsLoading ? (
-                  <View style={{ marginVertical: 12 }}>
-                    <SkeletonAiRecommendationRow />
-                  </View>
-                ) : aiRecommendationsError ? (
-                  <Text style={styles.aiErrorText}>{aiRecommendationsError}</Text>
-                ) : aiRecommendations.length === 0 ? (
-                  <Text style={styles.emptyText}>No AI recommendations available right now.</Text>
-                ) : (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {aiRecommendations.slice(0, 10).map((item, index) => {
-                      const imagePath = item.photos?.[0];
-                      const image =
-                        imagePath && !imagePath.startsWith("http")
-                          ? `${API_URL}${imagePath}`
-                          : imagePath || null;
-                      const stableKey =
-                        item.id ||
-                        `${item.name || "activity"}-${item.location || "unknown"}-${index}`;
-                      return (
-                        <TouchableOpacity
-                          key={stableKey}
-                          style={styles.aiActivityCard}
-                          activeOpacity={0.85}
-                          onPress={() => {
-                            const activityId = resolveAiCardActivityId(item);
-                            if (!activityId) {
-                              Alert.alert(
-                                "Can't open planner",
-                                "This suggestion isn't linked to an activity yet. Open the same tour from For you or your interest rows, then try again."
-                              );
-                              return;
-                            }
-                            router.push({
-                              pathname: "/tourist/weatheranditinary",
-                              params: {
-                                location: item.location || "",
-                                activityName: item.name,
-                                activityId,
-                              },
-                            });
-                          }}
-                        >
-                          {image ? (
-                            <Image source={{ uri: image }} style={styles.aiActivityImage} />
-                          ) : (
-                            <View style={[styles.aiActivityImage, styles.placeholderImage]}>
-                              <Ionicons name="image-outline" size={24} color="#ccc" />
-                            </View>
-                          )}
-                          <View style={styles.aiActivityContent}>
-                            <Text style={styles.aiActivityTitle} numberOfLines={1}>
-                              {item.name}
-                            </Text>
-                            <Text style={styles.aiActivitySub} numberOfLines={1}>
-                              {item.location || "Location not provided"}
-                            </Text>
-                            <Text style={styles.aiActivitySub} numberOfLines={1}>
-                              {item.category || "Activity"} • {item.difficulty || "Moderate"}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                )}
-              </View>
-            )}
-
-            {/* Available tomorrow & this week – frontend-only filter */}
+            {/* Available tomorrow & this week — GET /api/tourist/guides/available-this-week */}
             {(activeFilter === "All" || activeFilter === "Guides") && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Available tomorrow & this week</Text>
+                <Text style={styles.sectionSubtitle}>
+                  {availableWindow?.windowStart && availableWindow?.windowEnd
+                    ? `${availableWindow.windowStart} – ${availableWindow.windowEnd} (${availableWindow.timezone})`
+                    : "Nepal time · free slots not booked or held"}
+                </Text>
                 {availableGuidesLoading ? (
                   <View style={{ paddingVertical: 12 }}>
                     <View style={{ flexDirection: "row", marginBottom: 10 }}>
@@ -1133,10 +948,15 @@ export default function HomePage() {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: "#fff" },
+  headerArea: {
+    paddingHorizontal: 20,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
   container: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 50,
     backgroundColor: "#fff",
   },
   headerRow: {
@@ -1174,23 +994,80 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontFamily: "Nunito_400Regular",
   },
+  tripPlannerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3F8FF",
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginBottom: 20,
+  },
+  tripPlannerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    marginRight: 12,
+  },
+  tripPlannerTextWrap: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  tripPlannerTitle: {
+    fontSize: 16,
+    color: "#111111",
+    fontFamily: "Nunito_700Bold",
+    marginBottom: 2,
+  },
+  tripPlannerSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#667085",
+    fontFamily: "Nunito_400Regular",
+  },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F2F2F2",
     borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    marginBottom: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 14,
   },
   searchIcon: {
-    marginRight: 10,
+    marginRight: 8,
+  },
+  searchInputWrap: {
+    flex: 1,
+    minWidth: 0,
   },
   searchInput: {
-    flex: 1,
-    fontSize: 14,
+    width: "100%",
+    fontSize: 15,
     fontFamily: "Nunito_400Regular",
     color: "#000",
+    paddingVertical: 0,
+  },
+  searchTrailing: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 4,
+  },
+  searchLoadingWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 20,
+  },
+  searchLoadingText: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 14,
+    color: "#666",
   },
   filterRow: {
     flexDirection: "row",
@@ -1235,7 +1112,14 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: "Nunito_700Bold",
     color: "#000",
-    marginBottom: 15,
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    fontFamily: "Nunito_400Regular",
+    color: "#888",
+    marginBottom: 12,
+    lineHeight: 17,
   },
   availableGuidesLoading: {
     flexDirection: "row",
@@ -1428,6 +1312,11 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     marginRight: 12,
   },
+  guideAvatarPlaceholder: {
+    backgroundColor: "#D8E4F4",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   guideCardContent: {
     flex: 1,
   },
@@ -1452,7 +1341,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#666",
     fontFamily: "Nunito_400Regular",
+    marginBottom: 6,
+  },
+  availabilityBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 5,
+    backgroundColor: "#ECFDF5",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+  },
+  availabilityBadgeText: {
+    fontSize: 12,
+    fontFamily: "Nunito_600SemiBold",
+    color: "#15803d",
+    flexShrink: 1,
   },
   guideInfoRow: {
     flexDirection: "row",
@@ -1496,44 +1404,5 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_400Regular",
     textAlign: "center",
     paddingVertical: 20,
-  },
-  aiMetaText: {
-    fontSize: 13,
-    fontFamily: "Nunito_400Regular",
-    color: "#5B6470",
-    marginTop: -8,
-    marginBottom: 10,
-  },
-  aiErrorText: {
-    fontSize: 13,
-    fontFamily: "Nunito_400Regular",
-    color: "#D32F2F",
-    paddingVertical: 10,
-  },
-  aiActivityCard: {
-    width: 230,
-    backgroundColor: "#F3F7FF",
-    borderRadius: 12,
-    marginRight: 12,
-    overflow: "hidden",
-  },
-  aiActivityImage: {
-    width: "100%",
-    height: 120,
-  },
-  aiActivityContent: {
-    padding: 10,
-  },
-  aiActivityTitle: {
-    fontSize: 15,
-    fontFamily: "Nunito_700Bold",
-    color: "#1A1A1A",
-    marginBottom: 4,
-  },
-  aiActivitySub: {
-    fontSize: 12,
-    fontFamily: "Nunito_400Regular",
-    color: "#667085",
-    marginBottom: 2,
   },
 });

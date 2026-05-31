@@ -16,16 +16,21 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
+import { pickEntityId } from "../../utils/activityRejection";
 import {
+  DEFAULT_USD_TO_NPR,
   estimateNprFromUsd,
   formatGuideProfileRateLines,
 } from "../../utils/bookingPrice";
 import { formatGuideRatingDisplay } from "../../utils/guideRating";
+import { resolveAvatarUri, resolveMediaUri } from "../../utils/avatar";
+import ActivityThumbnail from "../../components/activity-thumbnail";
+import ScreenHeader from "../../components/screen-header";
+import { confirmLogout, getStoredAuthUser, pickStoredUserId } from "../../utils/authSession";
 import GuideNavbar from "../components/guide_navbar";
-import { SkeletonBlock, SkeletonProfileScreen, SkeletonReviewCards } from "../components/Skeleton";
+import { SkeletonBlock, SkeletonProfileScreen, SkeletonReviewCards } from "@/components/Skeleton";
 
 const NAVBAR_HEIGHT = 70;
-const DEFAULT_USD_TO_NPR = 135;
 
 type GuideRateTier = {
   price: number;
@@ -72,16 +77,13 @@ export default function Profile() {
   const [profile, setProfile] = useState<GuideProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [rateTier, setRateTier] = useState<GuideRateTier>({
-    price: 10,
-    priceNpr: estimateNprFromUsd(10, DEFAULT_USD_TO_NPR),
-    unit: "day",
-  });
+  const [rateTier, setRateTier] = useState<GuideRateTier | null>(null);
+  const [pricingLoaded, setPricingLoaded] = useState(false);
 
-  const rateLines = useMemo(
-    () => formatGuideProfileRateLines(rateTier, undefined),
-    [rateTier]
-  );
+  const rateLines = useMemo(() => {
+    if (!rateTier) return null;
+    return formatGuideProfileRateLines(rateTier, undefined);
+  }, [rateTier]);
   const [activities, setActivities] = useState<GuideActivity[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [activitiesScrollX, setActivitiesScrollX] = useState(0);
@@ -111,9 +113,16 @@ export default function Profile() {
 
   useEffect(() => {
     if (!profile) return;
+    setRateTier(null);
+    setPricingLoaded(false);
     const token = AsyncStorage.getItem("token").then((t) => {
-      if (!t) return;
-      fetch(`${API_URL}/api/guide/availability`, { headers: { Authorization: `Bearer ${t}` } })
+      if (!t) {
+        setPricingLoaded(true);
+        return;
+      }
+      fetch(`${API_URL}/api/guide/availability`, {
+        headers: { Authorization: `Bearer ${t}` },
+      })
         .then((r) => r.json())
         .then((data) => {
           if (data.pricing?.length > 0 && data.pricing[0].price != null) {
@@ -123,7 +132,7 @@ export default function Profile() {
                 ? String(p.unit).trim()
                 : "day";
             const usd = Number(p.priceUsd ?? p.price);
-            if (!Number.isFinite(usd)) return;
+            if (!Number.isFinite(usd) || usd <= 0) return;
             const fx =
               typeof data.usdToNprRate === "number" && data.usdToNprRate > 0
                 ? data.usdToNprRate
@@ -143,7 +152,8 @@ export default function Profile() {
             });
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => setPricingLoaded(true));
     });
   }, [profile?.id]);
 
@@ -160,7 +170,15 @@ export default function Profile() {
         },
       });
       const data = await response.json();
-      if (response.ok) setActivities(data.activities || []);
+      if (response.ok) {
+        const list = Array.isArray(data.activities) ? data.activities : [];
+        setActivities(
+          list.map((a: Record<string, unknown>) => ({
+            ...a,
+            id: pickEntityId(a.id ?? a._id),
+          })) as GuideActivity[]
+        );
+      }
     } catch {
       setActivities([]);
     } finally {
@@ -255,10 +273,26 @@ export default function Profile() {
         },
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
 
       if (!response.ok) {
-        router.replace("/login");
+        const stored = await getStoredAuthUser();
+        setProfile({
+          id: pickStoredUserId(stored) || "",
+          username: stored?.username || "Guide",
+          fullName: stored?.fullName || stored?.name || stored?.username || "Guide",
+          email: stored?.email || "",
+          avatar: stored?.avatar || "",
+          bio: "",
+          mainExpertise: "",
+          location: "",
+          expertise: [],
+        });
         return;
       }
 
@@ -270,38 +304,25 @@ export default function Profile() {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            await AsyncStorage.multiRemove(["token", "user", "role"]);
-            router.replace("/login");
-          },
-        },
-      ]
-    );
-  };
+  const handleLogout = () => confirmLogout(router);
 
-  const getAvatarUri = () => {
-    if (!profile?.avatar) {
-      return "https://images.unsplash.com/photo-1544005313-94ddf0286df2";
-    }
-    return profile.avatar.startsWith("http")
-      ? profile.avatar
-      : `${API_URL}${profile.avatar}`;
-  };
+  const avatarUri = useMemo(
+    () => resolveAvatarUri(profile?.avatar),
+    [profile?.avatar]
+  );
 
-  const getActivityImageUri = (photos: string[]) => {
+  const ratingDisplay = useMemo(() => {
+    if (reviewsLoading) return { text: "—", muted: true };
+    if (reviewCount === 0) return { text: "No reviews yet", muted: true };
+    const value = averageRating ?? profile?.rating;
+    return { text: formatGuideRatingDisplay(value), muted: false };
+  }, [reviewsLoading, reviewCount, averageRating, profile?.rating]);
+
+  const getActivityImageUri = (photos: string[]): string | null => {
     if (photos?.length > 0 && photos[0]) {
-      return photos[0].startsWith("http") ? photos[0] : `${API_URL}${photos[0]}`;
+      return resolveMediaUri(photos[0]);
     }
-    return "https://images.unsplash.com/photo-1506905925346-21bda4d32df4";
+    return null;
   };
 
   const showActivitiesLeftArrow = activities.length > 1 && activitiesScrollX > 10;
@@ -346,19 +367,37 @@ export default function Profile() {
         }}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.push("/guide/home_guide")}>
-            <Ionicons name="chevron-back" size={s(26)} color="#000" />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { fontSize: s(20) }]}>Profile</Text>
-          <TouchableOpacity onPress={() => setMenuVisible(true)} style={styles.ellipsisBtn}>
-            <Ionicons name="ellipsis-horizontal" size={24} color="#000" />
-          </TouchableOpacity>
-        </View>
+        <ScreenHeader
+          title="Profile"
+          includeTopInset
+          onBack={() => router.push("/guide/home_guide")}
+          titleStyle={{ fontSize: s(20) }}
+          marginBottom={24}
+          right={
+            <TouchableOpacity onPress={() => setMenuVisible(true)} hitSlop={8}>
+              <Ionicons name="ellipsis-horizontal" size={24} color="#000" />
+            </TouchableOpacity>
+          }
+        />
 
         {/* Profile block – reference layout */}
         <View style={styles.profileBlock}>
-          <Image source={{ uri: getAvatarUri() }} style={[styles.avatar, { width: s(100), height: s(100) }]} />
+          {avatarUri ? (
+            <Image
+              source={{ uri: avatarUri }}
+              style={[styles.avatar, { width: s(100), height: s(100) }]}
+            />
+          ) : (
+            <View
+              style={[
+                styles.avatar,
+                styles.avatarPlaceholder,
+                { width: s(100), height: s(100) },
+              ]}
+            >
+              <Ionicons name="person" size={s(44)} color="#94A3B8" />
+            </View>
+          )}
           <Text style={[styles.displayName, { fontSize: s(20) }]}>{profile.fullName || profile.username}</Text>
           {(profile.mainExpertise || (profile.expertise && profile.expertise.length > 0)) ? (
             <View style={styles.locationRow}>
@@ -380,26 +419,41 @@ export default function Profile() {
               <Text style={styles.statValue}>
                 {profile.yearsOfExperience != null && profile.yearsOfExperience !== ""
                   ? `${profile.yearsOfExperience} Yrs`
-                  : " "}
+                  : "—"}
               </Text>
             </View>
             <View style={[styles.statCell, styles.statCellBorder, styles.statCellRate]}>
               <Text style={styles.statLabel}>Rate</Text>
               <View style={styles.rateValueBlock}>
-                <Text style={styles.statValueRatePrimary} numberOfLines={2}>
-                  {rateLines.usdLine}
-                </Text>
-                {rateLines.nprLine ? (
-                  <Text style={styles.statValueRateSecondary} numberOfLines={1}>
-                    {rateLines.nprLine}
-                  </Text>
-                ) : null}
+                {!pricingLoaded ? (
+                  <Text style={[styles.statValue, styles.statValueMuted]}>—</Text>
+                ) : rateLines ? (
+                  <>
+                    <Text style={styles.statValueRatePrimary} numberOfLines={2}>
+                      {rateLines.usdLine}
+                    </Text>
+                    {rateLines.nprLine ? (
+                      <Text style={styles.statValueRateSecondary} numberOfLines={1}>
+                        {rateLines.nprLine}
+                      </Text>
+                    ) : null}
+                  </>
+                ) : (
+                  <Text style={[styles.statValue, styles.statValueMuted]}>Not set</Text>
+                )}
               </View>
             </View>
             <View style={styles.statCell}>
               <Text style={styles.statLabel}>Rating</Text>
-              <Text style={styles.statValue}>
-                {formatGuideRatingDisplay(averageRating ?? profile.rating)}
+              <Text
+                style={[
+                  styles.statValue,
+                  ratingDisplay.muted && styles.statValueMuted,
+                  ratingDisplay.text === "No reviews yet" && styles.statValueSmall,
+                ]}
+                numberOfLines={2}
+              >
+                {ratingDisplay.text}
               </Text>
             </View>
           </View>
@@ -464,15 +518,20 @@ export default function Profile() {
                   onPress={() =>
                     router.push({
                       pathname: "/guide/activity_detail",
-                      params: {
-                        id: a.id,
-                        status: a.status,
-                        rejectionReason: a.rejectionReason ?? "",
-                      },
+                      params: { id: a.id },
                     })
                   }
                 >
-                  <Image source={{ uri: getActivityImageUri(a.photos) }} style={styles.activityImage} />
+                  {(() => {
+                    const activityUri = getActivityImageUri(a.photos);
+                    return activityUri ? (
+                      <Image source={{ uri: activityUri }} style={styles.activityImage} />
+                    ) : (
+                      <View style={[styles.activityImage, styles.activityImagePlaceholder]}>
+                        <Ionicons name="image-outline" size={28} color="#bbb" />
+                      </View>
+                    );
+                  })()}
                   <Text style={styles.activityCardTitle} numberOfLines={2}>{a.name}</Text>
                   <Text style={styles.activityCardPrice}>{a.duration} days • {a.difficulty || "—"}</Text>
                   {a.status !== "published" && (
@@ -591,16 +650,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#F3F7FF" },
   container: { flex: 1, paddingHorizontal: 20 },
 
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 40,
-    marginBottom: 24,
-  },
-  headerTitle: { fontFamily: "Nunito_700Bold", fontSize: 20 },
-  ellipsisBtn: { padding: 8, width: 40, alignItems: "flex-end" },
-
   profileBlock: {
     alignItems: "center",
     marginBottom: 24,
@@ -615,6 +664,11 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   avatar: { borderRadius: 100, marginBottom: 10 },
+  avatarPlaceholder: {
+    backgroundColor: "#E2E8F0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   displayName: { fontFamily: "Nunito_700Bold", color: "#1a1a1a", marginBottom: 6 },
   locationRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 12 },
   locationText: { fontFamily: "Nunito_400Regular", color: "#666" },
@@ -638,6 +692,8 @@ const styles = StyleSheet.create({
   statCellRate: { flex: 1.15, paddingHorizontal: 6 },
   statLabel: { fontFamily: "Nunito_400Regular", fontSize: 11, color: "#666", marginBottom: 2 },
   statValue: { fontFamily: "Nunito_700Bold", fontSize: 13, color: "#333", textAlign: "center" },
+  statValueMuted: { color: "#94A3B8", fontFamily: "Nunito_400Regular" },
+  statValueSmall: { fontSize: 10, lineHeight: 13 },
   rateValueBlock: {
     width: "100%",
     alignItems: "center",
@@ -707,6 +763,11 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   activityImage: { width: "100%", height: 100, backgroundColor: "#E0E0E0" },
+  activityImagePlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EEF2F6",
+  },
   activityCardTitle: { fontFamily: "Nunito_700Bold", fontSize: 13, padding: 10, color: "#333" },
   activityCardPrice: { fontFamily: "Nunito_400Regular", fontSize: 12, color: "#007BFF", paddingHorizontal: 10, paddingBottom: 10 },
   activityEmptyText: { fontFamily: "Nunito_400Regular", fontSize: 14, color: "#666", marginBottom: 12 },

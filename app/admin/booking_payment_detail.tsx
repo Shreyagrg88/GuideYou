@@ -21,9 +21,15 @@ import {
   type AdminPayoutDetails,
 } from "../../api/adminBookingsPayments";
 import { API_URL } from "../../constants/api";
-import { formatNprAmount } from "../../utils/bookingPrice";
+import { formatNprAmount, formatUsdAmount } from "../../utils/bookingPrice";
+import {
+  payoutTierLabel,
+  releaseAmountForBooking,
+  releaseAmountLabel,
+} from "../../utils/bookingMilestoneDisplay";
+import ActivityThumbnail from "../../components/activity-thumbnail";
 import AdminNavBar from "../components/admin_navbar";
-import { SkeletonBlock, SkeletonBookingDetailScreen } from "../components/Skeleton";
+import { SkeletonBlock, SkeletonBookingDetailScreen } from "@/components/Skeleton";
 
 function formatDt(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -37,12 +43,6 @@ function formatDt(iso: string | null | undefined): string {
         hour: "2-digit",
         minute: "2-digit",
       });
-}
-
-function activityPhotoUri(photo: string | null | undefined): string {
-  if (!photo) return "https://images.unsplash.com/photo-1506905925346-21bda4d32df4";
-  if (photo.startsWith("http")) return photo;
-  return `${API_URL}${photo}`;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -135,10 +135,12 @@ export default function AdminBookingPaymentDetailScreen() {
 
   const handleRelease = () => {
     if (!booking) return;
-    const npr = formatNprAmount(booking.guideEarning);
+    const releaseAmount = releaseAmountForBooking(booking);
+    const npr = formatNprAmount(releaseAmount);
+    const label = releaseAmountLabel(booking.guidePayoutStatus);
     Alert.alert(
       "Release payout",
-      `Confirm you have sent ${npr} to the guide outside the app? This marks the payout as released so their earnings update.`,
+      `Confirm you have sent ${npr} (${label}) to the guide outside the app? This marks the payout as released so their earnings update.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -214,10 +216,15 @@ export default function AdminBookingPaymentDetailScreen() {
   const title = booking.isCustomTour
     ? booking.tourName || "Custom tour"
     : booking.activity?.name || "Booking";
-  const canRelease =
-    booking.guidePayoutStatus !== "paid" &&
-    (booking.status === "paid" || booking.status === "completed") &&
-    booking.paidAt;
+  const canRelease = Boolean(booking.canReleaseFinalPayout);
+  const startReleased = Boolean(booking.guideStartPayoutReleasedAt);
+  const tierLabel = payoutTierLabel(booking.guidePayoutTier);
+  const payoutStatusLabel =
+    booking.guidePayoutStatus === "paid"
+      ? "Fully released"
+      : booking.guidePayoutStatus === "partial"
+        ? "Start released — final pending"
+        : "Pending";
 
   return (
     <View style={styles.root}>
@@ -236,7 +243,7 @@ export default function AdminBookingPaymentDetailScreen() {
         showsVerticalScrollIndicator={false}
       >
         {!booking.isCustomTour && booking.activity && (
-          <Image source={{ uri: activityPhotoUri(booking.activity.photo) }} style={styles.hero} />
+          <ActivityThumbnail uri={booking.activity.photo} style={styles.hero} iconSize={40} />
         )}
 
         <View style={styles.titleBlock}>
@@ -248,12 +255,14 @@ export default function AdminBookingPaymentDetailScreen() {
             <View
               style={[
                 styles.badge,
-                booking.guidePayoutStatus === "paid" ? styles.badgeGreen : styles.badgeAmber,
+                booking.guidePayoutStatus === "paid"
+                  ? styles.badgeGreen
+                  : booking.guidePayoutStatus === "partial"
+                    ? styles.badgeBlue
+                    : styles.badgeAmber,
               ]}
             >
-              <Text style={styles.badgeTextDark}>
-                {booking.guidePayoutStatus === "paid" ? "Released" : "Payout pending"}
-              </Text>
+              <Text style={styles.badgeTextDark}>{payoutStatusLabel}</Text>
             </View>
           </View>
         </View>
@@ -262,19 +271,59 @@ export default function AdminBookingPaymentDetailScreen() {
           <Text style={styles.moneyLabel}>Tourist paid (gross)</Text>
           <Text style={styles.moneyGross}>{formatNprAmount(booking.price)}</Text>
           {booking.priceUsd != null && Number.isFinite(booking.priceUsd) ? (
-            <Text style={styles.moneyUsd}>~${Number(booking.priceUsd).toFixed(2)} USD ref.</Text>
+            <Text style={styles.moneyUsd}>
+              {formatUsdAmount(Number(booking.priceUsd), { approx: true, decimals: 2 })} ref.
+            </Text>
           ) : null}
           <View style={styles.splitRow}>
             <View style={styles.splitBox}>
-              <Text style={styles.splitLabel}>Platform 10%</Text>
+              <Text style={styles.splitLabel}>Platform 15%</Text>
               <Text style={styles.splitValue}>{formatNprAmount(booking.platformCommission)}</Text>
             </View>
             <View style={styles.splitBoxHighlight}>
-              <Text style={styles.splitLabelLight}>Guide 90%</Text>
+              <Text style={styles.splitLabelLight}>Guide 85%</Text>
               <Text style={styles.splitValueLight}>{formatNprAmount(booking.guideEarning)}</Text>
             </View>
           </View>
+          <Text style={styles.tierNote}>Payout tier: {tierLabel}</Text>
+          {typeof booking.guidePayoutReleasedAmount === "number" ? (
+            <Text style={styles.releasedNote}>
+              Released so far: {formatNprAmount(booking.guidePayoutReleasedAmount)}
+            </Text>
+          ) : null}
+          <View style={styles.milestoneRow}>
+            <View style={styles.milestoneBox}>
+              <Text style={styles.milestoneLabel}>Start tranche</Text>
+              <Text style={styles.milestoneValue}>
+                {formatNprAmount(booking.guideStartPayoutAmount ?? 0)}
+              </Text>
+              <Text style={styles.milestoneMeta}>
+                {startReleased
+                  ? `Released ${formatDt(booking.guideStartPayoutReleasedAt)}`
+                  : "Released when both confirm tour start"}
+              </Text>
+            </View>
+            <View style={styles.milestoneBox}>
+              <Text style={styles.milestoneLabel}>Final tranche</Text>
+              <Text style={styles.milestoneValue}>
+                {formatNprAmount(booking.guideFinalPayoutAmount ?? 0)}
+              </Text>
+              <Text style={styles.milestoneMeta}>
+                {booking.guidePayoutStatus === "paid"
+                  ? `Released ${formatDt(booking.payoutDate)}`
+                  : booking.status === "completed"
+                    ? "Ready for admin release"
+                    : "After tourist marks completed"}
+              </Text>
+            </View>
+          </View>
         </View>
+
+        <Section title="Tour start confirmations">
+          <Row label="Tourist confirmed" value={formatDt(booking.touristTourStartedConfirmedAt)} />
+          <Row label="Guide confirmed" value={formatDt(booking.guideTourStartedConfirmedAt)} />
+          <Row label="Tour started at" value={formatDt(booking.tourStartedAt)} />
+        </Section>
 
         <Section title="Payment">
           <Row label="Payment ID (eSewa ref)" value={booking.paymentId || "—"} />
@@ -369,7 +418,7 @@ export default function AdminBookingPaymentDetailScreen() {
               <>
                 <Ionicons name="cash-outline" size={22} color="#fff" />
                 <Text style={styles.releaseBtnText}>
-                  Mark payout released ({formatNprAmount(booking.guideEarning)})
+                  Mark final payout released ({formatNprAmount(releaseAmountForBooking(booking))})
                 </Text>
               </>
             )}
@@ -527,6 +576,49 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_700Bold",
     fontSize: 15,
     color: "#fff",
+  },
+  tierNote: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 12,
+    color: "#5a6570",
+    marginTop: 12,
+  },
+  releasedNote: {
+    fontFamily: "Nunito_600SemiBold",
+    fontSize: 12,
+    color: "#15803d",
+    marginTop: 6,
+  },
+  milestoneRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+  milestoneBox: {
+    flex: 1,
+    backgroundColor: "#f5f8fc",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#e3ecf8",
+  },
+  milestoneLabel: {
+    fontFamily: "Nunito_600SemiBold",
+    fontSize: 11,
+    color: "#6b7c8f",
+    marginBottom: 4,
+  },
+  milestoneValue: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 15,
+    color: "#142032",
+  },
+  milestoneMeta: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 11,
+    color: "#8899aa",
+    marginTop: 6,
+    lineHeight: 15,
   },
   section: {
     backgroundColor: "#fff",

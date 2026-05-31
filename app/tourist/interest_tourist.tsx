@@ -68,7 +68,8 @@ export default function InterestsScreen() {
       }
       // Success - show success message and navigate
       Alert.alert("Success", "Your interests have been saved successfully!");
-      router.push("/tourist/home_tourist");
+      if (router.canDismiss?.()) router.dismissAll();
+      router.replace("/tourist/home_tourist");
     } catch (err) {
       console.error(err);
       Alert.alert("Network Error", "Please check your connection and try again.");
@@ -85,7 +86,10 @@ export default function InterestsScreen() {
       </Text>
 
       <TouchableOpacity
-        onPress={() => router.push("/tourist/home_tourist")}
+        onPress={() => {
+          if (router.canDismiss?.()) router.dismissAll();
+          router.replace("/tourist/home_tourist");
+        }}
         style={styles.skipButton}
         activeOpacity={0.7}
       >
@@ -141,7 +145,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingTop: 70,
     paddingBottom: 20,
   },

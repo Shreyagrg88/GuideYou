@@ -1,5 +1,6 @@
 import {
   getNotifications,
+  markAllNotificationsRead,
   markNotificationRead,
   navigateFromNotification,
   formatNotificationDate,
@@ -18,8 +19,10 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ScreenHeaderBar } from "../../components/screen-header";
+import { PAGE_PADDING_HORIZONTAL } from "../../constants/layout";
 import TouristNavbar from "../components/tourist_navbar";
-import { SkeletonBookingTab } from "../components/Skeleton";
+import { SkeletonBookingTab } from "@/components/Skeleton";
 
 const NAVBAR_HEIGHT = 70;
 
@@ -30,6 +33,7 @@ export default function NotificationsTourist() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
 
   const load = useCallback(async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
@@ -56,23 +60,53 @@ export default function NotificationsTourist() {
   const onItemPress = useCallback(
     async (item: NotificationItem) => {
       const token = await AsyncStorage.getItem("token");
-      if (!item.read) await markNotificationRead(token, item.id);
+      if (!item.read && token) {
+        const ok = await markNotificationRead(token, item.id);
+        if (ok) {
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === item.id ? { ...n, read: true } : n))
+          );
+          setUnreadCount((count) => Math.max(0, count - 1));
+        }
+      }
       navigateFromNotification(router, "tourist", item.type, item.relatedId);
     },
     [router]
   );
 
+  const handleMarkAllRead = useCallback(async () => {
+    if (markingAll || unreadCount === 0) return;
+    setMarkingAll(true);
+    const token = await AsyncStorage.getItem("token");
+    await markAllNotificationsRead(token);
+    await load(true);
+    setMarkingAll(false);
+  }, [load, markingAll, unreadCount]);
+
   const showEmpty = !loading && !refreshing && notifications.length === 0;
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={26} color="#000" />
+      <ScreenHeaderBar title="Notifications" />
+
+      {unreadCount > 0 && !loading ? (
+        <TouchableOpacity
+          style={styles.markAllButton}
+          onPress={handleMarkAllRead}
+          disabled={markingAll}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="checkmark-done-outline" size={18} color="#007BFF" />
+          <Text style={styles.markAllButtonText}>
+            {markingAll ? "Marking all as read..." : "Mark all as read"}
+          </Text>
+          {!markingAll ? (
+            <View style={styles.markAllBadge}>
+              <Text style={styles.markAllBadgeText}>{unreadCount}</Text>
+            </View>
+          ) : null}
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        <View style={styles.placeholder} />
-      </View>
+      ) : null}
 
       {loading && !refreshing ? (
         <View style={styles.loadingWrap}>
@@ -129,27 +163,9 @@ export default function NotificationsTourist() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#F3F7FF" },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 16,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  backBtn: { padding: 8 },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: "Nunito_700Bold",
-    color: "#000",
-  },
-  placeholder: { width: 42 },
   loadingWrap: { flex: 1, justifyContent: "center", alignItems: "center" },
   container: { flex: 1 },
-  content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 16 },
+  content: { flexGrow: 1, paddingHorizontal: PAGE_PADDING_HORIZONTAL, paddingTop: 16 },
   item: {
     flexDirection: "row",
     alignItems: "center",
@@ -209,6 +225,40 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     maxWidth: 280,
+  },
+  markAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginHorizontal: PAGE_PADDING_HORIZONTAL,
+    marginTop: 12,
+    marginBottom: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#E8F1FF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#007BFF",
+  },
+  markAllButtonText: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 15,
+    color: "#007BFF",
+  },
+  markAllBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#007BFF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  markAllBadgeText: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 12,
+    color: "#fff",
   },
   navbarWrapper: {
     position: "absolute",

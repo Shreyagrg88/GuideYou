@@ -16,8 +16,17 @@ export type AdminPaymentBooking = {
   priceUsd?: number;
   platformCommission: number;
   guideEarning: number;
-  guidePayoutStatus: string;
+  guidePayoutStatus: string | null;
+  guidePayoutTier?: "standard" | "verified" | string;
+  guideStartPayoutAmount?: number;
+  guideFinalPayoutAmount?: number;
+  guidePayoutReleasedAmount?: number;
+  touristTourStartedConfirmedAt?: string | null;
+  guideTourStartedConfirmedAt?: string | null;
+  tourStartedAt?: string | null;
+  guideStartPayoutReleasedAt?: string | null;
   payoutDate: string | null;
+  canReleaseFinalPayout?: boolean;
   participantCount: number;
   tourName: string | null;
   customLocation: string | null;
@@ -142,6 +151,8 @@ export async function fetchAdminPaymentBookingById(
 
 export async function releaseAdminBookingPayout(bookingId: string): Promise<{
   msg: string;
+  releasedAmount?: number;
+  releaseKind?: string;
   booking: AdminPaymentBooking | undefined;
 }> {
   const token = await AsyncStorage.getItem("token");
@@ -174,6 +185,9 @@ export async function releaseAdminBookingPayout(bookingId: string): Promise<{
 
   return {
     msg: typeof data.msg === "string" ? data.msg : "Payout released",
+    releasedAmount:
+      typeof data.releasedAmount === "number" ? data.releasedAmount : undefined,
+    releaseKind: typeof data.releaseKind === "string" ? data.releaseKind : undefined,
     booking,
   };
 }

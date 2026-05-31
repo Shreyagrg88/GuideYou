@@ -20,12 +20,14 @@ import {
     getMyGuideReview,
     submitGuideReview,
 } from "../../api/guideReviews";
+import ScreenHeader from "../../components/screen-header";
 import { API_URL } from "../../constants/api";
-import { formatGuideProfileRateLines, formatGuideTierCharge } from "../../utils/bookingPrice";
+import { formatGuideProfileRateLines } from "../../utils/bookingPrice";
 import { formatGuideRatingDisplay } from "../../utils/guideRating";
-import { SkeletonBlock } from "../components/Skeleton";
+import { resolveAvatarUri } from "../../utils/avatar";
+import { SkeletonBlock } from "@/components/Skeleton";
 import TouristNavbar from "../components/tourist_navbar";
-import { SkeletonProfileScreen } from "../components/Skeleton";
+import { SkeletonProfileScreen } from "@/components/Skeleton";
 
 const NAVBAR_HEIGHT = 70;
 
@@ -33,11 +35,11 @@ type GuidePublicProfile = {
   id: string;
   username: string;
   fullName: string;
-  avatar: string;
+  avatar: string | null;
   bio: string;
   mainExpertise: string;
   location: string;
-  yearsOfExperience: number;
+  yearsOfExperience: number | null;
   expertise: string[];
   languages: string[];
   pricing: Array<{
@@ -49,9 +51,18 @@ type GuidePublicProfile = {
     unit: string;
   }>;
   usdToNprRate?: number;
-  rating: number;
+  rating: number | null;
   reviewCount: number;
 };
+
+function hasValidPricing(
+  pricing: GuidePublicProfile["pricing"] | undefined
+): boolean {
+  const tier = pricing?.[0];
+  if (!tier) return false;
+  const price = tier.priceUsd ?? tier.price;
+  return price != null && Number.isFinite(Number(price)) && Number(price) > 0;
+}
 
 type GuideActivityItem = {
   id: string;
@@ -62,7 +73,7 @@ type GuideActivityItem = {
   difficulty: string;
 };
 
-const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1544005313-94ddf0286df2";
+const PLACEHOLDER_TEXT = "Not set";
 
 export default function GuideProfileView() {
   const router = useRouter();
@@ -339,40 +350,48 @@ export default function GuideProfileView() {
   const scale = width / 375;
   const s = (size: number) => Math.round(size * scale);
 
-  const name = (guide?.fullName || guide?.username || params.guideName) ?? "Guide";
-  const role = (guide?.mainExpertise || (guide?.expertise?.length ? guide.expertise[0] : null) || params.guideRole) ?? "—";
-  const location = (guide?.location || params.guideLocation) ?? "—";
-  const bio = (guide?.bio || params.description) ?? "No bio yet.";
+  const name = guide?.fullName || guide?.username || params.guideName || "Guide";
+
+  const roleRaw =
+    guide?.mainExpertise ||
+    (guide?.expertise?.length ? guide.expertise[0] : null);
+  const role = roleRaw?.trim() || null;
+
+  const location = guide?.location?.trim() || null;
+  const bio = guide?.bio?.trim() || null;
+
   const experience =
-    guide?.yearsOfExperience != null
+    guide?.yearsOfExperience != null && guide.yearsOfExperience > 0
       ? `${guide.yearsOfExperience} Yrs`
       : "—";
-  const pricing = guide?.pricing;
+
   const rateTier =
-    (pricing?.length ?? 0) > 0 && pricing?.[0].price != null ? pricing[0] : undefined;
-  const rateDisplay = rateTier
-    ? formatGuideTierCharge(rateTier)
-    : params.guideCharge ?? "$50/person/day";
-  const rateLines = formatGuideProfileRateLines(rateTier, params.guideCharge);
-  const ratingDisplay = formatGuideRatingDisplay(
-    averageRating ?? guide?.rating ?? params.guideRating
-  );
-  const languagesDisplay =
-    guide?.languages?.length
-      ? (Array.isArray(guide.languages) ? guide.languages : [guide.languages]).join(", ")
-      : "—";
+    hasValidPricing(guide?.pricing) && guide?.pricing?.[0]
+      ? guide.pricing[0]
+      : undefined;
+  const rateLines = rateTier
+    ? formatGuideProfileRateLines(rateTier)
+    : { usdLine: PLACEHOLDER_TEXT, nprLine: null };
 
-  const getAvatarUri = () => {
-    const img = guide?.avatar ?? params.guideImage;
-    if (!img) return DEFAULT_AVATAR;
-    return img.startsWith("http") ? img : `${API_URL}${img}`;
-  };
+  const ratingDisplay =
+    reviewCount > 0 && averageRating != null
+      ? formatGuideRatingDisplay(averageRating)
+      : "N/A";
 
-  const getActivityImageUri = (photos: string[]) => {
+  const languagesDisplay = guide?.languages?.length
+    ? (Array.isArray(guide.languages) ? guide.languages : [guide.languages])
+        .filter(Boolean)
+        .join(", ")
+    : null;
+
+  const avatarUri = resolveAvatarUri(guide?.avatar ?? params.guideImage);
+
+  const getActivityImageUri = (photos: string[]): string | null => {
     if (photos?.length > 0 && photos[0]) {
-      return photos[0].startsWith("http") ? photos[0] : `${API_URL}${photos[0]}`;
+      const uri = photos[0].startsWith("http") ? photos[0] : `${API_URL}${photos[0]}`;
+      return uri;
     }
-    return "https://images.unsplash.com/photo-1506905925346-21bda4d32df4";
+    return null;
   };
 
   const showActivitiesLeftArrow = activities.length > 1 && activitiesScrollX > 10;
@@ -398,26 +417,36 @@ export default function GuideProfileView() {
   const goToBooking = () => {
     const id = guideId ?? guide?.id;
     if (!id) return;
-    const guideImage =
-      guide?.avatar != null
-        ? (guide.avatar.startsWith("http") ? guide.avatar : `${API_URL}${guide.avatar}`)
-        : params.guideImage?.startsWith("http")
-          ? params.guideImage
-          : params.guideImage
-            ? `${API_URL}${params.guideImage}`
-            : "";
     router.push({
       pathname: "/tourist/custom_tour_request",
       params: {
         guideId: id,
         guideName: (guide?.fullName || guide?.username || params.guideName) ?? "",
-        guideRole: (guide?.mainExpertise || params.guideRole) ?? "",
-        guideLocation: (guide?.location || params.guideLocation) ?? "",
+        guideRole: role ?? "",
+        guideLocation: location ?? "",
         guideRating: ratingDisplay,
-        guideImage,
-        guideCharge: rateDisplay,
+        guideImage: avatarUri ?? "",
+        guideCharge: rateTier
+          ? rateLines.nprLine
+            ? `${rateLines.usdLine} · ${rateLines.nprLine}`
+            : rateLines.usdLine
+          : "",
         activityId: params.activityId ?? undefined,
         duration: params.duration ?? undefined,
+      },
+    });
+  };
+
+  const goToReportGuide = () => {
+    const id = guideId ?? guide?.id;
+    if (!id) return;
+    router.push({
+      pathname: "/tourist/report_guide",
+      params: {
+        guideId: id,
+        guideName: name,
+        guideImage: avatarUri ?? undefined,
+        guideRole: role ?? undefined,
       },
     });
   };
@@ -459,25 +488,47 @@ export default function GuideProfileView() {
         }}
       >
         {/* Header - no ellipsis */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={s(26)} color="#000" />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { fontSize: s(20) }]}>Profile</Text>
-          <View style={styles.ellipsisBtn} />
-        </View>
+        <ScreenHeader
+          title="Profile"
+          includeTopInset
+          titleStyle={{ fontSize: s(20) }}
+          marginBottom={24}
+          right={
+            <TouchableOpacity
+              onPress={goToReportGuide}
+              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+            >
+              <Ionicons name="flag-outline" size={22} color="#E53935" />
+            </TouchableOpacity>
+          }
+        />
 
         {/* Profile block */}
         <View style={styles.profileBlock}>
-          <Image source={{ uri: getAvatarUri() }} style={[styles.avatar, { width: s(100), height: s(100) }]} />
+          {avatarUri ? (
+            <Image
+              source={{ uri: avatarUri }}
+              style={[styles.avatar, { width: s(100), height: s(100) }]}
+            />
+          ) : (
+            <View
+              style={[
+                styles.avatar,
+                styles.avatarPlaceholder,
+                { width: s(100), height: s(100) },
+              ]}
+            >
+              <Ionicons name="person" size={s(44)} color="#9aa5b5" />
+            </View>
+          )}
           <Text style={[styles.displayName, { fontSize: s(20) }]}>{name}</Text>
-          {role !== "—" ? (
+          {role ? (
             <View style={styles.locationRow}>
               <Ionicons name="ribbon-outline" size={s(14)} color="#666" />
               <Text style={[styles.locationText, { fontSize: s(13) }]}>{role}</Text>
             </View>
           ) : null}
-          {location !== "—" ? (
+          {location ? (
             <View style={styles.locationRow}>
               <Ionicons name="location-outline" size={s(14)} color="#666" />
               <Text style={[styles.locationText, { fontSize: s(13) }]}>{location}</Text>
@@ -491,7 +542,13 @@ export default function GuideProfileView() {
             <View style={[styles.statCell, styles.statCellBorder, styles.statCellRate]}>
               <Text style={styles.statLabel}>Rate</Text>
               <View style={styles.rateValueBlock}>
-                <Text style={styles.statValueRatePrimary} numberOfLines={2}>
+                <Text
+                  style={[
+                    styles.statValueRatePrimary,
+                    rateLines.usdLine === PLACEHOLDER_TEXT && styles.placeholderValue,
+                  ]}
+                  numberOfLines={2}
+                >
                   {rateLines.usdLine}
                 </Text>
                 {rateLines.nprLine ? (
@@ -503,16 +560,33 @@ export default function GuideProfileView() {
             </View>
             <View style={styles.statCell}>
               <Text style={styles.statLabel}>Rating</Text>
-              <Text style={styles.statValue}>{ratingDisplay}</Text>
+              <Text
+                style={[
+                  styles.statValue,
+                  ratingDisplay === "N/A" && styles.placeholderValue,
+                ]}
+              >
+                {ratingDisplay}
+              </Text>
             </View>
           </View>
           <View style={styles.bioBlock}>
             <Text style={styles.bioLabel}>Bio</Text>
-            <Text style={[styles.bio, { fontSize: s(14) }]}>{bio}</Text>
+            <Text style={[styles.bio, { fontSize: s(14) }, !bio && styles.placeholderText]}>
+              {bio || "Not added yet"}
+            </Text>
           </View>
           <View style={styles.bioBlock}>
-            <Text style={styles.bioLabel}>Language:</Text>
-            <Text style={[styles.bio, { fontSize: s(14) }]}>{languagesDisplay}</Text>
+            <Text style={styles.bioLabel}>Language</Text>
+            <Text
+              style={[
+                styles.bio,
+                { fontSize: s(14) },
+                !languagesDisplay && styles.placeholderText,
+              ]}
+            >
+              {languagesDisplay || "Not added yet"}
+            </Text>
           </View>
         </View>
 
@@ -533,13 +607,12 @@ export default function GuideProfileView() {
               onPress={() => {
                 const id = guideId ?? guide?.id;
                 if (!id) return;
-                const avatar = guide?.avatar ?? params.guideImage;
                 router.push({
                   pathname: "/tourist/chat_tourist",
                   params: {
                     counterpartId: id,
                     guideName: name,
-                    guideAvatar: avatar ?? undefined,
+                    guideAvatar: avatarUri ?? undefined,
                   },
                 });
               }}
@@ -554,6 +627,11 @@ export default function GuideProfileView() {
             You can message this guide after they accept your request.
           </Text>
         )}
+
+        <TouchableOpacity style={styles.reportLink} onPress={goToReportGuide}>
+          <Ionicons name="flag-outline" size={16} color="#E53935" />
+          <Text style={styles.reportLinkText}>Report this guide</Text>
+        </TouchableOpacity>
 
         {/* Activities */}
         <Text style={styles.sectionTitle}>Activities</Text>
@@ -583,17 +661,26 @@ export default function GuideProfileView() {
               onContentSizeChange={(w) => setActivitiesContentWidth(w)}
               onLayout={(e) => setActivitiesContainerWidth(e.nativeEvent.layout.width)}
             >
-              {activities.map((a) => (
+              {activities.map((a) => {
+                const activityUri = getActivityImageUri(a.photos);
+                return (
                 <TouchableOpacity
                   key={a.id}
                   style={styles.activityCard}
                   onPress={() => router.push({ pathname: "/tourist/tour_detail", params: { id: a.id } })}
                 >
-                  <Image source={{ uri: getActivityImageUri(a.photos) }} style={styles.activityImage} />
+                  {activityUri ? (
+                    <Image source={{ uri: activityUri }} style={styles.activityImage} />
+                  ) : (
+                    <View style={[styles.activityImage, styles.activityImagePlaceholder]}>
+                      <Ionicons name="image-outline" size={28} color="#bbb" />
+                    </View>
+                  )}
                   <Text style={styles.activityCardTitle} numberOfLines={2}>{a.name}</Text>
                   <Text style={styles.activityCardPrice}>{a.duration} days • {a.difficulty || "—"}</Text>
                 </TouchableOpacity>
-              ))}
+              );
+              })}
             </ScrollView>
             {showActivitiesLeftArrow && (
               <TouchableOpacity style={[styles.arrowIndicator, styles.arrowLeft]} onPress={scrollActivitiesLeft} activeOpacity={0.7}>
@@ -754,16 +841,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#F3F7FF" },
   container: { flex: 1, paddingHorizontal: 20 },
 
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 40,
-    marginBottom: 24,
-  },
-  headerTitle: { fontFamily: "Nunito_700Bold", fontSize: 20 },
-  ellipsisBtn: { padding: 8, width: 40, alignItems: "flex-end" },
-
   profileBlock: {
     alignItems: "center",
     marginBottom: 24,
@@ -778,6 +855,13 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   avatar: { borderRadius: 100, marginBottom: 10 },
+  avatarPlaceholder: {
+    backgroundColor: "#E8EDF3",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  placeholderValue: { color: "#8899aa" },
+  placeholderText: { color: "#8899aa", fontStyle: "italic" },
   displayName: { fontFamily: "Nunito_700Bold", color: "#1a1a1a", marginBottom: 6 },
   locationRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 12 },
   locationText: { fontFamily: "Nunito_400Regular", color: "#666" },
@@ -849,6 +933,19 @@ const styles = StyleSheet.create({
     marginTop: -8,
     marginBottom: 16,
   },
+  reportLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginBottom: 20,
+    paddingVertical: 10,
+  },
+  reportLinkText: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 14,
+    color: "#E53935",
+  },
   actionRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
   primaryBtnFilled: {
     flex: 1,
@@ -902,6 +999,11 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   activityImage: { width: "100%", height: 100, backgroundColor: "#E0E0E0" },
+  activityImagePlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EEF2F6",
+  },
   activityCardTitle: { fontFamily: "Nunito_700Bold", fontSize: 13, padding: 10, color: "#333" },
   activityCardPrice: { fontFamily: "Nunito_400Regular", fontSize: 12, color: "#007BFF", paddingHorizontal: 10, paddingBottom: 10 },
   activityEmptyText: { fontFamily: "Nunito_400Regular", fontSize: 14, color: "#666", marginBottom: 12 },

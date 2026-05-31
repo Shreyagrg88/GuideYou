@@ -14,7 +14,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
-import { SkeletonBookingDetailScreen } from "../components/Skeleton";
+import { confirmTourStartedGuide, type BookingMilestoneFields } from "../../api/bookingMilestone";
+import ScreenHeader from "../../components/screen-header";
+import ActivityThumbnail from "../../components/activity-thumbnail";
+import UserAvatar from "../../components/user-avatar";
+import { formatBookingPriceLines, formatNprAmount } from "../../utils/bookingPrice";
+import { mergeMilestoneFields, payoutTierLabel } from "../../utils/bookingMilestoneDisplay";
+import { resolveMediaUri } from "../../utils/avatar";
+import { SkeletonBookingDetailScreen } from "@/components/Skeleton";
 
 type BookingDetail = {
   id: string;
@@ -44,7 +51,16 @@ type BookingDetail = {
   duration: number;
   participantCount: number;
   price: number;
+  priceNpr?: number;
+  priceUsd?: number;
+  priceUsdApproximated?: boolean;
+  usdToNprRate?: number;
   status: "pending" | "accepted" | "paid" | "cancelled" | "completed";
+  canConfirmTourStarted?: boolean;
+  tourStartedConfirmedByTourist?: boolean;
+  tourStartedConfirmedByGuide?: boolean;
+  tourStartedAt?: string | null;
+  guideStartPayoutReleasedAt?: string | null;
   notes?: string;
   requestedAt: string;
   acceptedAt?: string | null;
@@ -54,10 +70,14 @@ type BookingDetail = {
   completedAt?: string | null;
   paymentId?: string | null;
   paymentStatus?: string | null;
+  refundStatus?: string | null;
+  refundAmount?: number;
+  hasRefundDue?: boolean;
+  isRefunded?: boolean;
   confirmedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
-};
+} & Partial<BookingMilestoneFields>;
 
 export default function BookingDetailScreen() {
   const router = useRouter();
@@ -182,18 +202,8 @@ export default function BookingDetailScreen() {
     }
   };
 
-  const getImageUrl = (path: string | null | undefined): string | null => {
-    if (!path) return null;
-    const normalized = path.startsWith("http") ? path : `${API_URL}${path}`;
-    // Treat common stock avatar as "no custom dp"
-    if (
-      normalized.includes("photo-1544005313-94ddf0286df2") ||
-      normalized.includes("i.pravatar.cc")
-    ) {
-      return null;
-    }
-    return normalized;
-  };
+  const getMediaUri = (path: string | null | undefined): string | null =>
+    resolveMediaUri(path);
 
   const handleAccept = async () => {
     if (!booking) return;
@@ -294,6 +304,41 @@ export default function BookingDetailScreen() {
     );
   };
 
+  const handleConfirmTourStarted = () => {
+    if (!booking) return;
+    Alert.alert(
+      "Confirm tour started",
+      "Confirm that this tour has started today? The tourist must also confirm before the start payout is released.",
+      [
+        { text: "Not now", style: "cancel" },
+        {
+          text: "Yes, tour started",
+          onPress: async () => {
+            try {
+              setProcessing(true);
+              const { msg, booking: patch } = await confirmTourStartedGuide(booking.id);
+              setBooking((prev) =>
+                prev ? mergeMilestoneFields(prev, patch) : prev
+              );
+              Alert.alert("Done", msg);
+            } catch (err: unknown) {
+              const e = err as Error & { status?: number };
+              if (e.status === 401 || e.message === "Not logged in") {
+                Alert.alert("Session expired", "Please sign in again.", [
+                  { text: "OK", onPress: () => router.push("/login") },
+                ]);
+                return;
+              }
+              Alert.alert("Could not confirm", e.message || "Try again.");
+            } finally {
+              setProcessing(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const canChat =
     booking?.status === "accepted" ||
     booking?.status === "paid" ||
@@ -316,13 +361,15 @@ export default function BookingDetailScreen() {
 
   // Determine if it's a custom tour or activity booking
   const isCustomTour = !!booking.tourName;
+  const priceLines = formatBookingPriceLines(booking);
+  const showPayoutSection =
+    booking.status === "paid" ||
+    booking.status === "completed" ||
+    typeof booking.guideEarning === "number";
   const tourTitle = booking.activity?.name || booking.tourName || "Custom Tour";
   const tourLocation = booking.activity?.location || booking.location;
-  const tourPhoto = booking.activity?.photo
-    ? getImageUrl(booking.activity.photo) ??
-      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4"
-    : "https://images.unsplash.com/photo-1506905925346-21bda4d32df4";
-  const touristAvatarUri = getImageUrl(booking.tourist.avatar);
+  const tourPhoto = booking.activity?.photo ?? null;
+  const touristAvatarUri = getMediaUri(booking.tourist.avatar);
 
   return (
     <View style={styles.container}>
@@ -331,14 +378,7 @@ export default function BookingDetailScreen() {
         contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={26} color="#000" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Booking Request</Text>
-          <View style={{ width: 26 }} />
-        </View>
+        <ScreenHeader title="Booking Request" includeTopInset marginBottom={20} />
 
         {/* Status Badge */}
         <View style={styles.statusContainer}>
@@ -351,7 +391,7 @@ export default function BookingDetailScreen() {
         </View>
 
         {/* Activity/Tour Image */}
-        <Image source={{ uri: tourPhoto }} style={styles.heroImage} />
+        <ActivityThumbnail uri={tourPhoto} style={styles.heroImage} iconSize={40} />
 
         {/* Activity/Tour Title */}
         <View style={styles.titleSection}>
@@ -476,12 +516,63 @@ export default function BookingDetailScreen() {
             <View style={styles.detailItem}>
               <Ionicons name="cash-outline" size={20} color="#1B8BFF" />
               <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Total Price</Text>
-                <Text style={styles.detailValue}>${booking.price.toFixed(2)}</Text>
+                <Text style={styles.detailLabel}>Total (NPR)</Text>
+                <Text style={styles.detailValue}>{priceLines.nprPrimary}</Text>
+                {priceLines.usdSecondary ? (
+                  <Text style={styles.detailSubValue}>{priceLines.usdSecondary}</Text>
+                ) : null}
               </View>
             </View>
           </View>
         </View>
+
+        {showPayoutSection ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Your earnings</Text>
+            <View style={styles.payoutCard}>
+              <View style={styles.payoutRow}>
+                <Text style={styles.payoutLabel}>Guide share (85%)</Text>
+                <Text style={styles.payoutValue}>
+                  {formatNprAmount(booking.guideEarning ?? 0)}
+                </Text>
+              </View>
+              {booking.guidePayoutTier ? (
+                <Text style={styles.payoutTier}>{payoutTierLabel(booking.guidePayoutTier)}</Text>
+              ) : null}
+              <View style={styles.trancheGrid}>
+                <View style={styles.trancheBox}>
+                  <Text style={styles.trancheLabel}>Start tranche</Text>
+                  <Text style={styles.trancheAmount}>
+                    {formatNprAmount(booking.guideStartPayoutAmount ?? 0)}
+                  </Text>
+                  <Text style={styles.trancheStatus}>
+                    {booking.guideStartPayoutReleasedAt
+                      ? "Released"
+                      : "After both confirm tour start"}
+                  </Text>
+                </View>
+                <View style={styles.trancheBox}>
+                  <Text style={styles.trancheLabel}>Final tranche</Text>
+                  <Text style={styles.trancheAmount}>
+                    {formatNprAmount(booking.guideFinalPayoutAmount ?? 0)}
+                  </Text>
+                  <Text style={styles.trancheStatus}>
+                    {booking.guidePayoutStatus === "paid"
+                      ? "Released"
+                      : booking.guidePayoutStatus === "partial"
+                        ? "After tourist completes & admin release"
+                        : "After tour completion"}
+                  </Text>
+                </View>
+              </View>
+              {typeof booking.guidePayoutReleasedAmount === "number" ? (
+                <Text style={styles.releasedTotal}>
+                  Released so far: {formatNprAmount(booking.guidePayoutReleasedAmount)}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
 
         {/* Custom Tour Notes */}
         {booking.notes && (
@@ -507,6 +598,42 @@ export default function BookingDetailScreen() {
             </View>
           </View>
         )}
+
+        {booking.status === "cancelled" &&
+        (booking.hasRefundDue ||
+          booking.refundStatus === "eligible" ||
+          booking.isRefunded ||
+          booking.refundStatus === "completed" ||
+          booking.paymentStatus === "refunded") ? (
+          <View style={styles.section}>
+            <View style={styles.refundInfoBox}>
+              <Ionicons
+                name={
+                  booking.isRefunded ||
+                  booking.refundStatus === "completed" ||
+                  booking.paymentStatus === "refunded"
+                    ? "checkmark-circle-outline"
+                    : "time-outline"
+                }
+                size={20}
+                color={
+                  booking.isRefunded ||
+                  booking.refundStatus === "completed" ||
+                  booking.paymentStatus === "refunded"
+                    ? "#4CAF50"
+                    : "#FFA500"
+                }
+              />
+              <Text style={styles.refundInfoText}>
+                {booking.isRefunded ||
+                booking.refundStatus === "completed" ||
+                booking.paymentStatus === "refunded"
+                  ? "Tourist refund completed"
+                  : `Tourist refund: pending ${formatNprAmount(booking.refundAmount ?? 0)}`}
+              </Text>
+            </View>
+          </View>
+        ) : null}
 
         {/* Timeline */}
         <View style={styles.section}>
@@ -536,6 +663,29 @@ export default function BookingDetailScreen() {
                 <View style={styles.timelineContent}>
                   <Text style={styles.timelineLabel}>Payment Confirmed</Text>
                   <Text style={styles.timelineDate}>{formatDate(booking.paidAt)}</Text>
+                </View>
+              </View>
+            )}
+
+            {booking.tourStartedAt && (
+              <View style={styles.timelineItem}>
+                <View style={[styles.timelineDot, { backgroundColor: "#1B8BFF" }]} />
+                <View style={styles.timelineContent}>
+                  <Text style={styles.timelineLabel}>Tour started</Text>
+                  <Text style={styles.timelineDate}>{formatDate(booking.tourStartedAt)}</Text>
+                  <Text style={styles.timelineSubtext}>
+                    Start payout released when both parties confirmed
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {booking.tourStartedConfirmedByGuide && !booking.tourStartedAt && (
+              <View style={styles.timelineItem}>
+                <View style={[styles.timelineDot, { backgroundColor: "#1B8BFF" }]} />
+                <View style={styles.timelineContent}>
+                  <Text style={styles.timelineLabel}>You confirmed tour start</Text>
+                  <Text style={styles.timelineSubtext}>Waiting for tourist confirmation</Text>
                 </View>
               </View>
             )}
@@ -609,11 +759,34 @@ export default function BookingDetailScreen() {
       )}
 
       {booking.status === "paid" && (
-        <View style={[styles.actionBar, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-          <View style={styles.confirmedBox}>
-            <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-            <Text style={styles.confirmedText}>Booking Confirmed</Text>
-          </View>
+        <View style={[styles.actionBar, styles.actionBarColumn, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+          {booking.canConfirmTourStarted ? (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.tourStartButton]}
+              onPress={handleConfirmTourStarted}
+              disabled={processing}
+            >
+              {processing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="flag-outline" size={18} color="#fff" />
+                  <Text style={styles.tourStartButtonText}>Confirm tour started</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.confirmedBox}>
+              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+              <Text style={styles.confirmedText}>
+                {booking.tourStartedAt
+                  ? "Tour started — booking confirmed"
+                  : booking.tourStartedConfirmedByGuide
+                    ? "Waiting for tourist to confirm tour start"
+                    : "Booking confirmed"}
+              </Text>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -653,20 +826,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Nunito_700Bold",
     color: "#1B8BFF",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 20,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontFamily: "Nunito_700Bold",
-    textAlign: "center",
-    flex: 1,
   },
   statusContainer: {
     paddingHorizontal: 20,
@@ -806,6 +965,12 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_700Bold",
     color: "#000",
   },
+  detailSubValue: {
+    fontSize: 13,
+    fontFamily: "Nunito_400Regular",
+    color: "#666",
+    marginTop: 2,
+  },
   notesBox: {
     backgroundColor: "#F5F8FF",
     padding: 15,
@@ -885,6 +1050,76 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito_400Regular",
     color: "#777",
   },
+  timelineSubtext: {
+    fontSize: 13,
+    fontFamily: "Nunito_400Regular",
+    color: "#777",
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  payoutCard: {
+    backgroundColor: "#F5F8FF",
+    borderRadius: 12,
+    padding: 14,
+  },
+  payoutRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  payoutLabel: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 14,
+    color: "#555",
+  },
+  payoutValue: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 18,
+    color: "#15803d",
+  },
+  payoutTier: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 12,
+  },
+  trancheGrid: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  trancheBox: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#E3ECF8",
+  },
+  trancheLabel: {
+    fontFamily: "Nunito_600SemiBold",
+    fontSize: 11,
+    color: "#6b7c8f",
+    marginBottom: 4,
+  },
+  trancheAmount: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 15,
+    color: "#142032",
+  },
+  trancheStatus: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 11,
+    color: "#8899aa",
+    marginTop: 6,
+    lineHeight: 15,
+  },
+  releasedTotal: {
+    fontFamily: "Nunito_600SemiBold",
+    fontSize: 12,
+    color: "#15803d",
+    marginTop: 12,
+  },
   actionBar: {
     position: "absolute",
     bottom: 0,
@@ -897,6 +1132,18 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#E5E5E5",
     gap: 12,
+  },
+  actionBarColumn: {
+    flexDirection: "column",
+    alignItems: "stretch",
+  },
+  tourStartButton: {
+    backgroundColor: "#1B8BFF",
+  },
+  tourStartButtonText: {
+    fontSize: 16,
+    fontFamily: "Nunito_700Bold",
+    color: "#fff",
   },
   actionButton: {
     flex: 1,
@@ -968,5 +1215,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Nunito_600SemiBold",
     color: "#007BFF",
+  },
+  refundInfoBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: "#FFF8E1",
+    borderWidth: 1,
+    borderColor: "#FFE082",
+  },
+  refundInfoText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Nunito_600SemiBold",
+    color: "#555",
   },
 });

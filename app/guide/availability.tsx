@@ -14,25 +14,32 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../../constants/api";
-import { SkeletonCalendarPlaceholder } from "../components/Skeleton";
+import { PAGE_PADDING_HORIZONTAL } from "../../constants/layout";
+import ScreenHeader from "../../components/screen-header";
+import { formatUsdAmount } from "../../utils/bookingPrice";
+import { SkeletonCalendarPlaceholder } from "@/components/Skeleton";
 
 const PRIMARY = "#007BFF";
 type DateStatus = "available" | "unavailable" | "booked" | "reserved";
 
-interface PricingItem {
-  id: string;
-  title: string;
-  subtitle: string;
-  price: string;
-  unit: string;
-  icon: any;
-}
+const DEFAULT_DAILY_RATE = "45";
 
-// Helper functions
-const formatDateKey = (date: Date): string => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-const convertISOToDateKey = (isoDate: string): string => formatDateKey(new Date(isoDate + 'T00:00:00'));
+const formatDateKey = (date: Date): string =>
+  `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+
+const convertISOToDateKey = (isoDate: string): string =>
+  formatDateKey(new Date(`${isoDate}T00:00:00`));
+
+const isPastDate = (date: Date): boolean => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  return d < t;
+};
+
 const handleAPIError = (response: Response, responseText: string): string | null => {
-  if (!response.ok || responseText.trim().startsWith('<')) {
+  if (!response.ok || responseText.trim().startsWith("<")) {
     if (response.status === 404) return "Availability API endpoint not found. Please check the server.";
     if (response.status === 401) return "Authentication failed. Please login again.";
     if (response.status === 500) return "Server error. Please try again later.";
@@ -49,17 +56,19 @@ export default function ScheduleRatesScreen() {
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dateStatuses, setDateStatuses] = useState<Map<string, DateStatus>>(new Map());
-  const [pricingItems, setPricingItems] = useState<PricingItem[]>([
-    { id: "1", title: "Standard Daily Rate", subtitle: "Base fee for guiding", price: "45", unit: "Per Day", icon: "walk" },
-    { id: "2", title: "Group Surcharge", subtitle: "Extra fee for larger groups", price: "15", unit: "Per Pax", icon: "people" },
-  ]);
-  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
-  const [tempPrice, setTempPrice] = useState("");
+  const [dailyRate, setDailyRate] = useState(DEFAULT_DAILY_RATE);
+  const [editingRate, setEditingRate] = useState(false);
+  const [tempRate, setTempRate] = useState("");
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(false);
+  const [fetching, setFetching] = useState(true);
 
-  useEffect(() => { fetchAvailability(); }, []);
-  useEffect(() => { initializeMonthDates(); }, [currentMonth, currentYear]);
+  useEffect(() => {
+    fetchAvailability();
+  }, []);
+
+  useEffect(() => {
+    initializeMonthDates();
+  }, [currentMonth, currentYear]);
 
   const fetchAvailability = async () => {
     try {
@@ -74,12 +83,14 @@ export default function ScheduleRatesScreen() {
 
       const responseText = await response.text();
       const error = handleAPIError(response, responseText);
-      if (error) { console.error("Fetch availability error:", error); return; }
+      if (error) {
+        console.error("Fetch availability error:", error);
+        return;
+      }
 
       const data = JSON.parse(responseText);
       const newStatuses = new Map<string, DateStatus>();
 
-      // Set statuses in priority order: booked > reserved > unavailable > available
       const statusMaps = [
         { key: "availableDates", status: "available" as DateStatus },
         { key: "unavailableDates", status: "unavailable" as DateStatus },
@@ -99,15 +110,10 @@ export default function ScheduleRatesScreen() {
       });
 
       setDateStatuses(newStatuses);
-      if (data.pricing?.length > 0) {
-        setPricingItems(data.pricing.map((item: any, index: number) => ({
-          id: (index + 1).toString(),
-          title: item.title || "Custom Rate",
-          subtitle: item.subtitle || "",
-          price: item.price?.toString() || "0",
-          unit: item.unit || "Per Item",
-          icon: index === 0 ? "walk" : index === 1 ? "people" : "add-circle-outline",
-        })));
+
+      const firstRate = Array.isArray(data.pricing) ? data.pricing[0] : null;
+      if (firstRate?.price != null) {
+        setDailyRate(String(firstRate.price));
       }
     } catch (error) {
       console.error("Fetch availability error:", error);
@@ -135,12 +141,14 @@ export default function ScheduleRatesScreen() {
 
   const changeMonth = (dir: "prev" | "next") => {
     if (dir === "prev") {
-      if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(currentYear - 1); }
-      else setCurrentMonth(currentMonth - 1);
-    } else {
-      if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(currentYear + 1); }
-      else setCurrentMonth(currentMonth + 1);
-    }
+      if (currentMonth === 0) {
+        setCurrentMonth(11);
+        setCurrentYear(currentYear - 1);
+      } else setCurrentMonth(currentMonth - 1);
+    } else if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(currentYear + 1);
+    } else setCurrentMonth(currentMonth + 1);
   };
 
   const getDateStatus = (day: number): DateStatus => {
@@ -159,16 +167,18 @@ export default function ScheduleRatesScreen() {
   };
 
   const updateDateStatus = (status: DateStatus, allMonth = false) => {
-    if (!selectedDate) {
-      Alert.alert("No Date Selected", "Please select a date first.");
+    if (!selectedDate && !allMonth) {
+      Alert.alert("No Date Selected", "Tap a date on the calendar first.");
       return;
     }
 
-    const dateKey = formatDateKey(selectedDate);
-    const currentStatus = dateStatuses.get(dateKey);
-    if (currentStatus === "booked" || currentStatus === "reserved") {
-      Alert.alert("Cannot Change", "This date is booked or reserved and cannot be modified.");
-      return;
+    if (selectedDate && !allMonth) {
+      const dateKey = formatDateKey(selectedDate);
+      const currentStatus = dateStatuses.get(dateKey);
+      if (currentStatus === "booked" || currentStatus === "reserved") {
+        Alert.alert("Cannot Change", "This date is booked or reserved and cannot be modified.");
+        return;
+      }
     }
 
     const newMap = new Map(dateStatuses);
@@ -176,35 +186,45 @@ export default function ScheduleRatesScreen() {
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(currentYear, currentMonth, day);
+        if (isPastDate(date)) continue;
         const key = formatDateKey(date);
-        if (newMap.get(key) !== "booked") newMap.set(key, status);
+        const existing = newMap.get(key);
+        if (existing !== "booked" && existing !== "reserved") {
+          newMap.set(key, status);
+        }
       }
-    } else {
-      newMap.set(dateKey, status);
+    } else if (selectedDate) {
+      newMap.set(formatDateKey(selectedDate), status);
     }
 
     setDateStatuses(newMap);
-    Alert.alert("Success", `Date${allMonth ? "s" : ""} set as ${status === "available" ? "available" : "unavailable"}`);
+    Alert.alert(
+      "Updated",
+      allMonth
+        ? `All open dates this month marked ${status === "available" ? "available" : "unavailable"}.`
+        : `Date marked ${status === "available" ? "available" : "unavailable"}.`
+    );
   };
 
-  const handlePriceEdit = (item: PricingItem, action: "start" | "save" | "cancel") => {
-    if (action === "start") { setEditingPriceId(item.id); setTempPrice(item.price); }
-    else if (action === "save") {
-      if (!tempPrice || isNaN(Number(tempPrice)) || Number(tempPrice) < 0) {
-        Alert.alert("Invalid Price", "Please enter a valid positive number.");
-        return;
-      }
-      setPricingItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, price: tempPrice } : i)));
-      setEditingPriceId(null);
-      setTempPrice("");
-    } else { setEditingPriceId(null); setTempPrice(""); }
+  const saveDailyRate = () => {
+    if (!tempRate || Number.isNaN(Number(tempRate)) || Number(tempRate) < 0) {
+      Alert.alert("Invalid Rate", "Enter a valid positive number.");
+      return;
+    }
+    setDailyRate(tempRate);
+    setEditingRate(false);
+    setTempRate("");
   };
 
   const handleSave = async () => {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("token");
-      if (!token) { Alert.alert("Error", "Please login again."); router.replace("/login"); return; }
+      if (!token) {
+        Alert.alert("Error", "Please login again.");
+        router.replace("/login");
+        return;
+      }
 
       const availableDates: string[] = [];
       const unavailableDates: string[] = [];
@@ -219,22 +239,27 @@ export default function ScheduleRatesScreen() {
         body: JSON.stringify({
           availableDates,
           unavailableDates,
-          pricing: pricingItems.map((item) => ({
-            title: item.title,
-            subtitle: item.subtitle,
-            price: parseFloat(item.price),
-            unit: item.unit,
-          })),
+          pricing: [
+            {
+              title: "Standard Daily Rate",
+              subtitle: "Base fee for guiding",
+              price: parseFloat(dailyRate) || 0,
+              unit: "Per Day",
+            },
+          ],
         }),
       });
 
       const responseText = await response.text();
       const error = handleAPIError(response, responseText);
-      if (error) { Alert.alert("Error", error); return; }
+      if (error) {
+        Alert.alert("Error", error);
+        return;
+      }
 
-      Alert.alert("Success", "Availability and pricing saved successfully!");
+      Alert.alert("Success", "Availability and daily rate saved.");
       await fetchAvailability();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Save error:", error);
       Alert.alert("Error", "Failed to save. Please try again.");
     } finally {
@@ -244,71 +269,134 @@ export default function ScheduleRatesScreen() {
 
   const getDayColor = (day: number): string => {
     const status = getDateStatus(day);
-    const colors: Record<DateStatus, string> = { booked: "#FF4D4F", reserved: "#FFA500", available: "#22C55E", unavailable: "#9CA3AF" };
+    const colors: Record<DateStatus, string> = {
+      booked: "#FF4D4F",
+      reserved: "#FFA500",
+      available: "#22C55E",
+      unavailable: "#9CA3AF",
+    };
     return colors[status] || "#9CA3AF";
   };
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
 
+  const selectedLabel = selectedDate
+    ? selectedDate.toLocaleDateString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      })
+    : null;
+
+  if (fetching) {
+    return (
+      <View style={styles.page}>
+        <ScreenHeader
+          title="Schedule & Rates"
+          backIcon="arrow-back"
+          onBack={() => router.push("/guide/home_guide")}
+          includeTopInset
+          marginBottom={16}
+        />
+        <View style={styles.loadingWrap}>
+          <SkeletonCalendarPlaceholder />
+          <Text style={styles.loadingText}>Loading availability…</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.page}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.push("/guide/home_guide")}>
-            <Ionicons name="arrow-back" size={24} color="#000" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Schedule & Rates</Text>
-          <View style={{ width: 24 }} />
-        </View>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: 100 + insets.bottom },
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <ScreenHeader
+          title="Schedule & Rates"
+          backIcon="arrow-back"
+          onBack={() => router.push("/guide/home_guide")}
+          includeTopInset
+          marginBottom={16}
+        />
 
-        {fetching && (
-          <View style={styles.loadingContainer}>
-            <SkeletonCalendarPlaceholder />
-            <Text style={styles.loadingText}>Loading availability...</Text>
-          </View>
-        )}
+        <Text style={styles.lead}>
+          Tap a date to select it, then mark it available or unavailable. Booked dates cannot be
+          changed.
+        </Text>
 
         <View style={styles.card}>
           <View style={styles.calendarHeader}>
-            <TouchableOpacity onPress={() => changeMonth("prev")}>
-              <Ionicons name="chevron-back" size={20} color="#555" />
+            <TouchableOpacity onPress={() => changeMonth("prev")} hitSlop={12}>
+              <Ionicons name="chevron-back" size={22} color="#333" />
             </TouchableOpacity>
             <Text style={styles.monthText}>
-              {new Date(currentYear, currentMonth).toLocaleString("default", { month: "long" })} {currentYear}
+              {new Date(currentYear, currentMonth).toLocaleString("default", {
+                month: "long",
+              })}{" "}
+              {currentYear}
             </Text>
-            <TouchableOpacity onPress={() => changeMonth("next")}>
-              <Ionicons name="chevron-forward" size={20} color="#555" />
+            <TouchableOpacity onPress={() => changeMonth("next")} hitSlop={12}>
+              <Ionicons name="chevron-forward" size={22} color="#333" />
             </TouchableOpacity>
           </View>
 
           <View style={styles.weekRow}>
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-              <Text key={d} style={styles.weekText}>{d}</Text>
+              <Text key={d} style={styles.weekText}>
+                {d}
+              </Text>
             ))}
           </View>
 
           <View style={styles.daysGrid}>
-            {Array.from({ length: firstDay }).map((_, i) => <View key={`empty-${i}`} style={styles.dayCell} />)}
+            {Array.from({ length: firstDay }).map((_, i) => (
+              <View key={`empty-${i}`} style={styles.dayCell} />
+            ))}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
               const date = new Date(currentYear, currentMonth, day);
               const status = getDateStatus(day);
-              const selected = selectedDate?.getDate() === day && selectedDate?.getMonth() === currentMonth && selectedDate?.getFullYear() === currentYear;
-              const past = date < today;
+              const selected =
+                selectedDate?.getDate() === day &&
+                selectedDate?.getMonth() === currentMonth &&
+                selectedDate?.getFullYear() === currentYear;
+              const past = isPastDate(date);
               const color = getDayColor(day);
-              const isBooked = status === "booked";
-              const isReserved = status === "reserved";
+              const locked = status === "booked" || status === "reserved";
 
               return (
                 <TouchableOpacity
                   key={day}
                   style={styles.dayCell}
-                  onPress={() => !past && !isBooked && !isReserved && handleDateSelect(day)}
-                  disabled={past || isBooked || isReserved}
+                  onPress={() => !past && !locked && handleDateSelect(day)}
+                  disabled={past || locked}
                 >
-                  <View style={[styles.dayCircle, selected && styles.selectedCircle, past && styles.pastDayCircle, isBooked && styles.bookedCircle]}>
-                    <Text style={[styles.dayText, { color: selected ? "#fff" : past ? "#D1D5DB" : color }]}>{day}</Text>
+                  <View
+                    style={[
+                      styles.dayCircle,
+                      selected && styles.selectedCircle,
+                      past && styles.pastDayCircle,
+                      status === "booked" && styles.bookedCircle,
+                      status === "reserved" && styles.reservedCircle,
+                      status === "available" && !selected && styles.availableCircle,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dayText,
+                        {
+                          color: selected ? "#fff" : past ? "#D1D5DB" : locked ? "#fff" : color,
+                        },
+                      ]}
+                    >
+                      {day}
+                    </Text>
                   </View>
                 </TouchableOpacity>
               );
@@ -317,9 +405,9 @@ export default function ScheduleRatesScreen() {
 
           <View style={styles.legendRow}>
             {[
-              { color: "#FFA500", label: "Reserved" },
               { color: "#22C55E", label: "Available" },
               { color: "#9CA3AF", label: "Unavailable" },
+              { color: "#FFA500", label: "Reserved" },
               { color: "#FF4D4F", label: "Booked" },
             ].map(({ color, label }) => (
               <View key={label} style={styles.legendItem}>
@@ -330,83 +418,112 @@ export default function ScheduleRatesScreen() {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Set Availability</Text>
-        <View style={styles.availabilityRow}>
-          <TouchableOpacity style={[styles.actionBtn, styles.actionBtnFilled]} onPress={() => updateDateStatus("available")}>
-            <Ionicons name="checkmark-circle" size={18} color="#fff" />
-            <Text style={[styles.actionText, { color: "#fff" }]}>Set Available</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => updateDateStatus("unavailable")}>
-            <Ionicons name="close-circle" size={18} color={PRIMARY} />
-            <Text style={styles.actionText}>Set Unavailable</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.availabilityRow}>
-          <TouchableOpacity style={[styles.actionBtn, styles.actionBtnFilled, { flex: 1 }]} onPress={() => updateDateStatus("available", true)}>
-            <Ionicons name="calendar" size={18} color="#fff" />
-            <Text style={[styles.actionText, { color: "#fff" }]}>Set All Available</Text>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Set availability</Text>
+          {selectedLabel ? (
+            <Text style={styles.selectedHint}>Selected: {selectedLabel}</Text>
+          ) : (
+            <Text style={styles.selectedHintMuted}>No date selected</Text>
+          )}
+
+          <View style={styles.availabilityRow}>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnFilled]}
+              onPress={() => updateDateStatus("available")}
+            >
+              <Ionicons name="checkmark-circle" size={18} color="#fff" />
+              <Text style={[styles.actionText, styles.actionTextLight]}>Available</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={() => updateDateStatus("unavailable")}
+            >
+              <Ionicons name="close-circle-outline" size={18} color={PRIMARY} />
+              <Text style={styles.actionText}>Unavailable</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.actionBtnFilled, styles.actionBtnFull]}
+            onPress={() => updateDateStatus("available", true)}
+          >
+            <Ionicons name="calendar-outline" size={18} color="#fff" />
+            <Text style={[styles.actionText, styles.actionTextLight]}>
+              Mark whole month available
+            </Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.pricingHeader}>
-          <Text style={styles.sectionTitle}>Service Pricing</Text>
-          <TouchableOpacity style={styles.addBtn} onPress={() => setPricingItems([...pricingItems, { id: Date.now().toString(), title: "Custom Rate", subtitle: "Additional service fee", price: "0", unit: "Per Item", icon: "add-circle-outline" }])}>
-            <Ionicons name="add" size={18} color={PRIMARY} />
-            <Text style={styles.addText}>Add</Text>
-          </TouchableOpacity>
-        </View>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Daily rate</Text>
+          <Text style={styles.rateHint}>
+            Shown to tourists when booking. Total = rate × people × days.
+          </Text>
 
-        {pricingItems.map((item) => (
-          <View key={item.id} style={styles.priceCard}>
-            <Ionicons name={item.icon} size={22} color={PRIMARY} />
-            <View style={styles.priceCardContent}>
-              <Text style={styles.priceTitle}>{item.title}</Text>
-              <Text style={styles.priceSubtitle}>{item.subtitle}</Text>
+          <View style={styles.rateRow}>
+            <View style={styles.rateIconWrap}>
+              <Ionicons name="walk-outline" size={22} color={PRIMARY} />
             </View>
-            <View style={styles.priceRight}>
-              {editingPriceId === item.id ? (
-                <View style={styles.priceEditContainer}>
-                  <TextInput style={styles.priceInput} value={tempPrice} onChangeText={setTempPrice} keyboardType="numeric" autoFocus />
-                  <View style={styles.priceEditActions}>
-                    <TouchableOpacity onPress={() => handlePriceEdit(item, "save")} style={styles.priceEditBtn}>
-                      <Ionicons name="checkmark" size={16} color="#22C55E" />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handlePriceEdit(item, "cancel")} style={styles.priceEditBtn}>
-                      <Ionicons name="close" size={16} color="#FF4D4F" />
-                    </TouchableOpacity>
-                  </View>
+            <View style={styles.rateBody}>
+              <Text style={styles.rateTitle}>Standard daily rate</Text>
+              <Text style={styles.rateSubtitle}>USD per person per day</Text>
+            </View>
+            <View style={styles.rateEditArea}>
+              {editingRate ? (
+                <View style={styles.rateEditRow}>
+                  <Text style={styles.rateCurrency}>$</Text>
+                  <TextInput
+                    style={styles.rateInput}
+                    value={tempRate}
+                    onChangeText={setTempRate}
+                    keyboardType="decimal-pad"
+                    autoFocus
+                    placeholder="0"
+                  />
+                  <TouchableOpacity onPress={saveDailyRate} hitSlop={8}>
+                    <Ionicons name="checkmark-circle" size={24} color="#22C55E" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEditingRate(false);
+                      setTempRate("");
+                    }}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="close-circle" size={24} color="#FF4D4F" />
+                  </TouchableOpacity>
                 </View>
               ) : (
-                <>
-                  <View style={styles.priceDisplay}>
-                    <Text style={styles.price}>${item.price}</Text>
-                    <Text style={styles.unit}>{item.unit}</Text>
-                  </View>
-                  <View style={styles.priceActions}>
-                    <TouchableOpacity onPress={() => handlePriceEdit(item, "start")} style={styles.priceActionBtn}>
-                      <Ionicons name="pencil" size={16} color={PRIMARY} />
-                    </TouchableOpacity>
-                    {pricingItems.length > 1 && (
-                      <TouchableOpacity onPress={() => Alert.alert("Delete Pricing", "Are you sure?", [{ text: "Cancel" }, { text: "Delete", style: "destructive", onPress: () => setPricingItems((prev) => prev.filter((i) => i.id !== item.id)) }])} style={styles.priceActionBtn}>
-                        <Ionicons name="trash" size={16} color="#FF4D4F" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </>
+                <TouchableOpacity
+                  style={styles.rateDisplayBtn}
+                  onPress={() => {
+                    setEditingRate(true);
+                    setTempRate(dailyRate);
+                  }}
+                >
+                  <Text style={styles.rateAmount}>
+                    {formatUsdAmount(parseFloat(dailyRate) || 0, { decimals: "auto" })}
+                  </Text>
+                  <Ionicons name="pencil" size={16} color={PRIMARY} />
+                </TouchableOpacity>
               )}
             </View>
           </View>
-        ))}
-
-        <View style={{ height: 20 }} />
+        </View>
       </ScrollView>
 
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-        <TouchableOpacity style={[styles.saveBtn, loading && styles.saveBtnDisabled]} onPress={handleSave} disabled={loading}>
-          {loading ? <ActivityIndicator color="#fff" /> : (
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <TouchableOpacity
+          style={[styles.saveBtn, loading && styles.saveBtnDisabled]}
+          onPress={handleSave}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
             <>
-              <Ionicons name="lock-closed" size={16} color="#fff" />
-              <Text style={styles.saveText}>Save Changes</Text>
+              <Ionicons name="save-outline" size={18} color="#fff" />
+              <Text style={styles.saveText}>Save changes</Text>
             </>
           )}
         </TouchableOpacity>
@@ -416,52 +533,280 @@ export default function ScheduleRatesScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#F2F8FF" },
-  content: { padding: 20, paddingBottom: 140 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20, marginTop: 10 },
-  headerTitle: { fontFamily: "Nunito_700Bold", fontSize: 18 },
-  loadingContainer: { flexDirection: "row", alignItems: "center", justifyContent: "center", padding: 10, marginBottom: 10 },
-  loadingText: { marginLeft: 8, fontFamily: "Nunito_400Regular", color: "#666", fontSize: 14 },
-  card: { backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  calendarHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  monthText: { fontFamily: "Nunito_700Bold", fontSize: 16, color: "#111" },
-  weekRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
-  weekText: { width: "14.28%", textAlign: "center", fontFamily: "Nunito_400Regular", color: "#777", fontSize: 12 },
-  daysGrid: { flexDirection: "row", flexWrap: "wrap", marginTop: 8 },
-  dayCell: { width: "14.28%", alignItems: "center", marginVertical: 6 },
-  dayCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: "center", alignItems: "center", backgroundColor: "transparent" },
-  selectedCircle: { backgroundColor: PRIMARY },
-  pastDayCircle: { opacity: 0.5 },
-  bookedCircle: { backgroundColor: "#FF4D4F", opacity: 0.8 },
-  dayText: { fontFamily: "Nunito_400Regular", fontSize: 14 },
-  legendRow: { flexDirection: "row", justifyContent: "space-around", marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: "#E5E7EB" },
-  legendItem: { flexDirection: "row", alignItems: "center" },
-  legendDot: { width: 10, height: 10, borderRadius: 5, marginRight: 6 },
-  legendText: { fontFamily: "Nunito_400Regular", fontSize: 12, color: "#666" },
-  sectionTitle: { fontFamily: "Nunito_700Bold", fontSize: 16, marginBottom: 12, color: "#111" },
-  availabilityRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
-  actionBtn: { flex: 1, borderWidth: 1.5, borderColor: PRIMARY, borderRadius: 12, padding: 14, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, backgroundColor: "#fff" },
-  actionBtnFilled: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  actionText: { fontFamily: "Nunito_700Bold", color: PRIMARY, fontSize: 14 },
-  pricingHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4 },
-  addText: { fontFamily: "Nunito_700Bold", color: PRIMARY, fontSize: 14 },
-  priceCard: { backgroundColor: "#fff", borderRadius: 14, padding: 16, flexDirection: "row", alignItems: "center", marginBottom: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 },
-  priceCardContent: { flex: 1, marginLeft: 12 },
-  priceTitle: { fontFamily: "Nunito_700Bold", fontSize: 15, color: "#111" },
-  priceSubtitle: { fontFamily: "Nunito_400Regular", color: "#777", fontSize: 12, marginTop: 2 },
-  priceRight: { alignItems: "flex-end", gap: 4 },
-  priceDisplay: { alignItems: "flex-end" },
-  price: { fontFamily: "Nunito_700Bold", fontSize: 16, color: "#111" },
-  unit: { fontFamily: "Nunito_400Regular", fontSize: 11, color: "#777" },
-  priceActions: { flexDirection: "row", gap: 8 },
-  priceActionBtn: { padding: 4 },
-  priceEditContainer: { alignItems: "flex-end", gap: 6 },
-  priceInput: { borderWidth: 1, borderColor: PRIMARY, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, fontFamily: "Nunito_700Bold", fontSize: 14, minWidth: 60, textAlign: "right" },
-  priceEditActions: { flexDirection: "row", gap: 8 },
-  priceEditBtn: { padding: 4 },
-  bottomBar: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "#fff", padding: 16, borderTopWidth: 1, borderTopColor: "#E5E7EB", shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 5 },
-  saveBtn: { backgroundColor: PRIMARY, padding: 16, borderRadius: 14, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8 },
-  saveBtnDisabled: { opacity: 0.6 },
-  saveText: { fontFamily: "Nunito_700Bold", color: "#fff", fontSize: 16 },
+  page: {
+    flex: 1,
+    backgroundColor: "#F2F8FF",
+  },
+  content: {
+    paddingHorizontal: PAGE_PADDING_HORIZONTAL,
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: PAGE_PADDING_HORIZONTAL,
+    paddingBottom: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontFamily: "Nunito_400Regular",
+    color: "#666",
+    fontSize: 14,
+  },
+  lead: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 14,
+    color: "#555",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  calendarHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  monthText: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 17,
+    color: "#111",
+  },
+  weekRow: {
+    flexDirection: "row",
+    marginBottom: 4,
+  },
+  weekText: {
+    width: "14.28%",
+    textAlign: "center",
+    fontFamily: "Nunito_600SemiBold",
+    color: "#888",
+    fontSize: 12,
+  },
+  daysGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  dayCell: {
+    width: "14.28%",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  dayCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  selectedCircle: {
+    backgroundColor: PRIMARY,
+  },
+  availableCircle: {
+    backgroundColor: "rgba(34, 197, 94, 0.12)",
+  },
+  pastDayCircle: {
+    opacity: 0.45,
+  },
+  bookedCircle: {
+    backgroundColor: "#FF4D4F",
+  },
+  reservedCircle: {
+    backgroundColor: "#FFA500",
+  },
+  dayText: {
+    fontFamily: "Nunito_600SemiBold",
+    fontSize: 14,
+  },
+  legendRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 6,
+  },
+  legendText: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 12,
+    color: "#666",
+  },
+  sectionTitle: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 16,
+    color: "#111",
+    marginBottom: 8,
+  },
+  selectedHint: {
+    fontFamily: "Nunito_600SemiBold",
+    fontSize: 13,
+    color: PRIMARY,
+    marginBottom: 12,
+  },
+  selectedHintMuted: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 13,
+    color: "#999",
+    marginBottom: 12,
+  },
+  availabilityRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 10,
+  },
+  actionBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: PRIMARY,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#fff",
+  },
+  actionBtnFilled: {
+    backgroundColor: PRIMARY,
+    borderColor: PRIMARY,
+  },
+  actionBtnFull: {
+    flex: 0,
+    width: "100%",
+  },
+  actionText: {
+    fontFamily: "Nunito_700Bold",
+    color: PRIMARY,
+    fontSize: 13,
+  },
+  actionTextLight: {
+    color: "#fff",
+  },
+  rateHint: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 13,
+    color: "#777",
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  rateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  rateIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#E8F1FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rateBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  rateTitle: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 15,
+    color: "#111",
+  },
+  rateSubtitle: {
+    fontFamily: "Nunito_400Regular",
+    fontSize: 12,
+    color: "#777",
+    marginTop: 2,
+  },
+  rateEditArea: {
+    alignItems: "flex-end",
+  },
+  rateDisplayBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  rateAmount: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 18,
+    color: "#111",
+  },
+  rateEditRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  rateCurrency: {
+    fontFamily: "Nunito_700Bold",
+    fontSize: 16,
+    color: "#555",
+  },
+  rateInput: {
+    borderWidth: 1,
+    borderColor: PRIMARY,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontFamily: "Nunito_700Bold",
+    fontSize: 16,
+    minWidth: 72,
+    textAlign: "right",
+    color: "#111",
+  },
+  bottomBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#fff",
+    paddingHorizontal: PAGE_PADDING_HORIZONTAL,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  saveBtn: {
+    backgroundColor: PRIMARY,
+    paddingVertical: 15,
+    borderRadius: 14,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  saveBtnDisabled: {
+    opacity: 0.6,
+  },
+  saveText: {
+    fontFamily: "Nunito_700Bold",
+    color: "#fff",
+    fontSize: 16,
+  },
 });
