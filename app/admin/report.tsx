@@ -1,3 +1,10 @@
+/**
+ * Report
+ * Route: /admin/report
+ *
+ * List tourist reports against guides.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -72,6 +79,8 @@ function statusColor(status: string): string {
 export default function AdminReportsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // --- Local state ---
   const [filter, setFilter] = useState<AdminReportFilter>("open");
   const [reports, setReports] = useState<AdminReport[]>([]);
   const [apiAvailable, setApiAvailable] = useState(true);
@@ -96,6 +105,7 @@ export default function AdminReportsScreen() {
     [filter, router]
   );
 
+  // --- Effects (load data, listeners) ---
   useFocusEffect(
     useCallback(() => {
       load();
@@ -134,6 +144,7 @@ export default function AdminReportsScreen() {
     { key: "all", label: "All" },
   ];
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <ScreenHeaderBar title="Reports" backIcon="arrow-back" />

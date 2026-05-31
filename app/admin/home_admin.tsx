@@ -1,3 +1,10 @@
+/**
+ * Home Admin
+ * Route: /admin/home_admin
+ *
+ * Admin dashboard — stats, pending licenses/activities, quick links.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -78,6 +85,7 @@ function userInitials(name: string): string {
 }
 
 function EmptyRow({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
+  // --- Render ---
   return (
     <View style={styles.emptyRow}>
       <Ionicons name={icon} size={20} color="#B0BEC5" />
@@ -89,6 +97,8 @@ function EmptyRow({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: 
 export default function HomeAdmin() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // --- Local state ---
   const [activeTab, setActiveTab] = useState<"guides" | "tourists">("guides");
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentGuides, setRecentGuides] = useState<UserItem[]>([]);
@@ -100,6 +110,7 @@ export default function HomeAdmin() {
   const [notifUnread, setNotifUnread] = useState(0);
   const [openAppeals, setOpenAppeals] = useState(0);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     if (Platform.OS !== "android") return;
     const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {

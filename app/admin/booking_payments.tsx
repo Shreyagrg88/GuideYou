@@ -1,3 +1,10 @@
+/**
+ * Booking Payments
+ * Route: /admin/booking_payments
+ *
+ * Queue of paid bookings awaiting final payout release.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -31,6 +38,8 @@ function formatShortDate(iso: string | null | undefined): string {
 export default function AdminBookingPaymentsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // --- Local state ---
   const [filter, setFilter] = useState<GuidePayoutStatusFilter>("pending");
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
@@ -73,6 +82,7 @@ export default function AdminBookingPaymentsScreen() {
     [limit, router]
   );
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     load(page, filter);
   }, [page, filter, load]);
@@ -92,6 +102,7 @@ export default function AdminBookingPaymentsScreen() {
     { key: "all", label: "All" },
   ];
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 12) + 8 }]}>

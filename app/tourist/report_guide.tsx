@@ -1,3 +1,10 @@
+/**
+ * Report Guide
+ * Route: /tourist/report_guide
+ *
+ * Report a guide for misconduct. POST /api/tourist/guides/:id/report
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -86,6 +93,8 @@ export default function ReportGuideScreen() {
   const guideRole = params.guideRole?.trim();
   const bookingLabel = params.bookingLabel?.trim();
 
+
+  // --- Local state ---
   const [selectedReason, setSelectedReason] = useState<ReportReasonId | null>(null);
   const [details, setDetails] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -96,6 +105,7 @@ export default function ReportGuideScreen() {
     return detailsTrimmed.length >= 10;
   }, [detailsTrimmed.length, params.guideId, selectedReason]);
 
+  // --- Handlers ---
   const handleSubmit = async () => {
     if (!canSubmit || submitting || !selectedReason || !params.guideId) return;
 
@@ -156,6 +166,7 @@ export default function ReportGuideScreen() {
     );
   }
 
+  // --- Render ---
   return (
     <KeyboardAvoidingView
       style={styles.root}

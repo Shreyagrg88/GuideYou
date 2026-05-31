@@ -1,3 +1,10 @@
+/**
+ * Plan Trip
+ * Route: /tourist/plan_trip
+ *
+ * AI trip planner input: destination, interests, number of days (1–14).
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -23,11 +30,14 @@ export default function PlanTripScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [destination, setDestination] = useState("");
-  const [interests, setInterests] = useState("");
-  const [days, setDays] = useState(3);
+
+  // --- Local state ---
+  const [destination, setDestination] = useState(""); // e.g. Pokhara
+  const [interests, setInterests] = useState(""); // free text: hiking, food
+  const [days, setDays] = useState(3); // 1–14 days (backend limit)
   const [loading, setLoading] = useState(false);
 
+  // True when user can tap Generate (min 2 chars each field)
   const canGenerate = useMemo(
     () => destination.trim().length > 1 && interests.trim().length > 1 && !loading,
     [destination, interests, loading]
@@ -37,6 +47,7 @@ export default function PlanTripScreen() {
     setDays((current) => Math.min(14, Math.max(1, current + delta)));
   };
 
+  // --- Handlers ---
   const handleGenerate = () => {
     if (destination.trim().length < 2) {
       Alert.alert("Destination required", "Please enter at least 2 characters for your destination.");
@@ -51,6 +62,7 @@ export default function PlanTripScreen() {
     }
 
     setLoading(true);
+    // Result screen calls POST /api/plan-trip (weather + LLM itinerary)
     router.push({
       pathname: "/tourist/plan_trip_result",
       params: {
@@ -62,6 +74,7 @@ export default function PlanTripScreen() {
     setLoading(false);
   };
 
+  // --- Render ---
   return (
     <View style={styles.page}>
       <ScrollView

@@ -1,3 +1,10 @@
+/**
+ * Booking Detail
+ * Route: /tourist/booking_detail
+ *
+ * Single booking view. Pay, cancel, confirm tour started, mark complete.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -104,6 +111,8 @@ export default function BookingDetailScreen() {
     bookingId?: string;
   }>();
 
+
+  // --- Local state ---
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +120,7 @@ export default function BookingDetailScreen() {
   const [timeRemaining, setTimeRemaining] = useState<string>("");
 
   // Fetch booking details from API
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     const fetchBookingDetail = async () => {
       if (!params.bookingId) {
@@ -320,6 +330,7 @@ export default function BookingDetailScreen() {
     );
   };
 
+  // --- Handlers ---
   const handlePayNow = async () => {
     if (!booking) return;
     const proceed = await promptRefundDetailsBeforePay(() =>
@@ -536,6 +547,7 @@ export default function BookingDetailScreen() {
     },
   ];
 
+  // --- Render ---
   return (
     <View style={styles.container}>
       <ScrollView

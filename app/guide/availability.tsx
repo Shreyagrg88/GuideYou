@@ -1,3 +1,10 @@
+/**
+ * Availability
+ * Route: /guide/availability
+ *
+ * Set available and blocked dates. GET/POST /api/guide/availability
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -52,6 +59,8 @@ export default function ScheduleRatesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const today = new Date();
+
+  // --- Local state ---
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -62,6 +71,7 @@ export default function ScheduleRatesScreen() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     fetchAvailability();
   }, []);
@@ -216,6 +226,7 @@ export default function ScheduleRatesScreen() {
     setTempRate("");
   };
 
+  // --- Handlers ---
   const handleSave = async () => {
     setLoading(true);
     try {
@@ -307,6 +318,7 @@ export default function ScheduleRatesScreen() {
     );
   }
 
+  // --- Render ---
   return (
     <View style={styles.page}>
       <ScrollView

@@ -1,3 +1,10 @@
+/**
+ * Admin Profile
+ * Route: /admin/admin_profile
+ *
+ * Admin profile and logout.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -105,6 +112,8 @@ function initials(profile: AdminProfile | null): string {
 export default function AdminProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // --- Local state ---
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -123,6 +132,7 @@ export default function AdminProfileScreen() {
     setLoading(false);
   }, [router]);
 
+  // --- Effects (load data, listeners) ---
   useFocusEffect(
     useCallback(() => {
       load();
@@ -143,6 +153,7 @@ export default function AdminProfileScreen() {
     );
   }
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <ScrollView

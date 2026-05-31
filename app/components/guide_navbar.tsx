@@ -1,3 +1,10 @@
+/**
+ * Guide Navbar
+ * Route: /components/guide_navbar
+ *
+ * Bottom navigation for guides: Home, Chat, Create activity, Bookings, Profile.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, usePathname } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -8,6 +15,8 @@ import { fetchConversations } from "../../api/chat";
 export default function GuideNavBar() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+
+  // --- Local state ---
   const [totalUnread, setTotalUnread] = useState(0);
 
   const loadUnread = useCallback(() => {
@@ -21,6 +30,7 @@ export default function GuideNavBar() {
       .catch(() => setTotalUnread(0));
   }, []);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     loadUnread();
   }, [pathname, loadUnread]);
@@ -29,6 +39,7 @@ export default function GuideNavBar() {
 
   const isActive = (route: string) => pathname.includes(route);
 
+  // --- Render ---
   return (
     <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       <View style={styles.container}>

@@ -1,3 +1,10 @@
+/**
+ * Booking Payment Detail
+ * Route: /admin/booking_payment_detail
+ *
+ * Release milestone payout to guide. PATCH /api/admin/bookings/:id/release-payout
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -46,6 +53,7 @@ function formatDt(iso: string | null | undefined): string {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  // --- Render ---
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -73,6 +81,8 @@ export default function AdminBookingPaymentDetailScreen() {
     ? params.bookingId[0]
     : params.bookingId;
 
+
+  // --- Local state ---
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState<AdminPaymentBooking | null>(null);
   const [payoutLoading, setPayoutLoading] = useState(false);
@@ -121,6 +131,7 @@ export default function AdminBookingPaymentDetailScreen() {
     }
   }, []);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     loadBooking();
   }, [loadBooking]);

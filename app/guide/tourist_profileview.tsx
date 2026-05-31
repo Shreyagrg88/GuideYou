@@ -1,3 +1,10 @@
+/**
+ * Tourist Profileview
+ * Route: /guide/tourist_profileview
+ *
+ * Guide views a tourist's public profile before/during a booking.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -62,6 +69,8 @@ export default function TouristProfileView() {
   }>();
 
   const touristId = params.touristId;
+
+  // --- Local state ---
   const [profile, setProfile] = useState<TouristProfile | null>(null);
   const [pastActivities, setPastActivities] = useState<PastActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -206,6 +215,7 @@ export default function TouristProfileView() {
   }, []);
 
   // Show profile from params immediately so details appear before API (if any)
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     if (!touristId) return;
     if (params.touristName || params.touristAvatar || params.touristEmail || params.touristUsername) {
@@ -319,6 +329,7 @@ export default function TouristProfileView() {
 
   const totalBookings = pastActivities.length;
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <ScrollView

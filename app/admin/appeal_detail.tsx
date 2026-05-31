@@ -1,3 +1,10 @@
+/**
+ * Appeal Detail
+ * Route: /admin/appeal_detail
+ *
+ * Approve or reject a guide account appeal.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
@@ -52,6 +59,8 @@ export default function AdminAppealDetailScreen() {
   const params = useLocalSearchParams<{ appealId?: string }>();
   const appealId = params.appealId?.trim() ?? "";
 
+
+  // --- Local state ---
   const [appeal, setAppeal] = useState<AdminAppealDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -168,6 +177,7 @@ export default function AdminAppealDetailScreen() {
     );
   }
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <ScreenHeaderBar title="Appeal detail" backIcon="arrow-back" />

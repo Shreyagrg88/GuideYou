@@ -1,3 +1,10 @@
+/**
+ * Activity Detail
+ * Route: /guide/activity_detail
+ *
+ * View or delete guide's own activity. GET/DELETE /api/activities/:id
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -47,6 +54,8 @@ export default function GuideActivityDetail() {
   const params = useLocalSearchParams<{ id?: string | string[] }>();
 
   const activityId = pickRouteParam(params.id);
+
+  // --- Local state ---
   const [activity, setActivity] = useState<ActivityPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -112,6 +121,7 @@ export default function GuideActivityDetail() {
     }
   }, [activityId]);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     void loadActivity();
   }, [loadActivity]);
@@ -223,6 +233,7 @@ export default function GuideActivityDetail() {
     );
   }
 
+  // --- Render ---
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
       <ScrollView

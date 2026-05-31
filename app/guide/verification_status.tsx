@@ -1,3 +1,10 @@
+/**
+ * Verification Status
+ * Route: /guide/verification_status
+ *
+ * Shows license pending/approved/rejected status while admin reviews.
+ */
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -22,6 +29,8 @@ export default function VerificationStatus() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+
+  // --- Local state ---
   const [status, setStatus] = useState<LicenseStatus>("pending");
   const [loading, setLoading] = useState(true);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
@@ -83,6 +92,7 @@ export default function VerificationStatus() {
     }
   };
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     fetchStatus();
   }, []);
@@ -101,6 +111,7 @@ export default function VerificationStatus() {
     return <SkeletonCentered />;
   }
 
+  // --- Render ---
   return (
     <View style={styles.container}>
       <ScrollView

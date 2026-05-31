@@ -1,3 +1,10 @@
+/**
+ * Edit Profile
+ * Route: /guide/edit_profile
+ *
+ * Edit guide profile and avatar. PATCH /api/guide/profile
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -29,6 +36,8 @@ export default function EditProfile() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
+
+  // --- Local state ---
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -43,6 +52,7 @@ export default function EditProfile() {
   const scale = width / 375;
   const s = (size: number) => Math.round(size * scale);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     fetchProfile();
   }, []);
@@ -154,6 +164,7 @@ export default function EditProfile() {
     return <SkeletonProfileScreen />;
   }
 
+  // --- Render ---
   return (
     <ScrollView
       style={styles.container}

@@ -1,3 +1,10 @@
+/**
+ *  Layout
+ * Route: /(tabs)/_layout
+ *
+ * Expo starter tabs layout — main app uses role-specific nav bars instead.
+ */
+
 import { Tabs } from 'expo-router';
 import React from 'react';
 
@@ -9,6 +16,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 export default function TabLayout() {
   const colorScheme = useColorScheme();
 
+  // --- Render ---
   return (
     <Tabs
       screenOptions={{

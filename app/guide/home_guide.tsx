@@ -1,3 +1,10 @@
+/**
+ * Home Guide
+ * Route: /guide/home_guide
+ *
+ * Guide dashboard — upcoming bookings, earnings summary, quick actions.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -30,6 +37,8 @@ export default function GuideHome() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
+
+  // --- Local state ---
   const [loading, setLoading] = useState(true);
   const [homepageData, setHomepageData] = useState<any>(null);
   const [guideName, setGuideName] = useState<string | null>(null);
@@ -101,6 +110,7 @@ export default function GuideHome() {
     await Promise.all([fetchGuideHomepage(), fetchGuideProfile(), fetchNotificationUnread()]);
   }, [fetchNotificationUnread]);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     fetchAllData();
   }, []);
@@ -150,6 +160,7 @@ export default function GuideHome() {
     });
   };
 
+  // --- Render ---
   return (
     <View style={styles.wrapper}>
       <ScrollView

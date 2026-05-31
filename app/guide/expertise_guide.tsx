@@ -1,3 +1,10 @@
+/**
+ * Expertise Guide
+ * Route: /guide/expertise_guide
+ *
+ * Guide onboarding — select expertise categories. POST /api/auth/set-expertise
+ */
+
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import { API_URL } from "../../constants/api";
@@ -37,6 +44,8 @@ export default function ExpertiseScreen() {
     ? params.userId[0]
     : params.userId;
 
+
+  // --- Local state ---
   const [selectedExpertise, setSelectedExpertise] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -54,6 +63,7 @@ export default function ExpertiseScreen() {
     );
   };
 
+  // --- Handlers ---
   const handleContinue = async () => {
     if (selectedExpertise.length === 0) {
       Alert.alert("Validation", "Please select at least one expertise.");
@@ -100,6 +110,7 @@ export default function ExpertiseScreen() {
     }
   };
 
+  // --- Render ---
   return (
     <View style={styles.container}>
       <Text style={styles.title}>What are your areas of expertise?</Text>

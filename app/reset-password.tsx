@@ -1,3 +1,10 @@
+/**
+ * Reset-Password
+ * Route: /reset-password
+ *
+ * Enter OTP + new password. POST /api/auth/reset-password.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -44,6 +51,8 @@ export default function ResetPasswordScreen() {
 
   const initialEmail = paramOne(params.email);
   const initialSentMsg = paramOne(params.sentMsg);
+
+  // --- Local state ---
   const [expiresMinutes, setExpiresMinutes] = useState(() =>
     Math.max(1, Number(paramOne(params.expiresInMinutes) || "15") || 15)
   );
@@ -64,6 +73,7 @@ export default function ResetPasswordScreen() {
     initialSentMsg || null
   );
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     if (!initialEmail) {
       router.replace("/forgot-password");
@@ -82,6 +92,7 @@ export default function ResetPasswordScreen() {
     setOtp(value.replace(/\D/g, "").slice(0, 6));
   }, []);
 
+  // --- Handlers ---
   const handleReset = async () => {
     const trimmedEmail = normalizeEmail(email);
     const trimmedOtp = otp.trim();
@@ -180,6 +191,7 @@ export default function ResetPasswordScreen() {
     return null;
   }
 
+  // --- Render ---
   return (
     <View style={styles.container}>
       <KeyboardAvoidingView

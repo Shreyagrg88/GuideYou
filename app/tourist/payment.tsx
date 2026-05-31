@@ -1,3 +1,10 @@
+/**
+ * Payment
+ * Route: /tourist/payment
+ *
+ * Tourist refund/payment profile (eSewa or bank for refunds). PATCH /api/tourist/payment-details
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -43,6 +50,8 @@ export default function TouristPaymentScreen() {
   const scale = width / 375;
   const s = (size: number) => Math.round(size * scale);
 
+
+  // --- Local state ---
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(true);
@@ -89,6 +98,7 @@ export default function TouristPaymentScreen() {
     }
   }, [applyDto, router]);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     load();
   }, [load]);
@@ -108,6 +118,7 @@ export default function TouristPaymentScreen() {
     return true;
   };
 
+  // --- Handlers ---
   const handleSave = async () => {
     if (!validate()) return;
     try {
@@ -165,6 +176,7 @@ export default function TouristPaymentScreen() {
     return <SkeletonProfileScreen />;
   }
 
+  // --- Render ---
   return (
     <KeyboardAvoidingView
       style={styles.flex}

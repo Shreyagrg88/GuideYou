@@ -1,3 +1,10 @@
+/**
+ * Interest Tourist
+ * Route: /tourist/interest_tourist
+ *
+ * Tourist onboarding — pick interests. POST /api/auth/set-interests
+ */
+
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import { API_URL } from "../../constants/api";
@@ -33,6 +40,8 @@ export default function InterestsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const userId = params.userId as string;
+
+  // --- Local state ---
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -44,6 +53,7 @@ export default function InterestsScreen() {
     );
   };
 
+  // --- Handlers ---
   const handleContinue = async () => {
     try {
       setLoading(true);
@@ -78,6 +88,7 @@ export default function InterestsScreen() {
     }
   };
 
+  // --- Render ---
   return (
     <View style={styles.container}>
       <Text style={styles.title}>What interests you?</Text>

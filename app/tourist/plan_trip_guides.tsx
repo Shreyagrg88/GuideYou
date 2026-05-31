@@ -1,3 +1,10 @@
+/**
+ * Plan Trip Guides
+ * Route: /tourist/plan_trip_guides
+ *
+ * Guides matched to plan. POST /api/plan-trip/guides (rule-based, no LLM).
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -60,6 +67,8 @@ export default function PlanTripGuidesScreen() {
     [itineraryJsonParam]
   );
 
+
+  // --- Local state ---
   const [guides, setGuides] = useState<PlanTripGuideMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +99,7 @@ export default function PlanTripGuidesScreen() {
     }
   }, [destination, interests, numberOfDays, itineraryFromParams]);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     load();
   }, [load]);
@@ -129,6 +139,7 @@ export default function PlanTripGuidesScreen() {
     } as Href);
   };
 
+  // --- Render ---
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
       <ScrollView

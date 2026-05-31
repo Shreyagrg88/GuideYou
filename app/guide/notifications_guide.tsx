@@ -1,3 +1,10 @@
+/**
+ * Notifications Guide
+ * Route: /guide/notifications_guide
+ *
+ * Guide notifications inbox.
+ */
+
 import {
   getNotifications,
   markAllNotificationsRead,
@@ -29,6 +36,8 @@ const NAVBAR_HEIGHT = 70;
 export default function NotificationsGuide() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // --- Local state ---
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -51,6 +60,7 @@ export default function NotificationsGuide() {
     setRefreshing(false);
   }, []);
 
+  // --- Effects (load data, listeners) ---
   useFocusEffect(
     useCallback(() => {
       load();
@@ -85,6 +95,7 @@ export default function NotificationsGuide() {
 
   const showEmpty = !loading && !refreshing && notifications.length === 0;
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <ScreenHeaderBar title="Notifications" />

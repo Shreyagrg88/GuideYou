@@ -1,3 +1,10 @@
+/**
+ * Notifications Admin
+ * Route: /admin/notifications_admin
+ *
+ * Admin notifications inbox.
+ */
+
 import {
   adminNotificationIcon,
   formatNotificationDate,
@@ -28,6 +35,8 @@ import { SkeletonBookingTab } from "@/components/Skeleton";
 export default function NotificationsAdmin() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // --- Local state ---
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -56,6 +65,7 @@ export default function NotificationsAdmin() {
     setRefreshing(false);
   }, []);
 
+  // --- Effects (load data, listeners) ---
   useFocusEffect(
     useCallback(() => {
       load();
@@ -86,6 +96,7 @@ export default function NotificationsAdmin() {
 
   const showEmpty = !loading && !refreshing && notifications.length === 0;
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <ScreenHeaderBar title="Notifications" backColor="#142032" titleStyle={{ color: "#142032" }} />

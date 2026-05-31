@@ -1,3 +1,10 @@
+/**
+ * Review License
+ * Route: /admin/review_license
+ *
+ * Review one guide license — approve or reject with reason.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -38,11 +45,14 @@ export default function ReviewLicense() {
   const router = useRouter();
   const { userId } = useLocalSearchParams<{ userId: string }>();
 
+
+  // --- Local state ---
   const [data, setData] = useState<LicenseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [rejectReason, setRejectReason] = useState("");
   const [previewVisible, setPreviewVisible] = useState(false);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     fetchLicense();
   }, []);
@@ -135,6 +145,7 @@ export default function ReviewLicense() {
 
   if (!data) return null;
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <ScreenHeaderBar title="License Review" backIcon="arrow-back" />

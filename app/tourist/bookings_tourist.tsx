@@ -1,3 +1,10 @@
+/**
+ * Bookings Tourist
+ * Route: /tourist/bookings_tourist
+ *
+ * List all tourist bookings with status filters.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -71,6 +78,8 @@ type Booking = {
 export default function BookingsTouristScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ tab?: string }>();
+
+  // --- Local state ---
   const [tab, setTab] = useState<"upcoming" | "past" | "pending" | "accepted">(
     (params.tab as "upcoming" | "past" | "pending" | "accepted") || "upcoming"
   );
@@ -83,6 +92,7 @@ export default function BookingsTouristScreen() {
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   // Countdown timer for payment expiration
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     const interval = setInterval(() => {
       const newTimeRemaining = new Map<string, string>();
@@ -817,6 +827,7 @@ export default function BookingsTouristScreen() {
     });
   };
 
+  // --- Render ---
   return (
     <View style={styles.mainContainer}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>

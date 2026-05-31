@@ -1,3 +1,10 @@
+/**
+ * Login
+ * Route: /login
+ *
+ * Login form. POST /api/auth/login, saves JWT. Guides also check license status and platform terms before home.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -38,12 +45,15 @@ export default function Login() {
   const router = useRouter();
   useRedirectIfAuthenticated(router);
 
+
+  // --- Local state ---
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // --- Handlers ---
   const handleLogin = async () => {
     const validationError = validateLoginForm(email, password);
     if (validationError) {
@@ -57,6 +67,7 @@ export default function Login() {
       setLoading(true);
       setErrorMessage(null);
 
+      // Step 1: Authenticate with backend — returns JWT + user role
       const response = await fetch(
         `${API_URL}/api/auth/login`,
         {
@@ -80,6 +91,7 @@ export default function Login() {
         return;
       }
 
+      // Step 2: Save token and user to AsyncStorage for later API calls
       await persistAuthSession(token, user);
 
       if (user.role === "tourist" || user.role === "guide" || user.role === "admin") {
@@ -88,6 +100,7 @@ export default function Login() {
 
       const userId = pickStoredUserId(user);
 
+      // Step 3a: Tourist — must accept platform terms, then go home
       if (user.role === "tourist") {
         if (
           userId &&
@@ -99,6 +112,7 @@ export default function Login() {
         return;
       }
 
+      // Step 3b: Admin goes straight to admin dashboard
       if (user.role === "admin") {
         replaceWithRoleHome(router, user.role);
         return;
@@ -109,6 +123,7 @@ export default function Login() {
         return;
       }
 
+      // Step 3c: Guide — check if admin disabled this account
       if (data.accountDisabled === true || user.accountStatus === "disabled") {
         await markGuideAccountDisabled();
         replaceWithAccountDisabled(router);
@@ -117,7 +132,7 @@ export default function Login() {
 
       await clearGuideAccountDisabled();
 
-
+      // Step 3d: Guide must have an approved license before using the app
       let hasLicenseFile = false;
       let licenseStatus: string | null = null;
 
@@ -173,6 +188,7 @@ export default function Login() {
     }
   };
 
+  // --- Render ---
   return (
     <KeyboardAvoidingView
       style={styles.container}

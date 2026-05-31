@@ -1,3 +1,10 @@
+/**
+ * Verification
+ * Route: /admin/verification
+ *
+ * Hub for pending license and activity approvals.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -39,12 +46,15 @@ function mapActivity(item: any): ActivityItem {
 
 export default function VerificationRequest() {
   const router = useRouter();
+
+  // --- Local state ---
   const [activeSection, setActiveSection] = useState<"licenses" | "activities">("licenses");
   const [licenses, setLicenses] = useState<LicenseItem[]>([]);
   const [pendingActivities, setPendingActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     fetchPendingLicenses();
     fetchPendingActivities();
@@ -122,6 +132,7 @@ export default function VerificationRequest() {
 
   const isLicenses = activeSection === "licenses";
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <ScreenHeaderBar title="Verification" backIcon="arrow-back" />

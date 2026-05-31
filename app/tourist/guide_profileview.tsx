@@ -1,3 +1,10 @@
+/**
+ * Guide Profileview
+ * Route: /tourist/guide_profileview
+ *
+ * Public guide profile, activities, reviews. Entry point to book or custom tour.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -93,6 +100,8 @@ export default function GuideProfileView() {
   }>();
 
   const guideId = params.guideId;
+
+  // --- Local state ---
   const [guide, setGuide] = useState<GuidePublicProfile | null>(null);
   const [loading, setLoading] = useState(!!guideId);
   const [error, setError] = useState<string | null>(null);
@@ -189,6 +198,7 @@ export default function GuideProfileView() {
     }
   }, [guideId]);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
@@ -330,6 +340,7 @@ export default function GuideProfileView() {
     } catch {}
   }, [guideId, guide?.id]);
 
+  // --- Handlers ---
   const handleSubmitReview = async () => {
     const id = guideId ?? guide?.id;
     if (!id) return;
@@ -479,6 +490,7 @@ export default function GuideProfileView() {
     );
   }
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <ScrollView

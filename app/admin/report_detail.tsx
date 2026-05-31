@@ -1,3 +1,10 @@
+/**
+ * Report Detail
+ * Route: /admin/report_detail
+ *
+ * Investigate report — update status, optionally disable guide account.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
@@ -49,6 +56,8 @@ export default function AdminReportDetailScreen() {
   const params = useLocalSearchParams<{ reportId?: string }>();
   const reportId = params.reportId?.trim() ?? "";
 
+
+  // --- Local state ---
   const [report, setReport] = useState<AdminReportDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -222,6 +231,7 @@ export default function AdminReportDetailScreen() {
     );
   }
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <ScreenHeaderBar title="Report detail" backIcon="arrow-back" />

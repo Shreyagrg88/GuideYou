@@ -1,3 +1,10 @@
+/**
+ * Profile Guide
+ * Route: /guide/profile_guide
+ *
+ * Guide profile tab — activities, reviews, availability preview, logout.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -74,6 +81,8 @@ export default function Profile() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
+
+  // --- Local state ---
   const [profile, setProfile] = useState<GuideProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
@@ -107,6 +116,7 @@ export default function Profile() {
   const scale = width / 375;
   const s = (size: number) => Math.round(size * scale);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     fetchProfile();
   }, []);
@@ -358,6 +368,7 @@ export default function Profile() {
 
   if (!profile) return null;
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <ScrollView

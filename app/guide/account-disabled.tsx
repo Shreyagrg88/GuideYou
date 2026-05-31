@@ -1,3 +1,10 @@
+/**
+ * Account-Disabled
+ * Route: /guide/account-disabled
+ *
+ * Shown when admin disabled account. View reason and submit appeal.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
@@ -54,6 +61,7 @@ function appealStatusColor(status: string): string {
 }
 
 function AppealStatusCard({ appeal }: { appeal: GuideAppeal }) {
+  // --- Render ---
   return (
     <View style={styles.appealCard}>
       <View style={styles.appealHeader}>
@@ -77,6 +85,8 @@ function AppealStatusCard({ appeal }: { appeal: GuideAppeal }) {
 export default function AccountDisabledScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // --- Local state ---
   const [info, setInfo] = useState<GuideDisableInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -105,12 +115,14 @@ export default function AccountDisabledScreen() {
     }
   }, [router]);
 
+  // --- Effects (load data, listeners) ---
   useFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
   );
 
+  // --- Handlers ---
   const handleSubmitAppeal = async () => {
     const trimmed = message.trim();
     if (trimmed.length < 10) {

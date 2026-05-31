@@ -1,3 +1,10 @@
+/**
+ * Bookings Guide
+ * Route: /guide/bookings_guide
+ *
+ * List guide bookings and incoming custom tour requests.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -93,6 +100,8 @@ const transformBooking = (booking: any): Booking => ({
 export default function BookingRequestScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ tab?: string }>();
+
+  // --- Local state ---
   const [tab, setTab] = useState<"upcoming" | "past" | "requests">((params.tab as any) || "requests");
   const [loading, setLoading] = useState(true);
   const [upcoming, setUpcoming] = useState<Booking[]>([]);
@@ -198,6 +207,7 @@ export default function BookingRequestScreen() {
     }
   }, [router]);
 
+  // --- Handlers ---
   const handleBookingAction = async (bookingId: string, action: "accept" | "reject") => {
     if (action === "reject") {
       Alert.alert("Reject Booking", "Are you sure you want to reject this booking request?", [
@@ -235,6 +245,7 @@ export default function BookingRequestScreen() {
     }
   };
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     fetchBookings();
     if (params.tab && ["upcoming", "past", "requests"].includes(params.tab)) {
@@ -411,6 +422,7 @@ export default function BookingRequestScreen() {
     );
   };
 
+  // --- Render ---
   return (
     <View style={styles.mainContainer}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>

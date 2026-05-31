@@ -1,3 +1,10 @@
+/**
+ * Forgot-Password
+ * Route: /forgot-password
+ *
+ * Request password reset OTP. POST /api/auth/forgot-password — only proceeds if email is registered.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -23,11 +30,14 @@ import { isValidEmail, normalizeEmail } from "../utils/authValidation";
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // --- Local state ---
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
 
+  // --- Handlers ---
   const handleSubmit = async () => {
     const trimmed = normalizeEmail(email);
     if (!trimmed) {
@@ -68,6 +78,7 @@ export default function ForgotPasswordScreen() {
     }
   };
 
+  // --- Render ---
   return (
     <View style={styles.container}>
       <KeyboardAvoidingView

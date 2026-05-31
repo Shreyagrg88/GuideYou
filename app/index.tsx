@@ -1,3 +1,10 @@
+/**
+ * Index
+ * Route: /
+ *
+ * Splash screen (route: /). Shows logo for 2s, then checks AsyncStorage for JWT and sends user to their role home or /getstarted.
+ */
+
 import React, { useEffect } from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
@@ -6,17 +13,21 @@ import { redirectIfAuthenticated } from "../utils/authSession";
 export default function SplashScreen() {
   const router = useRouter();
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
-    let cancelled = false;
+    let cancelled = false; // prevents navigation if user leaves splash early
 
     const boot = async () => {
+      // If token exists, redirectIfAuthenticated sends user to tourist/guide/admin home
       if (await redirectIfAuthenticated(router)) {
         return;
       }
       if (cancelled) return;
+      // No session — show marketing entry screen
       router.replace("/getstarted");
     };
 
+    // Wait 2 seconds so branding is visible before routing
     const timer = setTimeout(() => {
       void boot();
     }, 2000);
@@ -27,6 +38,7 @@ export default function SplashScreen() {
     };
   }, [router]);
 
+  // --- Render --- (logo + app name only; no buttons on splash)
   return (
     <View style={styles.container}>
       <Image

@@ -1,3 +1,10 @@
+/**
+ * Getstarted
+ * Route: /getstarted
+ *
+ * Welcome screen. Entry point for new users — buttons navigate to /login or /signup.
+ */
+
 import React from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
@@ -7,6 +14,7 @@ export default function GetStarted() {
   const router = useRouter();
   useRedirectIfAuthenticated(router);
 
+  // --- Render ---
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Get Started</Text>

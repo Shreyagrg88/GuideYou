@@ -1,3 +1,10 @@
+/**
+ * Profile Tourist
+ * Route: /tourist/profile_tourist
+ *
+ * Tourist profile tab — view info, logout, links to edit profile.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -52,6 +59,8 @@ export default function ProfileTourist() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
+
+  // --- Local state ---
   const [profile, setProfile] = useState<TouristProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
@@ -177,6 +186,7 @@ export default function ProfileTourist() {
     }
   }, []);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
@@ -234,6 +244,7 @@ export default function ProfileTourist() {
 
   if (!profile) return null;
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <ScrollView

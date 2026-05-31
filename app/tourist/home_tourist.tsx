@@ -1,3 +1,10 @@
+/**
+ * Home Tourist
+ * Route: /tourist/home_tourist
+ *
+ * Tourist homepage. Browse activities by category, search, and guides available this week.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, usePathname, useRouter } from "expo-router";
@@ -87,6 +94,8 @@ function interestsFromProfilePayload(profileData: any): string[] {
 }
 
 export default function HomePage() {
+
+  // --- Local state ---
   const [activeFilter, setActiveFilter] = useState("All");
   const [activities, setActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -119,6 +128,7 @@ export default function HomePage() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     if (Platform.OS !== "android") return;
 
@@ -536,6 +546,7 @@ export default function HomePage() {
     );
   };
 
+  // --- Render ---
   return (
     <View style={styles.page}>
       <View style={[styles.headerArea, { paddingTop: Math.max(insets.top, 12) + 8 }]}>

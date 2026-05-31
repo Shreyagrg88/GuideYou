@@ -1,3 +1,10 @@
+/**
+ * Signup
+ * Route: /signup
+ *
+ * Registration. POST /api/auth/signup for tourist or guide role, then platform agreement and onboarding.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -30,6 +37,8 @@ import {
 
 export default function Signup() {
   const router = useRouter();
+
+  // --- Local state ---
   const [role, setRole] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -52,6 +61,7 @@ export default function Signup() {
     if (errorMessage) setErrorMessage(null);
   };
 
+  // --- Handlers ---
   const handleSignup = async () => {
     const validationError = validateSignupForm({
       role,
@@ -179,6 +189,7 @@ export default function Signup() {
     }
   };
 
+  // --- Render ---
   return (
     <KeyboardAvoidingView
       style={styles.container}

@@ -1,3 +1,10 @@
+/**
+ * Booking Detail
+ * Route: /guide/booking_detail
+ *
+ * Booking detail — accept/reject, confirm tour started, view tourist info.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -86,12 +93,15 @@ export default function BookingDetailScreen() {
     bookingId?: string;
   }>();
 
+
+  // --- Local state ---
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
 
   // Fetch booking details from API
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     const fetchBookingDetail = async () => {
       if (!params.bookingId) {
@@ -205,6 +215,7 @@ export default function BookingDetailScreen() {
   const getMediaUri = (path: string | null | undefined): string | null =>
     resolveMediaUri(path);
 
+  // --- Handlers ---
   const handleAccept = async () => {
     if (!booking) return;
 
@@ -371,6 +382,7 @@ export default function BookingDetailScreen() {
   const tourPhoto = booking.activity?.photo ?? null;
   const touristAvatarUri = getMediaUri(booking.tourist.avatar);
 
+  // --- Render ---
   return (
     <View style={styles.container}>
       <ScrollView

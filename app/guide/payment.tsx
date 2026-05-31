@@ -1,3 +1,10 @@
+/**
+ * Payment
+ * Route: /guide/payment
+ *
+ * Guide payout profile (eSewa/bank). PATCH /api/guide/payout-details
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -44,6 +51,8 @@ export default function GuidePaymentScreen() {
   const scale = width / 375;
   const s = (size: number) => Math.round(size * scale);
 
+
+  // --- Local state ---
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(true);
@@ -90,6 +99,7 @@ export default function GuidePaymentScreen() {
     }
   }, [applyDto, router]);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     load();
   }, [load]);
@@ -109,6 +119,7 @@ export default function GuidePaymentScreen() {
     return true;
   };
 
+  // --- Handlers ---
   const handleSave = async () => {
     if (!validate()) return;
     try {
@@ -165,6 +176,7 @@ export default function GuidePaymentScreen() {
     return <SkeletonProfileScreen />;
   }
 
+  // --- Render ---
   return (
     <KeyboardAvoidingView
       style={styles.flex}

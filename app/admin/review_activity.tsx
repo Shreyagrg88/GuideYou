@@ -1,3 +1,10 @@
+/**
+ * Review Activity
+ * Route: /admin/review_activity
+ *
+ * Review one activity submission — approve or reject.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -51,12 +58,15 @@ function photoUri(path: string): string {
 export default function ReviewActivity() {
   const router = useRouter();
   const { activityId } = useLocalSearchParams<{ activityId: string }>();
+
+  // --- Local state ---
   const [activity, setActivity] = useState<ActivityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectionInput, setShowRejectionInput] = useState(false);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     if (activityId) fetchActivity();
   }, [activityId]);
@@ -223,6 +233,7 @@ export default function ReviewActivity() {
 
   if (!activity) return null;
 
+  // --- Render ---
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>

@@ -1,3 +1,10 @@
+/**
+ * Custom Tour Request
+ * Route: /tourist/custom_tour_request
+ *
+ * Request a custom tour from a guide. POST /api/tourist/custom-tour-request (pending until guide accepts).
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -74,6 +81,8 @@ export default function CustomTourRequest() {
   }>();
 
   const today = new Date();
+
+  // --- Local state ---
   const [step, setStep] = useState<1 | 2>(1);
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -91,6 +100,7 @@ export default function CustomTourRequest() {
   const [submitting, setSubmitting] = useState(false);
   const [profileAlignedRating, setProfileAlignedRating] = useState<string | null>(null);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     const gid = params.guideId?.trim();
     if (!gid) {
@@ -371,6 +381,7 @@ export default function CustomTourRequest() {
     }
   };
 
+  // --- Handlers ---
   const handleSubmitRequest = async () => {
     if (!tourName.trim()) {
       Alert.alert("Required Field", "Please enter the name of the tour.");
@@ -485,6 +496,7 @@ export default function CustomTourRequest() {
     });
   };
 
+  // --- Render ---
   return (
     <View style={styles.page}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>

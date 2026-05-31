@@ -1,3 +1,10 @@
+/**
+ * Weatheranditinary
+ * Route: /tourist/weatheranditinary
+ *
+ * Weather + AI itinerary for a specific activity. Uses /api/generate-itinerary.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -186,6 +193,8 @@ export default function WeatherAndItineraryScreen() {
   const activityId = paramOne(params.activityId);
   const numberOfDays = Math.max(1, Number(paramOne(params.numberOfDays) || "1") || 1);
 
+
+  // --- Local state ---
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
@@ -237,6 +246,7 @@ export default function WeatherAndItineraryScreen() {
     }
   }, [activityId, applyRecommendation, numberOfDays]);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     load();
   }, [load]);
@@ -282,6 +292,7 @@ export default function WeatherAndItineraryScreen() {
   const selectedDay = dailyDays[safeSelectedIndex];
   const bestDay = weather?.bestDayForActivity;
 
+  // --- Render ---
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
       <ScrollView

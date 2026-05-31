@@ -1,3 +1,10 @@
+/**
+ * Verification
+ * Route: /guide/verification
+ *
+ * Upload tourism license image. POST /api/license/upload
+ */
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
@@ -37,6 +44,8 @@ export default function LicenseUpload() {
   const params = useLocalSearchParams<{ userId?: string | string[] }>();
   const routeUserId = pickParam(params.userId);
 
+
+  // --- Local state ---
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<{
     uri: string;
@@ -84,6 +93,7 @@ export default function LicenseUpload() {
     }
   };
 
+  // --- Handlers ---
   const handleSubmit = async () => {
     if (!selectedFile) {
       Alert.alert("Error", "Please upload a license file");
@@ -148,6 +158,7 @@ export default function LicenseUpload() {
     }
   };
 
+  // --- Render ---
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Verify Your License</Text>

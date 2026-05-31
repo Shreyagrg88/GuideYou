@@ -1,3 +1,10 @@
+/**
+ * Guide List
+ * Route: /tourist/guide_list
+ *
+ * List guides filtered by category. GET /api/tourist/guides?category=...
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -44,6 +51,8 @@ export default function GuideList() {
     duration?: string;
   }>();
 
+
+  // --- Local state ---
   const [guides, setGuides] = useState<Guide[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -80,6 +89,7 @@ export default function GuideList() {
     }
   };
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     if (category) {
       fetchGuides(category);
@@ -93,6 +103,7 @@ export default function GuideList() {
     return <SkeletonListScreen rows={10} />;
   }
 
+  // --- Render ---
   return (
     <ScrollView style={styles.container}>
       <ScreenHeader title="Guides For You" includeTopInset marginBottom={20} />

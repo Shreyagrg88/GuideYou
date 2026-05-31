@@ -1,3 +1,10 @@
+/**
+ *  Layout
+ * Route: /guide/_layout
+ *
+ * Guide stack layout. Redirects unverified or disabled guides to correct screens.
+ */
+
 import { Stack, usePathname, useRouter } from "expo-router";
 import React, { useEffect } from "react";
 import { BackHandler, Platform } from "react-native";
@@ -16,6 +23,7 @@ export default function GuideLayout() {
   const router = useRouter();
   const pathname = usePathname();
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     if (pathname.includes("account-disabled")) return;
 
@@ -63,6 +71,7 @@ export default function GuideLayout() {
     return () => backHandler.remove();
   }, [pathname, router]);
 
+  // --- Render ---
   return (
     <Stack screenOptions={{ headerShown: false, gestureEnabled: true }}>
       <Stack.Screen

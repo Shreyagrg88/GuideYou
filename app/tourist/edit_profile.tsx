@@ -1,3 +1,10 @@
+/**
+ * Edit Profile
+ * Route: /tourist/edit_profile
+ *
+ * Edit tourist profile and avatar. PATCH /api/tourist/profile
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
@@ -55,6 +62,8 @@ export default function EditProfileTourist() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
+
+  // --- Local state ---
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -68,6 +77,7 @@ export default function EditProfileTourist() {
   const scale = width / 375;
   const s = (size: number) => Math.round(size * scale);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     fetchProfile();
   }, []);
@@ -258,6 +268,7 @@ export default function EditProfileTourist() {
     return <SkeletonProfileScreen />;
   }
 
+  // --- Render ---
   return (
     <ScrollView
       style={styles.container}

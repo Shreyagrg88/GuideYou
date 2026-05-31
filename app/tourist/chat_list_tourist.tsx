@@ -1,3 +1,10 @@
+/**
+ * Chat List Tourist
+ * Route: /tourist/chat_list_tourist
+ *
+ * List of chat conversations with guides.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -14,6 +21,8 @@ export default function ChatListTourist() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+
+  // --- Local state ---
   const [search, setSearch] = useState("");
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,6 +41,7 @@ export default function ChatListTourist() {
     }
   };
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     loadConversations();
   }, []);
@@ -97,6 +107,7 @@ export default function ChatListTourist() {
     </TouchableOpacity>
   );
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <View style={[styles.content, { paddingTop: insets.top + 8 }]}>

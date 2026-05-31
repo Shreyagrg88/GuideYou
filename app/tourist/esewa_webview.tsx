@@ -1,3 +1,10 @@
+/**
+ * Esewa Webview
+ * Route: /tourist/esewa_webview
+ *
+ * eSewa checkout WebView. Loads server-generated payment form, polls booking until paid.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -66,6 +73,8 @@ export default function EsewaWebViewScreen() {
     gatewayUrl?: string;
     paramsJson?: string;
   }>();
+
+  // --- Local state ---
   const [loading, setLoading] = useState(true);
   const [confirmingPayment, setConfirmingPayment] = useState(false);
   const webViewRef = useRef<WebView>(null);
@@ -151,6 +160,7 @@ export default function EsewaWebViewScreen() {
     }, POLL_INTERVAL_MS);
   }, [bookingId, clearPoll, goBackSafe, router]);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     return () => {
       clearPoll();
@@ -195,6 +205,7 @@ export default function EsewaWebViewScreen() {
     );
   }
 
+  // --- Render ---
   return (
     <View style={styles.container}>
       <ScreenHeaderBar title="eSewa Payment" barStyle={{ borderBottomColor: "#eee" }} />

@@ -1,3 +1,10 @@
+/**
+ * Tour Detail
+ * Route: /tourist/tour_detail
+ *
+ * Activity/tour detail page. Shows photos, itinerary, price — navigates to booking.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -90,6 +97,8 @@ export default function TourDetails() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
 
+
+  // --- Local state ---
   const [activity, setActivity] = useState<ActivityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState<ReviewsData | null>(null);
@@ -126,6 +135,7 @@ export default function TourDetails() {
     [itineraryByDay]
   );
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     if (id) {
       fetchActivityDetail(id);
@@ -483,6 +493,7 @@ export default function TourDetails() {
     ? "…"
     : activityRatingLabel;
 
+  // --- Render ---
   return (
     <ScrollView
       style={styles.container}

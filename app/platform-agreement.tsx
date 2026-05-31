@@ -1,3 +1,10 @@
+/**
+ * Platform-Agreement
+ * Route: /platform-agreement
+ *
+ * Legal terms gate. User must accept before tourist interests or guide verification onboarding.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -31,6 +38,8 @@ export default function PlatformAgreementScreen() {
   const role = String(params.role ?? "").trim();
   const flow = String(params.flow ?? "signup").trim();
 
+
+  // --- Local state ---
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -58,6 +67,7 @@ export default function PlatformAgreementScreen() {
     router.replace("/signup");
   };
 
+  // --- Handlers ---
   const handleAgree = async () => {
     if (!agreed || submitting) return;
 
@@ -97,6 +107,7 @@ export default function PlatformAgreementScreen() {
     );
   };
 
+  // --- Render ---
   return (
     <View
       style={[

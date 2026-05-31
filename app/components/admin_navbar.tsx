@@ -1,3 +1,10 @@
+/**
+ * Admin Navbar
+ * Route: /components/admin_navbar
+ *
+ * Bottom navigation for admin: Home, Payments, Reports, Verification, Profile.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { router, usePathname } from "expo-router";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
@@ -9,6 +16,7 @@ export default function AdminNavBar() {
   const active = (route: string) => pathname.includes(route);
   const color = (route: string) => (active(route) ? "#007BFF" : "#7A7A7A");
 
+  // --- Render ---
   return (
     <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       <View style={styles.container}>

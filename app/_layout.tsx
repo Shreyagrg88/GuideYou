@@ -1,3 +1,10 @@
+/**
+ *  Layout
+ * Route: /_layout
+ *
+ * Root app layout. Loads fonts, wraps app in Stack navigator for all routes.
+ */
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { isExpoGo, navigateFromNotification, registerPushToken } from "../api/notifications";
 import { pickEntityId } from "../utils/activityRejection";
@@ -15,6 +22,7 @@ export default function Layout() {
     Nunito_700Bold,
   });
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     if (isExpoGo()) return;
     let sub: { remove: () => void } | null = null;
@@ -54,6 +62,7 @@ export default function Layout() {
     return <SkeletonAppBoot />;
   }
 
+  // --- Render ---
   return (
     <SafeAreaProvider>
       <Stack screenOptions={{ headerShown: false }} />

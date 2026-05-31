@@ -1,3 +1,10 @@
+/**
+ * Appeals
+ * Route: /admin/appeals
+ *
+ * List disabled guides who submitted account appeals.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
@@ -46,6 +53,8 @@ function statusColor(status: string): string {
 export default function AdminAppealsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // --- Local state ---
   const [filter, setFilter] = useState<AdminAppealFilter>("open");
   const [appeals, setAppeals] = useState<AdminAppeal[]>([]);
   const [total, setTotal] = useState(0);
@@ -66,6 +75,7 @@ export default function AdminAppealsScreen() {
     [filter]
   );
 
+  // --- Effects (load data, listeners) ---
   useFocusEffect(
     useCallback(() => {
       void load();
@@ -77,6 +87,7 @@ export default function AdminAppealsScreen() {
     void load(true);
   };
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <ScreenHeaderBar title="Guide appeals" backIcon="arrow-back" />

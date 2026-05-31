@@ -1,3 +1,10 @@
+/**
+ * Create Activity
+ * Route: /guide/create_activity
+ *
+ * Create or edit activity with photos. POST/PATCH /api/activities (pending admin approval).
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
@@ -41,6 +48,7 @@ function SectionLabel({
   children: React.ReactNode;
   style?: object;
 }) {
+  // --- Render ---
   return (
     <View style={[styles.sectionLabelRow, style]}>
       <View style={styles.sectionLabelBullet} />
@@ -71,6 +79,8 @@ export default function AddNewActivity() {
   const params = useLocalSearchParams<{ activityId?: string | string[] }>();
   const editingId = pickRouteParam(params.activityId);
 
+
+  // --- Local state ---
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
@@ -157,6 +167,7 @@ export default function AddNewActivity() {
     }
   }, [editingId]);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     void loadActivityForEdit();
   }, [loadActivityForEdit]);

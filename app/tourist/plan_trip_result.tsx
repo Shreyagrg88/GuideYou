@@ -1,3 +1,10 @@
+/**
+ * Plan Trip Result
+ * Route: /tourist/plan_trip_result
+ *
+ * Shows AI itinerary + weather + best outdoor day. POST /api/plan-trip.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -176,6 +183,8 @@ export default function PlanTripResultScreen() {
   const interests = paramOne(params.interests);
   const initialDays = Math.max(1, Number(paramOne(params.numberOfDays) || "3") || 3);
 
+
+  // --- Local state ---
   const [numberOfDays, setNumberOfDays] = useState(initialDays);
   const [headerTitle, setHeaderTitle] = useState(
     (destination || FALLBACK_LOCATION).replace(/\s+/g, " ")
@@ -226,6 +235,7 @@ export default function PlanTripResultScreen() {
     }
   }, [applyPlanResponse, destination, interests, numberOfDays]);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     load();
   }, [load]);
@@ -290,6 +300,7 @@ export default function PlanTripResultScreen() {
   const selectedDay = dailyDays[safeSelectedIndex];
   const bestDay = weather?.bestDayForActivity;
 
+  // --- Render ---
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
       <ScrollView

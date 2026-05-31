@@ -1,3 +1,10 @@
+/**
+ * Chat Tourist
+ * Route: /tourist/chat_tourist
+ *
+ * Chat thread with one guide. GET/POST /api/chat/with/:guideId
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -62,6 +69,8 @@ export default function ChatTourist() {
   const guideAvatar = params.guideAvatar;
 
   const avatarUri = resolveAvatarUri(guideAvatar);
+
+  // --- Local state ---
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +106,7 @@ export default function ChatTourist() {
     [counterpartId]
   );
 
+  // --- Effects (load data, listeners) ---
   useFocusEffect(
     useCallback(() => {
       void loadMessages(false);
@@ -113,6 +123,7 @@ export default function ChatTourist() {
     }
   }, [messages.length]);
 
+  // --- Handlers ---
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed || sending || !counterpartId) return;
@@ -195,6 +206,7 @@ export default function ChatTourist() {
     );
   };
 
+  // --- Render ---
   return (
     <KeyboardAvoidingView
       style={styles.root}

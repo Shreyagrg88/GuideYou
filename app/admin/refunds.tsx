@@ -1,3 +1,10 @@
+/**
+ * Refunds
+ * Route: /admin/refunds
+ *
+ * Cancelled paid bookings eligible for refund.
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -54,6 +61,8 @@ function refundStatusLabel(booking: AdminRefundBooking): string {
 export default function AdminRefundsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // --- Local state ---
   const [filter, setFilter] = useState<RefundStatusFilter>("due");
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
@@ -96,6 +105,7 @@ export default function AdminRefundsScreen() {
     [limit, router]
   );
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     load(page, filter);
   }, [page, filter, load]);
@@ -116,6 +126,7 @@ export default function AdminRefundsScreen() {
     { key: "all", label: "All" },
   ];
 
+  // --- Render ---
   return (
     <View style={styles.root}>
       <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 12) + 8 }]}>

@@ -1,3 +1,10 @@
+/**
+ * Booking
+ * Route: /tourist/booking
+ *
+ * Create standard booking for an activity. POST /api/tourist/booking (auto-accepted, 2h pay window).
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -54,6 +61,8 @@ export default function BookingPage() {
 
   const activityDuration = params.duration ? parseInt(params.duration, 10) : 1;
   const today = new Date();
+
+  // --- Local state ---
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -135,6 +144,7 @@ export default function BookingPage() {
     }
   };
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     if (params.guideId) fetchAvailability(params.guideId);
     else setLoading(false);
@@ -253,6 +263,7 @@ export default function BookingPage() {
     );
   };
 
+  // --- Handlers ---
   const handleBookRequest = async () => {
     if (selectedDateRange.length === 0) {
       Alert.alert("Select Date", activityDuration === 1 ? "Please select a date for your booking." : `Please select a start date for your ${activityDuration}-day booking.`);
@@ -381,6 +392,7 @@ export default function BookingPage() {
 
   const scrollBottomPadding = 200 + insets.bottom;
 
+  // --- Render ---
   return (
     <View style={styles.page}>
       <ScrollView

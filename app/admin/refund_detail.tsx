@@ -1,3 +1,10 @@
+/**
+ * Refund Detail
+ * Route: /admin/refund_detail
+ *
+ * Mark refund as processed. PATCH /api/admin/bookings/:id/mark-refund
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -40,6 +47,7 @@ function formatDt(iso: string | null | undefined): string {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  // --- Render ---
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -65,6 +73,8 @@ export default function AdminRefundDetailScreen() {
   const params = useLocalSearchParams<{ bookingId?: string | string[] }>();
   const bookingId = Array.isArray(params.bookingId) ? params.bookingId[0] : params.bookingId;
 
+
+  // --- Local state ---
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState<AdminRefundBooking | null>(null);
   const [paymentDetails, setPaymentDetails] = useState<AdminPayoutDetails | null>(null);
@@ -113,6 +123,7 @@ export default function AdminRefundDetailScreen() {
     }
   }, []);
 
+  // --- Effects (load data, listeners) ---
   useEffect(() => {
     void loadBooking();
   }, [loadBooking]);
